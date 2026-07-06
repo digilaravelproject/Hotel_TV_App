@@ -1,0 +1,182 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import '../bloc/webview_bloc.dart';
+import '../bloc/webview_event.dart';
+import '../bloc/webview_state.dart';
+import '../../../../core/widget/loading_widget.dart';
+import '../../../../core/widget/custom_app_text.dart';
+
+class TvWebviewScreen extends StatefulWidget {
+  const TvWebviewScreen({Key? key}) : super(key: key);
+
+  @override
+  State<TvWebviewScreen> createState() => _TvWebviewScreenState();
+}
+
+class _TvWebviewScreenState extends State<TvWebviewScreen> {
+  final FocusNode _webViewFocusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _webViewFocusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider<WebViewBloc>(
+      create: (_) => WebViewBloc()..add(InitializeWebView()),
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: BlocConsumer<WebViewBloc, WebViewState>(
+          listener: (context, state) {
+            if (state is WebViewReady) {
+              _webViewFocusNode.requestFocus();
+            }
+          },
+          builder: (context, state) {
+            if (state is WebViewDownloading) {
+              return _buildDownloading(state.message);
+            }
+            if (state is WebViewError) {
+              return _buildError(context, state.message);
+            }
+            if (state is WebViewReady) {
+              return _buildWebView(state.controller);
+            }
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWebView(WebViewController controller) {
+    return Focus(
+      focusNode: _webViewFocusNode,
+      autofocus: true,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent || event is KeyRepeatEvent) {
+          final key = event.logicalKey;
+          if (key == LogicalKeyboardKey.arrowRight) {
+            controller.runJavaScript("""
+              (function() {
+                var e = new KeyboardEvent('keydown', { 'key': 'ArrowRight', 'bubbles': true });
+                Object.defineProperty(e, 'keyCode', { value: 39 });
+                Object.defineProperty(e, 'which', { value: 39 });
+                document.dispatchEvent(e);
+              })();
+            """);
+          } else if (key == LogicalKeyboardKey.arrowLeft) {
+            controller.runJavaScript("""
+              (function() {
+                var e = new KeyboardEvent('keydown', { 'key': 'ArrowLeft', 'bubbles': true });
+                Object.defineProperty(e, 'keyCode', { value: 37 });
+                Object.defineProperty(e, 'which', { value: 37 });
+                document.dispatchEvent(e);
+              })();
+            """);
+          } else if (key == LogicalKeyboardKey.arrowUp) {
+            controller.runJavaScript("""
+              (function() {
+                var e = new KeyboardEvent('keydown', { 'key': 'ArrowUp', 'bubbles': true });
+                Object.defineProperty(e, 'keyCode', { value: 38 });
+                Object.defineProperty(e, 'which', { value: 38 });
+                document.dispatchEvent(e);
+              })();
+            """);
+          } else if (key == LogicalKeyboardKey.arrowDown) {
+            controller.runJavaScript("""
+              (function() {
+                var e = new KeyboardEvent('keydown', { 'key': 'ArrowDown', 'bubbles': true });
+                Object.defineProperty(e, 'keyCode', { value: 40 });
+                Object.defineProperty(e, 'which', { value: 40 });
+                document.dispatchEvent(e);
+              })();
+            """);
+          } else if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.select) {
+            controller.runJavaScript("""
+              (function() {
+                var e = new KeyboardEvent('keydown', { 'key': 'Enter', 'bubbles': true });
+                Object.defineProperty(e, 'keyCode', { value: 13 });
+                Object.defineProperty(e, 'which', { value: 13 });
+                document.dispatchEvent(e);
+              })();
+            """);
+          } else if (key == LogicalKeyboardKey.goBack) {
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
+      },
+      child: WebViewWidget(controller: controller),
+    );
+  }
+
+  Widget _buildDownloading(String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const LoadingWidget(size: 40, strokeWidth: 4),
+          const SizedBox(height: 20),
+          CustomAppText(
+            message,
+            
+            color: Colors.white70,
+            fontSize: 16,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildError(BuildContext context, String errorMessage) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+            const SizedBox(height: 16),
+            const CustomAppText(
+              'Failed to Load Dashboard',
+              
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+            const SizedBox(height: 8),
+            CustomAppText(
+              errorMessage,
+              
+              color: Colors.white60,
+              fontSize: 13,
+              height: 1.4,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6366F1),
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () {
+                context.read<WebViewBloc>().add(RetryWebViewLoad());
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry Load'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

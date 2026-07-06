@@ -1,0 +1,168 @@
+import 'dart:io';
+import 'package:archive/archive.dart';
+import 'package:dio/dio.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import '../../constants/app_constants.dart';
+import '../../constants/api_constents.dart';
+import '../network/api_client.dart';
+import '../storage/shared_prefs.dart';
+import '../../utils/logger.dart';
+
+class TemplateManagerService {
+  static const String _templateFolderName = 'tv_template';
+  static bool _isUpdating = false;
+
+  /// Gets the directory where the template assets are stored
+  static Future<Directory> getTemplateDirectory() async {
+    final docDir = await getApplicationDocumentsDirectory();
+    final templatePath = p.join(docDir.path, _templateFolderName);
+    final dir = Directory(templatePath);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    return dir;
+  }
+
+  /// Checks if index.html exists locally in the template folder
+  static Future<bool> isTemplateDownloaded() async {
+    final dir = await getTemplateDirectory();
+    final indexFile = File(p.join(dir.path, 'index.html'));
+    return await indexFile.exists();
+  }
+
+  /// Returns the local path to the template's index.html
+  static Future<String> getTemplatePath() async {
+    final dir = await getTemplateDirectory();
+    return p.join(dir.path, 'index.html');
+  }
+
+  /// Regenerates data.json in the template directory from stored login data
+  static Future<void> regenerateDataJson() async {
+    try {
+      final loginData = SharedPrefs.getString(AppConstants.tvLoginDataKey);
+      if (loginData == null || loginData.isEmpty) return;
+
+      final dir = await getTemplateDirectory();
+      final file = File(p.join(dir.path, 'data.json'));
+      await file.writeAsString(loginData);
+      Logger.i('[TemplateManager] data.json regenerated successfully.');
+    } catch (e) {
+      Logger.e('[TemplateManager] Error regenerating data.json: $e');
+    }
+  }
+
+  /// Checks the backend for a new template version, and updates silently if available
+  static Future<void> checkAndUpdateTemplateSilent({Function(double)? onProgress}) async {
+    if (_isUpdating) {
+      Logger.i('[TemplateManager] Update check/download is already in progress. Ignoring duplicate call.');
+      return;
+    }
+    _isUpdating = true;
+    try {
+      Logger.i('[TemplateManager] Checking for template updates...');
+      final ApiClient apiClient = ApiClient();
+      
+      final response = await apiClient.get(
+        ApiConstants.checkTemplateVersionUri,
+        enableRetry: false,
+      );
+
+      if (response.statusCode == 200 && response.data != null && response.data['status'] == true) {
+        final String? latestVersion = response.data['latest_version']?.toString();
+        final String? downloadUrl = response.data['download_url'];
+
+        if (latestVersion == null || downloadUrl == null || downloadUrl.isEmpty) {
+          Logger.w('[TemplateManager] Update check returned empty version or download URL.');
+          return;
+        }
+
+        final currentVersion = SharedPrefs.getString(AppConstants.templateVersionKey) ?? '0.0';
+        Logger.i('[TemplateManager] Current version: $currentVersion, Latest version: $latestVersion');
+
+        // Parse versions to compare
+        double currentVal = double.tryParse(currentVersion) ?? 0.0;
+        double latestVal = double.tryParse(latestVersion) ?? 0.0;
+
+        if (latestVal > currentVal || !await isTemplateDownloaded()) {
+          Logger.i('[TemplateManager] New version available. Starting background download...');
+          await _downloadAndExtractTemplate(downloadUrl, latestVersion, onProgress: onProgress);
+        } else {
+          Logger.i('[TemplateManager] Template is already up to date.');
+        }
+      } else {
+        Logger.w('[TemplateManager] Update check response invalid or template inactive.');
+      }
+    } catch (e) {
+      Logger.e('[TemplateManager] Error checking template updates: $e');
+    } finally {
+      _isUpdating = false;
+    }
+  }
+
+  /// Downloads the template ZIP, unzips it into the template directory, and deletes the ZIP file.
+  static Future<void> _downloadAndExtractTemplate(String url, String newVersion, {Function(double)? onProgress}) async {
+    try {
+      final docDir = await getApplicationDocumentsDirectory();
+      final tempZipPath = p.join(docDir.path, 'temp_template.zip');
+      
+      Logger.i('[TemplateManager] Downloading zip from: $url');
+      final dio = Dio();
+      await dio.download(
+        url,
+        tempZipPath,
+        onReceiveProgress: (received, total) {
+          if (total != -1) {
+            double progress = received / total;
+            if (onProgress != null) {
+              onProgress(progress);
+            }
+          }
+        },
+      );
+      Logger.i('[TemplateManager] Download completed. Starting extraction...');
+
+      final templateDir = await getTemplateDirectory();
+      
+      // Clean existing files in directory to avoid conflict
+      if (await templateDir.exists()) {
+        await templateDir.delete(recursive: true);
+        await templateDir.create(recursive: true);
+      }
+
+      // Read ZIP contents
+      final bytes = await File(tempZipPath).readAsBytes();
+      final archive = ZipDecoder().decodeBytes(bytes);
+
+      // Extract ZIP entries
+      for (final file in archive) {
+        final filename = file.name;
+        if (file.isFile) {
+          final data = file.content as List<int>;
+          final outFile = File(p.join(templateDir.path, filename));
+          await outFile.parent.create(recursive: true);
+          await outFile.writeAsBytes(data);
+        } else {
+          final outDir = Directory(p.join(templateDir.path, filename));
+          await outDir.create(recursive: true);
+        }
+      }
+
+      // Clean up temp ZIP
+      final tempZipFile = File(tempZipPath);
+      if (await tempZipFile.exists()) {
+        await tempZipFile.delete();
+      }
+
+      // Save new version code locally
+      await SharedPrefs.setString(AppConstants.templateVersionKey, newVersion);
+
+      // Regenerate data.json with latest login data
+      await regenerateDataJson();
+
+      Logger.i('[TemplateManager] Template updated successfully to version $newVersion.');
+    } catch (e) {
+      Logger.e('[TemplateManager] Error unzipping or downloading template: $e');
+    }
+  }
+}
