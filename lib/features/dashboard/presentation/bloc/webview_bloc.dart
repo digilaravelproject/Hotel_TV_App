@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/services/template/template_manager_service.dart';
 import '../../../../core/services/template/local_template_server.dart';
+import '../../../../core/services/storage/shared_prefs.dart';
 import 'webview_event.dart';
 import 'webview_state.dart';
 
@@ -50,6 +53,7 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
           NavigationDelegate(
             onPageFinished: (url) {
               _injectTvNavigationJs(controller);
+              _injectLoginData(controller);
             },
             onWebResourceError: (error) {
               if (!isClosed) {
@@ -109,6 +113,18 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
 ''';
     try {
       await controller.runJavaScript(js);
+    } catch (_) {
+    }
+  }
+
+  Future<void> _injectLoginData(WebViewController controller) async {
+    try {
+      final raw = SharedPrefs.getString(AppConstants.tvLoginDataKey);
+      if (raw == null || raw.isEmpty) return;
+      final b64 = base64Encode(utf8.encode(raw));
+      await controller.runJavaScript(
+        "window.tvLoginData = JSON.parse(atob('$b64'));",
+      );
     } catch (_) {
     }
   }
