@@ -701,11 +701,13 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
 
       String errorMsg = 'Failed to register TV';
       if (e is DioException) {
-        if (e.response?.data != null) {
-          if (e.response?.data is Map) {
-            errorMsg = (e.response?.data['message'] ?? e.response?.data['msg'] ?? errorMsg).toString();
+        final response = e.response;
+        if (response != null && response.data != null) {
+          final data = response.data;
+          if (data is Map) {
+            errorMsg = (data['message'] ?? data['msg'] ?? errorMsg).toString();
           } else {
-            errorMsg = e.response?.data.toString();
+            errorMsg = data.toString();
           }
         } else if (e.message != null) {
           errorMsg = e.message!;
