@@ -32,6 +32,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
   late final TextEditingController licenseKeyController;
   late final TextEditingController roomNoController;
+  bool _isLoading = false;
 
   late final FocusNode qrTabFocus;
   late final FocusNode manualTabFocus;
@@ -568,6 +569,17 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                 ],
               ),
             ),
+            if (_isLoading)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withOpacity(0.75),
+                  child: const LoadingWidget(
+                    type: LoadingType.tvScreen,
+                    title: AppText.registeringTitle,
+                    subtitle: AppText.registeringServerProgress,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -624,19 +636,9 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   void _performRegistration(BuildContext context, String licenseKey, String roomNo) async {
     Logger.i('Registration triggered for License: $licenseKey, Room: $roomNo');
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.transparent,
-      builder: (context) => PopScope(
-        canPop: false,
-        child: const LoadingWidget(
-          type: LoadingType.tvScreen,
-          title: AppText.registeringTitle,
-          subtitle: AppText.registeringServerProgress,
-        ),
-      ),
-    );
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
       final info = await DeviceInfoService.getFullDeviceInfo();
@@ -657,10 +659,9 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
         data: requestData,
       );
 
-      // Close loading dialog
-      if (context.mounted) {
-        Navigator.pop(context);
-      }
+      setState(() {
+        _isLoading = false;
+      });
 
       if (response.data != null && response.data['status'] == true) {
         final dataMap = response.data['data'] as Map<String, dynamic>?;
@@ -687,9 +688,9 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
         CustomSnackbar.showError(message: msg);
       }
     } catch (e) {
-      if (context.mounted) {
-        Navigator.pop(context);
-      }
+      setState(() {
+        _isLoading = false;
+      });
 
       String errorMsg = 'Failed to register TV';
       if (e is DioException) {
