@@ -1,11 +1,13 @@
 package com.digiemperor.hotel
 
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.media.tv.TvInputManager
 import android.net.Uri
 import android.util.Base64
 import android.view.KeyEvent
@@ -208,11 +210,28 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun getHdmiModels(): Map<String, String> {
-        return mapOf(
-            "HDMI 1" to "HDMI1",
-            "HDMI 2" to "HDMI2",
-            "HDMI 3" to "HDMI3",
-            "HDMI 4" to "HDMI4"
-        )
+        val inputsMap = mutableMapOf<String, String>()
+        try {
+            val tvInputManager = getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager
+            if (tvInputManager != null) {
+                val inputList = tvInputManager.tvInputList
+                for (input in inputList) {
+                    if (input.isPassthroughInput) {
+                        val id = input.id
+                        val label = input.loadLabel(this).toString()
+                        inputsMap[label] = id
+                    }
+                }
+            }
+        } catch (e: Exception) {
+        }
+
+        if (inputsMap.isEmpty()) {
+            inputsMap["HDMI 1"] = "HDMI1"
+            inputsMap["HDMI 2"] = "HDMI2"
+            inputsMap["HDMI 3"] = "HDMI3"
+            inputsMap["HDMI 4"] = "HDMI4"
+        }
+        return inputsMap
     }
 }

@@ -93,6 +93,8 @@ class FlutterBridgeHandler {
         return {'success': true};
 
       case 'getHdmiModels':
+      case 'getTvInputs':
+      case 'getLiveTvInputs':
         final result = await _tvChannel.invokeMethod<Map>('getHdmiModels');
         return result ?? {};
 
