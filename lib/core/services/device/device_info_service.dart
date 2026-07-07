@@ -1,6 +1,12 @@
+import 'dart:io';
+import 'dart:math';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/services.dart';
+import '../storage/shared_prefs.dart';
 
 class DeviceInfoService {
+  static const _channel = MethodChannel('com.digiemperor.hotel/device_info');
   static Map<String, dynamic>? _cachedDeviceInfo;
 
   /// Fetches and caches the complete device details
@@ -9,13 +15,89 @@ class DeviceInfoService {
       return _cachedDeviceInfo!;
     }
 
+    String deviceId = '';
+    String model = '';
+    String brand = '';
+    String osVersion = '';
+    String ipAddress = '';
+    String macAddress = '';
+
+    // Fetch IP Address
+    try {
+      final interfaces = await NetworkInterface.list(
+        includeLoopback: false,
+        type: InternetAddressType.IPv4,
+      );
+      for (var interface in interfaces) {
+        for (var addr in interface.addresses) {
+          if (!addr.isLoopback) {
+            ipAddress = addr.address;
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Fetch native MAC address via MethodChannel
+    try {
+      if (Platform.isAndroid) {
+        final String? nativeMac = await _channel.invokeMethod<String>('getMacAddress');
+        if (nativeMac != null && nativeMac.isNotEmpty) {
+          macAddress = nativeMac;
+        }
+      }
+    } catch (_) {}
+
+    // If native MAC address is not available due to OS restrictions,
+    // generate and persist a unique MAC address for this device.
+    if (macAddress.isEmpty) {
+      final storedMac = SharedPrefs.getString('device_mac_address');
+      if (storedMac != null && storedMac.isNotEmpty) {
+        macAddress = storedMac;
+      } else {
+        final random = Random();
+        final bytes = List<int>.generate(6, (_) => random.nextInt(256));
+        // Set local administration bit (locally administered MAC)
+        bytes[0] = (bytes[0] & 0xFC) | 0x02;
+        final generatedMac = bytes
+            .map((e) => e.toRadixString(16).padLeft(2, '0').toUpperCase())
+            .join(':');
+        await SharedPrefs.setString('device_mac_address', generatedMac);
+        macAddress = generatedMac;
+      }
+    }
+
+    final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+    try {
+      if (Platform.isAndroid) {
+        final AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+        // In newer versions of device_info_plus, unique ID is exposed via androidInfo.id
+        deviceId = androidInfo.id;
+        model = androidInfo.model;
+        brand = androidInfo.brand;
+        osVersion = androidInfo.version.release;
+      } else if (Platform.isIOS) {
+        final IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
+        deviceId = iosInfo.identifierForVendor ?? '';
+        model = iosInfo.model;
+        brand = 'Apple';
+        osVersion = iosInfo.systemVersion;
+      } else if (Platform.isMacOS) {
+        final MacOsDeviceInfo macInfo = await deviceInfo.macOsInfo;
+        deviceId = macInfo.systemGUID ?? '';
+        model = macInfo.model;
+        brand = 'Apple';
+        osVersion = macInfo.osRelease;
+      }
+    } catch (_) {}
+
     _cachedDeviceInfo = {
-      'deviceId': '6231A4D7B13402C5',
-      'macAddress': 'AA:BB:CC:DD:EE:FF',
-      'ipAddress': '192.168.1.100',
-      'model': 'BRAVIA-X90L',
-      'brand': 'Sony',
-      'osVersion': 'Android TV 12',
+      'deviceId': deviceId,
+      'macAddress': macAddress,
+      'ipAddress': ipAddress,
+      'model': model,
+      'brand': brand,
+      'osVersion': osVersion,
     };
 
     return _cachedDeviceInfo!;
