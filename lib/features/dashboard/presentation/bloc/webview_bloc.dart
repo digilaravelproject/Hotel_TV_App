@@ -170,16 +170,21 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
     if (!container) return;
     try {
       var inputs = await window.flutterBridge.getTvInputs();
-      var selectedHdmi = "";
+      var selectedHdmi = localStorage.getItem('selectedHdmiPort') || '';
       try {
         var serial = localStorage.getItem('deviceSerial');
         if (serial) {
           var config = await fetch('admin/devices/' + serial + '.json?t=' + Date.now()).then(r => r.json());
           if (config && config.tv_source === "HDMI") {
             selectedHdmi = config.package;
+            localStorage.setItem('selectedHdmiPort', selectedHdmi);
           }
         }
       } catch (e) {}
+
+      if (!selectedHdmi && inputs && inputs.length > 0) {
+        selectedHdmi = inputs[0].id || '';
+      }
 
       container.innerHTML = '';
       if (!inputs || inputs.length === 0) {
@@ -196,14 +201,19 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
         if (isSelected) {
           btn.textContent += ' (Selected)';
           btn.style.borderColor = '#b38a2d';
-          btn.style.background = 'rgba(179,138,45,0.3)';
+          btn.style.background = 'rgba(179,138,45,0.35)';
+          btn.style.boxShadow = '0 0 10px rgba(179,138,45,0.5)';
         }
         btn.setAttribute('data-model', inputId);
         btn.addEventListener('click', function() {
           var model = this.getAttribute('data-model');
-          if (model && window.flutterBridge && window.flutterBridge.launchHdmi) {
-            closeAppsOverlay();
-            window.flutterBridge.launchHdmi(model).catch(function(err) {});
+          if (model) {
+            localStorage.setItem('selectedHdmiPort', model);
+            window.loadTvInputs();
+            if (window.flutterBridge && window.flutterBridge.launchHdmi) {
+              closeAppsOverlay();
+              window.flutterBridge.launchHdmi(model).catch(function(err) {});
+            }
           }
         });
         btn.addEventListener('keydown', function(e) {
