@@ -42,26 +42,36 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
   Widget build(BuildContext context) {
     return BlocProvider<WebViewBloc>(
       create: (_) => WebViewBloc()..add(InitializeWebView()),
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: BlocConsumer<WebViewBloc, WebViewState>(
-          listener: (context, state) {
-            if (state is WebViewReady) {
-              _webViewFocusNode.requestFocus();
-            }
-          },
-          builder: (context, state) {
-            if (state is WebViewDownloading) {
-              return _buildDownloading(state.message);
-            }
-            if (state is WebViewError) {
-              return _buildError(context, state.message);
-            }
-            if (state is WebViewReady) {
-              return _buildWebView(state.controller);
-            }
-            return const SizedBox.shrink();
-          },
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) async {
+          if (didPop) return;
+          final ctrl = _controller;
+          if (ctrl != null) {
+            await _handleBackNavigation(ctrl);
+          }
+        },
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: BlocConsumer<WebViewBloc, WebViewState>(
+            listener: (context, state) {
+              if (state is WebViewReady) {
+                _webViewFocusNode.requestFocus();
+              }
+            },
+            builder: (context, state) {
+              if (state is WebViewDownloading) {
+                return _buildDownloading(state.message);
+              }
+              if (state is WebViewError) {
+                return _buildError(context, state.message);
+              }
+              if (state is WebViewReady) {
+                return _buildWebView(state.controller);
+              }
+              return const SizedBox.shrink();
+            },
+          ),
         ),
       ),
     );
@@ -70,48 +80,64 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
   bool _isBackHandling = false;
 
   Future<void> _handleBackNavigation(WebViewController controller) async {
-    if (_isBackHandling) return;
+    print('[BackNavigation] onBackPressed triggered');
+    if (_isBackHandling) {
+      print('[BackNavigation] Already handling back, ignoring');
+      return;
+    }
     _isBackHandling = true;
     try {
       try {
         final Object isOverlayVisible = await controller.runJavaScriptReturningResult(
           "!!(document.getElementById('appsOverlay') && document.getElementById('appsOverlay').classList.contains('show'))"
         );
+        print('[BackNavigation] isOverlayVisible: $isOverlayVisible');
         if (isOverlayVisible == true || isOverlayVisible == 'true' || isOverlayVisible == 1) {
           await controller.runJavaScript('window.closeAppsOverlay()');
+          print('[BackNavigation] Closed overlay');
           return;
         }
-      } catch (_) {}
+      } catch (e) {
+        print('[BackNavigation] Error checking overlay: $e');
+      }
 
-      // 1. Check if we are already at the home/root page
       final currentUrl = await controller.currentUrl() ?? '';
+      print('[BackNavigation] currentUrl: $currentUrl');
       final uri = Uri.tryParse(currentUrl);
       if (uri != null) {
         final path = uri.path;
         final hash = uri.fragment;
-        // If we are at the home page (root or index.html), do nothing to prevent app close
+        print('[BackNavigation] Parsed path: $path, hash: $hash');
         if ((path == '/' || path == '/index.html') && (hash.isEmpty || hash == '/')) {
+          print('[BackNavigation] On home page, ignoring back press to prevent app exit');
           return;
         }
       }
 
-      // 2. Try standard WebView goBack
       if (await controller.canGoBack()) {
+        print('[BackNavigation] canGoBack is true, going back');
         await controller.goBack();
         return;
+      } else {
+        print('[BackNavigation] canGoBack is false');
       }
 
-      // 3. Try JS history.back() for SPA routers
       final beforeUrl = await controller.currentUrl();
+      print('[BackNavigation] Trying history.back() from $beforeUrl');
       await controller.runJavaScript('history.back()');
       await Future.delayed(const Duration(milliseconds: 300));
       final afterUrl = await controller.currentUrl();
+      print('[BackNavigation] URL after history.back(): $afterUrl');
       if (beforeUrl != afterUrl) {
+        print('[BackNavigation] history.back() succeeded');
         return;
       }
-    } catch (_) {
+      print('[BackNavigation] history.back() did not change URL');
+    } catch (e) {
+      print('[BackNavigation] Error in back navigation: $e');
     } finally {
       _isBackHandling = false;
+      print('[BackNavigation] Reset _isBackHandling');
     }
   }
 
