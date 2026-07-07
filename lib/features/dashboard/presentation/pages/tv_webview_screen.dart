@@ -73,6 +73,16 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
     if (_isBackHandling) return;
     _isBackHandling = true;
     try {
+      try {
+        final Object isOverlayVisible = await controller.runJavaScriptReturningResult(
+          "!!(document.getElementById('appsOverlay') && document.getElementById('appsOverlay').classList.contains('show'))"
+        );
+        if (isOverlayVisible == true || isOverlayVisible == 'true' || isOverlayVisible == 1) {
+          await controller.runJavaScript('window.closeAppsOverlay()');
+          return;
+        }
+      } catch (_) {}
+
       // 1. Check if we are already at the home/root page
       final currentUrl = await controller.currentUrl() ?? '';
       final uri = Uri.tryParse(currentUrl);

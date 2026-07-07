@@ -109,7 +109,7 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
   }
   makeFocusable();
   var s = document.createElement('style');
-  s.textContent = '*:focus { outline: 2px solid #6366F1 !important; outline-offset: 2px !important; }';
+  s.textContent = '*:focus { outline: 2px solid #6366F1 !important; outline-offset: 2px !important; } #appsCloseBtn { display: none !important; }';
   document.head.appendChild(s);
   var first = document.querySelector('[tabindex]:not([tabindex="-1"])');
   if (first) first.focus();
