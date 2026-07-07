@@ -199,7 +199,6 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
         var isSelected = selectedHdmi && (selectedHdmi.toLowerCase() === inputId.toLowerCase());
         btn.textContent = input.label || input.id || 'HDMI';
         if (isSelected) {
-          btn.textContent += ' (Selected)';
           btn.style.borderColor = '#b38a2d';
           btn.style.background = 'rgba(179,138,45,0.35)';
           btn.style.boxShadow = '0 0 10px rgba(179,138,45,0.5)';
