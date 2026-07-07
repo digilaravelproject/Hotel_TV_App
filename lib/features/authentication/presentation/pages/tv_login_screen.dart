@@ -703,7 +703,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
       if (e is DioException) {
         if (e.response?.data != null) {
           if (e.response?.data is Map) {
-            errorMsg = e.response?.data['message'] ?? e.response?.data['msg'] ?? errorMsg;
+            errorMsg = (e.response?.data['message'] ?? e.response?.data['msg'] ?? errorMsg).toString();
           } else {
             errorMsg = e.response?.data.toString();
           }
