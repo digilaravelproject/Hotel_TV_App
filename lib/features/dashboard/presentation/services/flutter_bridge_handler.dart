@@ -41,6 +41,12 @@ class FlutterBridgeHandler {
 
   Future<dynamic> _dispatch(String method, List<dynamic> args) async {
     switch (method) {
+      case 'getInstalledApps':
+      case 'getApps':
+      case 'getAppList':
+        final apps = await _tvChannel.invokeMethod<List>('getInstalledApps');
+        return apps ?? [];
+
       case 'launchApp':
         final package = args[0] as String?;
         if (package == null) throw ArgumentError('package is required');
