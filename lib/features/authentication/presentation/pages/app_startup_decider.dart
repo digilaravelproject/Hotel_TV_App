@@ -36,6 +36,7 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
 
       final isDownloaded = await TemplateManagerService.isTemplateDownloaded();
       if (isDownloaded) {
+        await TemplateManagerService.regenerateDataJson();
         _navigateToWebview();
         // Background silent check without showing any UI or blocking
         TemplateManagerService.checkAndUpdateTemplateSilent();

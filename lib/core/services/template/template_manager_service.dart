@@ -68,6 +68,11 @@ class TemplateManagerService {
           final fileName = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'image_${url.hashCode}';
           final localFile = File(p.join(cacheDir.path, fileName));
           
+          if (await localFile.exists()) {
+            Logger.i('[TemplateManager] Offline media already cached: $fileName');
+            return 'cached_media/$fileName';
+          }
+          
           Logger.i('[TemplateManager] Downloading offline media: $url');
           await dio.download(url, localFile.path);
           Logger.i('[TemplateManager] Offline media cached at: ${localFile.path}');
