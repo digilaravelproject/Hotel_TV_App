@@ -23,7 +23,11 @@ class LocalTemplateServer {
       final dir = await TemplateManagerService.getTemplateDirectory();
       final dirPath = dir.path;
 
-      _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      try {
+        _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 40441);
+      } catch (_) {
+        _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      }
       _port = _server!.port;
 
       Logger.i('[LocalServer] Started on http://127.0.0.1:$_port');
