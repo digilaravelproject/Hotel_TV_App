@@ -81,6 +81,8 @@ class FlutterBridgeHandler {
           'macAddress': info['macAddress'] ?? '',
           'ipAddress': info['ipAddress'] ?? '',
           'osVersion': info['osVersion'] ?? '',
+          'serial': info['deviceId'] ?? '',
+          'ip': info['ipAddress'] ?? '',
         };
         return {
           'status': true,

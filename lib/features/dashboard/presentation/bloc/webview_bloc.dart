@@ -113,6 +113,57 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
   document.head.appendChild(s);
   var first = document.querySelector('[tabindex]:not([tabindex="-1"])');
   if (first) first.focus();
+
+  // Override template behavior for Applications and Live TV overlays
+  window.openAppsOverlay = function() {
+    var overlay = document.getElementById('appsOverlay');
+    if (!overlay) return;
+    overlay.classList.add('show');
+    document.getElementById('mainUI').style.display = 'none';
+    window.history.pushState(null, "", window.location.href);
+
+    var title = overlay.querySelector('.apps-title');
+    if (title) title.textContent = "Applications";
+    
+    var appsContainer = document.getElementById('apps-container');
+    if (appsContainer) appsContainer.style.display = '';
+    
+    var tvTitle = overlay.querySelector('.tv-section-title');
+    if (tvTitle) tvTitle.style.display = 'none';
+    
+    var tvContainer = document.getElementById('tv-inputs-container');
+    if (tvContainer) tvContainer.style.display = 'none';
+
+    if (typeof loadApplications === 'function') loadApplications();
+
+    var closeBtn = document.getElementById('appsCloseBtn');
+    if (closeBtn) setTimeout(function() { closeBtn.focus(); }, 100);
+  };
+
+  window.handleLiveTV = function() {
+    var overlay = document.getElementById('appsOverlay');
+    if (!overlay) return;
+    overlay.classList.add('show');
+    document.getElementById('mainUI').style.display = 'none';
+    window.history.pushState(null, "", window.location.href);
+
+    var title = overlay.querySelector('.apps-title');
+    if (title) title.textContent = "Live TV";
+    
+    var appsContainer = document.getElementById('apps-container');
+    if (appsContainer) appsContainer.style.display = 'none';
+    
+    var tvTitle = overlay.querySelector('.tv-section-title');
+    if (tvTitle) tvTitle.style.display = 'none';
+    
+    var tvContainer = document.getElementById('tv-inputs-container');
+    if (tvContainer) tvContainer.style.display = '';
+
+    if (typeof loadTvInputs === 'function') loadTvInputs();
+
+    var closeBtn = document.getElementById('appsCloseBtn');
+    if (closeBtn) setTimeout(function() { closeBtn.focus(); }, 100);
+  };
 })();
 ''';
     try {
