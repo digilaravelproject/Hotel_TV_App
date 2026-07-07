@@ -5,6 +5,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../../../core/services/storage/shared_prefs.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/services/device/device_info_service.dart';
 
 class FlutterBridgeHandler {
   final WebViewController controller;
@@ -67,12 +68,10 @@ class FlutterBridgeHandler {
         return {'success': true};
 
       case 'identifyDevice':
-        final result = await _tvChannel.invokeMethod<Map>('identifyDevice');
-        return result ?? {'success': false, 'error': 'identifyDevice returned null'};
+        return await DeviceInfoService.getFullDeviceInfo();
 
       case 'getSystemInfo':
-        final result = await _tvChannel.invokeMethod<Map>('getDeviceInfo');
-        return result ?? {'success': false, 'error': 'getDeviceInfo returned null'};
+        return await DeviceInfoService.getFullDeviceInfo();
 
       case 'launchHdmi':
         final model = args[0] as String?;
