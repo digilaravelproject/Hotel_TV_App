@@ -15,7 +15,7 @@ class AppStartupDecider extends StatefulWidget {
 }
 
 class _AppStartupDeciderState extends State<AppStartupDecider> {
-  String _statusMessage = 'Initializing...';
+  String _statusMessage = '';
 
   @override
   void initState() {
