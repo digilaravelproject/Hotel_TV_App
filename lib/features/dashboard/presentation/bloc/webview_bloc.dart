@@ -164,6 +164,59 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
     var closeBtn = document.getElementById('appsCloseBtn');
     if (closeBtn) setTimeout(function() { closeBtn.focus(); }, 100);
   };
+
+  window.loadTvInputs = async function() {
+    var container = document.getElementById('tv-inputs-container');
+    if (!container) return;
+    try {
+      var inputs = await window.flutterBridge.getTvInputs();
+      var selectedHdmi = "";
+      try {
+        var serial = localStorage.getItem('deviceSerial');
+        if (serial) {
+          var config = await fetch('admin/devices/' + serial + '.json?t=' + Date.now()).then(r => r.json());
+          if (config && config.tv_source === "HDMI") {
+            selectedHdmi = config.package;
+          }
+        }
+      } catch (e) {}
+
+      container.innerHTML = '';
+      if (!inputs || inputs.length === 0) {
+        container.innerHTML = '<div style="color:#888;font-size:1.1vw;">No TV inputs available</div>';
+        return;
+      }
+      inputs.forEach(function(input) {
+        var btn = document.createElement('button');
+        btn.className = 'tv-input-btn';
+        btn.tabIndex = 0;
+        var inputId = input.id || '';
+        var isSelected = selectedHdmi && (selectedHdmi.toLowerCase() === inputId.toLowerCase());
+        btn.textContent = input.label || input.id || 'HDMI';
+        if (isSelected) {
+          btn.textContent += ' (Selected)';
+          btn.style.borderColor = '#b38a2d';
+          btn.style.background = 'rgba(179,138,45,0.3)';
+        }
+        btn.setAttribute('data-model', inputId);
+        btn.addEventListener('click', function() {
+          var model = this.getAttribute('data-model');
+          if (model && window.flutterBridge && window.flutterBridge.launchHdmi) {
+            closeAppsOverlay();
+            window.flutterBridge.launchHdmi(model).catch(function(err) {});
+          }
+        });
+        btn.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' || e.keyCode === 13) {
+            this.click();
+          }
+        });
+        container.appendChild(btn);
+      });
+    } catch (e) {
+      container.innerHTML = '<div style="color:#888;font-size:1.1vw;">No TV inputs available</div>';
+    }
+  };
 })();
 ''';
     try {
