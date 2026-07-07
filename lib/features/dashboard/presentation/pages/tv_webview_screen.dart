@@ -73,20 +73,36 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
     if (_isBackHandling) return;
     _isBackHandling = true;
     try {
+      // 1. Check if we are already at the home/root page
+      final currentUrl = await controller.currentUrl() ?? '';
+      final uri = Uri.tryParse(currentUrl);
+      if (uri != null) {
+        final path = uri.path;
+        final hash = uri.fragment;
+        // If we are at the home page (root or index.html), do nothing to prevent app close
+        if ((path == '/' || path == '/index.html') && (hash.isEmpty || hash == '/')) {
+          return;
+        }
+      }
+
+      // 2. Try standard WebView goBack
       if (await controller.canGoBack()) {
         await controller.goBack();
         return;
       }
+
+      // 3. Try JS history.back() for SPA routers
       final beforeUrl = await controller.currentUrl();
       await controller.runJavaScript('history.back()');
       await Future.delayed(const Duration(milliseconds: 300));
       final afterUrl = await controller.currentUrl();
-      if (beforeUrl != afterUrl) return;
-    } catch (_) {}
-    if (mounted) {
-      Navigator.of(context).pop();
+      if (beforeUrl != afterUrl) {
+        return;
+      }
+    } catch (_) {
+    } finally {
+      _isBackHandling = false;
     }
-    _isBackHandling = false;
   }
 
   Widget _buildWebView(WebViewController controller) {
