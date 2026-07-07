@@ -38,20 +38,20 @@ class TemplateManagerService {
     return p.join(dir.path, 'index.html');
   }
 
-  static Future<void> _cacheOfflineMedia() async {
+  static Future<String?> _cacheOfflineMediaAndGetJson() async {
     try {
       final loginDataStr = SharedPrefs.getString(AppConstants.tvLoginDataKey);
-      if (loginDataStr == null || loginDataStr.isEmpty) return;
+      if (loginDataStr == null || loginDataStr.isEmpty) return null;
 
       final Map<String, dynamic> root = jsonDecode(loginDataStr);
       final Map<String, dynamic>? data = root['data'] as Map<String, dynamic>?;
-      if (data == null) return;
+      if (data == null) return loginDataStr;
 
       final Map<String, dynamic>? hotel = data['hotel'] as Map<String, dynamic>?;
-      if (hotel == null) return;
+      if (hotel == null) return loginDataStr;
 
       final Map<String, dynamic>? media = hotel['media'] as Map<String, dynamic>?;
-      if (media == null) return;
+      if (media == null) return loginDataStr;
 
       final dir = await getTemplateDirectory();
       final cacheDir = Directory(p.join(dir.path, 'cached_media'));
@@ -75,6 +75,12 @@ class TemplateManagerService {
           return 'cached_media/$fileName';
         } catch (e) {
           Logger.w('[TemplateManager] Failed to cache offline media ($url): $e');
+          final uri = Uri.parse(url);
+          final fileName = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'image_${url.hashCode}';
+          final localFile = File(p.join(cacheDir.path, fileName));
+          if (await localFile.exists()) {
+            return 'cached_media/$fileName';
+          }
           return url;
         }
       }
@@ -100,22 +106,22 @@ class TemplateManagerService {
         media['slider_images'] = cachedSliders;
       }
 
-      await SharedPrefs.setString(AppConstants.tvLoginDataKey, jsonEncode(root));
+      return jsonEncode(root);
     } catch (e) {
       Logger.e('[TemplateManager] Error caching offline media: $e');
+      return SharedPrefs.getString(AppConstants.tvLoginDataKey);
     }
   }
 
   /// Regenerates data.json in the template directory from stored login data
   static Future<void> regenerateDataJson() async {
     try {
-      await _cacheOfflineMedia();
-      final loginData = SharedPrefs.getString(AppConstants.tvLoginDataKey);
-      if (loginData == null || loginData.isEmpty) return;
+      final jsonToWrite = await _cacheOfflineMediaAndGetJson();
+      if (jsonToWrite == null || jsonToWrite.isEmpty) return;
 
       final dir = await getTemplateDirectory();
       final file = File(p.join(dir.path, 'data.json'));
-      await file.writeAsString(loginData);
+      await file.writeAsString(jsonToWrite);
       Logger.i('[TemplateManager] data.json regenerated successfully.');
     } catch (e) {
       Logger.e('[TemplateManager] Error regenerating data.json: $e');
