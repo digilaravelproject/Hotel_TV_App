@@ -226,12 +226,6 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
         }
 
-        if (inputsMap.isEmpty()) {
-            inputsMap["HDMI 1"] = "HDMI1"
-            inputsMap["HDMI 2"] = "HDMI2"
-            inputsMap["HDMI 3"] = "HDMI3"
-            inputsMap["HDMI 4"] = "HDMI4"
-        }
         return inputsMap
     }
 }
