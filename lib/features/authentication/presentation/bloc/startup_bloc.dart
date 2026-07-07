@@ -25,13 +25,7 @@ class StartupBloc extends Bloc<StartupEvent, StartupState> {
         return;
       }
 
-      final isDownloaded = await TemplateManagerService.isTemplateDownloaded();
-      if (isDownloaded) {
-        emit(StartupNavigateToWebview());
-        return;
-      }
-
-      emit(StartupInstalling(message: 'Installing...'));
+      emit(StartupInstalling(message: 'Checking for updates...'));
       await TemplateManagerService.checkAndUpdateTemplateSilent(
         onProgress: (progress) {
           if (!isClosed) {

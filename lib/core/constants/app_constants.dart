@@ -8,4 +8,6 @@ class AppConstants {
   // Storage Keys
   static const String tvLoginDataKey = 'tv_login_data';
   static const String templateVersionKey = 'template_version';
+  static const String userDataPref = 'user_data_pref';
+  static const String isLoggedInPref = 'is_logged_in_pref';
 }

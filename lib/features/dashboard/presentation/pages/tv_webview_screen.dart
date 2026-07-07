@@ -17,9 +17,23 @@ class TvWebviewScreen extends StatefulWidget {
 
 class _TvWebviewScreenState extends State<TvWebviewScreen> {
   final FocusNode _webViewFocusNode = FocusNode();
+  final MethodChannel _backChannel = const MethodChannel('com.digiemperor.hotel/back_handler');
+  WebViewController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _backChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onBackPressed') {
+        final ctrl = _controller;
+        if (ctrl != null) await _handleBackNavigation(ctrl);
+      }
+    });
+  }
 
   @override
   void dispose() {
+    _backChannel.setMethodCallHandler(null);
     _webViewFocusNode.dispose();
     super.dispose();
   }
@@ -53,7 +67,30 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
     );
   }
 
+  bool _isBackHandling = false;
+
+  Future<void> _handleBackNavigation(WebViewController controller) async {
+    if (_isBackHandling) return;
+    _isBackHandling = true;
+    try {
+      if (await controller.canGoBack()) {
+        await controller.goBack();
+        return;
+      }
+      final beforeUrl = await controller.currentUrl();
+      await controller.runJavaScript('history.back()');
+      await Future.delayed(const Duration(milliseconds: 300));
+      final afterUrl = await controller.currentUrl();
+      if (beforeUrl != afterUrl) return;
+    } catch (_) {}
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+    _isBackHandling = false;
+  }
+
   Widget _buildWebView(WebViewController controller) {
+    _controller = controller;
     return Focus(
       focusNode: _webViewFocusNode,
       autofocus: true,
@@ -105,9 +142,10 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
                 document.dispatchEvent(e);
               })();
             """);
-          } else if (key == LogicalKeyboardKey.goBack) {
-            return KeyEventResult.handled;
-          }
+            } else if (key == LogicalKeyboardKey.goBack) {
+              _handleBackNavigation(controller);
+              return KeyEventResult.handled;
+            }
         }
         return KeyEventResult.ignored;
       },
@@ -116,20 +154,9 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
   }
 
   Widget _buildDownloading(String message) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const LoadingWidget(size: 40, strokeWidth: 4),
-          const SizedBox(height: 20),
-          CustomAppText(
-            message,
-            
-            color: Colors.white70,
-            fontSize: 16,
-          ),
-        ],
-      ),
+    return LoadingWidget(
+      type: LoadingType.tvScreen,
+      subtitle: message,
     );
   }
 

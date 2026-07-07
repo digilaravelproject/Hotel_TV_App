@@ -24,7 +24,15 @@ class MainActivity : FlutterActivity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val keyCode = event.keyCode
-        // TV remote: bypass IME and dispatch directly to the content view
+
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            flutterEngine?.dartExecutor?.let { executor ->
+                MethodChannel(executor.binaryMessenger, "com.digiemperor.hotel/back_handler")
+                    .invokeMethod("onBackPressed", null)
+            }
+            return true
+        }
+
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
             keyCode == KeyEvent.KEYCODE_ENTER ||
             keyCode == KeyEvent.KEYCODE_DPAD_UP ||
@@ -32,7 +40,6 @@ class MainActivity : FlutterActivity() {
             keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
             keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
         ) {
-            // Bypass IME and dispatch directly to FlutterView via window.superDispatchKeyEvent
             return window.superDispatchKeyEvent(event)
         }
         return super.dispatchKeyEvent(event)

@@ -6,6 +6,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/services/template/template_manager_service.dart';
 import '../../../../core/services/template/local_template_server.dart';
 import '../../../../core/services/storage/shared_prefs.dart';
+import '../services/flutter_bridge_handler.dart';
 import 'webview_event.dart';
 import 'webview_state.dart';
 
@@ -26,7 +27,7 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
       var exists = await TemplateManagerService.isTemplateDownloaded();
       if (!exists) {
         emit(WebViewDownloading(message: 'Installing...'));
-        await TemplateManagerService.checkAndUpdateTemplateSilent(
+        await TemplateManagerService.downloadTemplateFromSavedData(
           onProgress: (progress) {
             if (!isClosed) {
               add(DownloadProgressUpdated(progress: progress));
@@ -47,8 +48,13 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
       await LocalTemplateServer.start();
 
       final controller = WebViewController();
+      final bridgeHandler = FlutterBridgeHandler(controller);
       controller
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..addJavaScriptChannel('FlutterBridge',
+            onMessageReceived: (message) {
+          bridgeHandler.handleMessage(message.message);
+        })
         ..setNavigationDelegate(
           NavigationDelegate(
             onPageFinished: (url) {
@@ -73,8 +79,6 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
           .loadRequest(Uri.parse('${LocalTemplateServer.baseUrl}/index.html'));
 
       emit(WebViewReady(controller: controller));
-
-      TemplateManagerService.checkAndUpdateTemplateSilent();
     } catch (e) {
       emit(WebViewError(message: 'Error loading web template: $e'));
     }

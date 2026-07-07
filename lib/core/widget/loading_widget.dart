@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
-enum LoadingType { indicator, fullScreen, overlay }
+enum LoadingType { indicator, fullScreen, overlay, tvScreen }
 
 class LoadingWidget extends StatelessWidget {
   final Color? color;
   final double? size;
   final double? strokeWidth;
   final LoadingType type;
+  final String? title;
+  final String? subtitle;
 
   const LoadingWidget({
     Key? key,
@@ -14,6 +16,8 @@ class LoadingWidget extends StatelessWidget {
     this.size,
     this.strokeWidth,
     this.type = LoadingType.indicator,
+    this.title,
+    this.subtitle,
   }) : super(key: key);
 
   @override
@@ -23,6 +27,8 @@ class LoadingWidget extends StatelessWidget {
         return _buildFullScreen(context);
       case LoadingType.overlay:
         return _buildOverlay(context);
+      case LoadingType.tvScreen:
+        return _buildTvScreen(context);
       case LoadingType.indicator:
       default:
         return _buildIndicator(context);
@@ -66,6 +72,48 @@ class LoadingWidget extends StatelessWidget {
         ),
         Center(child: _buildIndicator(context)),
       ],
+    );
+  }
+
+  Widget _buildTvScreen(BuildContext context) {
+    return Container(
+      color: Colors.black.withValues(alpha: 0.85),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: size ?? 80,
+              height: size ?? 80,
+              child: CircularProgressIndicator(
+                color: color ?? const Color(0xFF6366F1),
+                strokeWidth: strokeWidth ?? 6,
+              ),
+            ),
+            if (title != null) ...[
+              const SizedBox(height: 32),
+              Text(
+                title!,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            if (subtitle != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                subtitle!,
+                style: const TextStyle(
+                  color: Colors.white60,
+                  fontSize: 18,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

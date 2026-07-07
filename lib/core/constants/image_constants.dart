@@ -5,6 +5,6 @@ class ImageConstants {
 
   static const String imageNotFound = '${imagePath}image_not_found.png';
 
-  static const String appIcon = '${iconPath}app_icon.png';
+  static const String appIcon = 'assets/logo.png';
 
 }

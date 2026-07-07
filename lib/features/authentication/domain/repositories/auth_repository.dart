@@ -1,5 +1,5 @@
-import '../models/auth_response_model.dart';
-import '../models/user_model.dart';
+import '../../data/models/auth_response_model.dart';
+import '../../data/models/user_model.dart';
 import '../../../../core/services/network/api_response.dart';
 
 abstract class AuthRepository {

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:dio/dio.dart';
@@ -69,8 +70,14 @@ class TemplateManagerService {
       );
 
       if (response.statusCode == 200 && response.data != null && response.data['status'] == true) {
-        final String? latestVersion = response.data['latest_version']?.toString();
-        final String? downloadUrl = response.data['download_url'];
+        final dataMap = response.data['data'] as Map<String, dynamic>?;
+        final templateData = dataMap?['template'] as Map<String, dynamic>?;
+        final String? latestVersion = templateData?['latest_version']?.toString();
+        final String? downloadUrl = templateData?['download_url'];
+
+        // Save the updated response data and regenerate template config
+        await SharedPrefs.setString(AppConstants.tvLoginDataKey, jsonEncode(response.data));
+        await regenerateDataJson();
 
         if (latestVersion == null || downloadUrl == null || downloadUrl.isEmpty) {
           Logger.w('[TemplateManager] Update check returned empty version or download URL.');
@@ -163,6 +170,33 @@ class TemplateManagerService {
       Logger.i('[TemplateManager] Template updated successfully to version $newVersion.');
     } catch (e) {
       Logger.e('[TemplateManager] Error unzipping or downloading template: $e');
+    }
+  }
+
+  /// Downloads and extracts the template using details saved in local storage (e.g. after login)
+  static Future<void> downloadTemplateFromSavedData({Function(double)? onProgress}) async {
+    try {
+      final loginData = SharedPrefs.getString(AppConstants.tvLoginDataKey);
+      if (loginData == null || loginData.isEmpty) {
+        Logger.w('[TemplateManager] No login data found to download template.');
+        return;
+      }
+
+      final dataMap = jsonDecode(loginData) as Map<String, dynamic>;
+      final innerData = dataMap['data'] as Map<String, dynamic>?;
+      final templateData = innerData?['template'] as Map<String, dynamic>?;
+
+      final String? latestVersion = templateData?['latest_version']?.toString();
+      final String? downloadUrl = templateData?['download_url'];
+
+      if (latestVersion == null || downloadUrl == null || downloadUrl.isEmpty) {
+        Logger.w('[TemplateManager] Template version or download URL not found in login data.');
+        return;
+      }
+
+      await _downloadAndExtractTemplate(downloadUrl, latestVersion, onProgress: onProgress);
+    } catch (e) {
+      Logger.e('[TemplateManager] Error downloading template from saved data: $e');
     }
   }
 }

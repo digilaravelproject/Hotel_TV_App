@@ -45,8 +45,8 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   @override
   void initState() {
     super.initState();
-    licenseKeyController = TextEditingController();
-    roomNoController = TextEditingController();
+    licenseKeyController = TextEditingController(text: 'P1SU-FOO9-F4T7-YJZF');
+    roomNoController = TextEditingController(text: '101');
     qrTabFocus = FocusNode();
     manualTabFocus = FocusNode();
     licenseKeyFocus = FocusNode();
@@ -627,15 +627,13 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: Theme.of(context).cardColor,
-        title: const CustomAppText(AppText.registeringTitle,  color: Colors.white),
-        content: Row(
-          children: const [
-            LoadingWidget(size: 24, strokeWidth: 3),
-            SizedBox(width: 20),
-            CustomAppText(AppText.registeringServerProgress,  color: Colors.white70),
-          ],
+      barrierColor: Colors.transparent,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: const LoadingWidget(
+          type: LoadingType.tvScreen,
+          title: AppText.registeringTitle,
+          subtitle: AppText.registeringServerProgress,
         ),
       ),
     );
@@ -665,7 +663,8 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
       }
 
       if (response.data != null && response.data['status'] == true) {
-        final token = response.data['auth']?['token'] ?? '';
+        final dataMap = response.data['data'] as Map<String, dynamic>?;
+        final token = dataMap?['auth']?['token'] ?? '';
         if (token.isNotEmpty) {
           await TokenManager.saveToken(token);
         }

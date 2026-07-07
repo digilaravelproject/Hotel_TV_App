@@ -1,6 +1,4 @@
-// lib/features/auth/bloc/auth_state.dart
-
-import '../data/models/user_model.dart';
+import '../../data/models/user_model.dart';
 
 abstract class AuthState {}
 

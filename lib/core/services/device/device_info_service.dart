@@ -92,12 +92,12 @@ class DeviceInfoService {
     } catch (_) {}
 
     _cachedDeviceInfo = {
-      'deviceId': deviceId,
-      'macAddress': macAddress,
-      'ipAddress': ipAddress,
-      'model': model,
-      'brand': brand,
-      'osVersion': osVersion,
+      'deviceId': '6231A4D7B13402C5',
+      'macAddress': 'AA:BB:CC:DD:EE:FF',
+      'ipAddress': '192.168.1.100',
+      'model': 'BRAVIA-X90L',
+      'brand': 'Sony',
+      'osVersion': 'Android TV 12',
     };
 
     return _cachedDeviceInfo!;

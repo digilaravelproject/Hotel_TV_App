@@ -4,7 +4,6 @@ import '../../../../core/services/storage/shared_prefs.dart';
 import '../../../../core/services/storage/token_manger.dart';
 import '../../../../core/services/template/template_manager_service.dart';
 import '../../../../core/widget/loading_widget.dart';
-import '../../../../core/widget/custom_app_text.dart';
 import '../../../dashboard/presentation/pages/tv_webview_screen.dart';
 import 'tv_login_screen.dart';
 
@@ -83,20 +82,9 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const LoadingWidget(size: 40, strokeWidth: 4),
-            const SizedBox(height: 20),
-            CustomAppText(
-              _statusMessage,
-              
-              color: Colors.white70,
-              fontSize: 16,
-            ),
-          ],
-        ),
+      body: LoadingWidget(
+        type: LoadingType.tvScreen,
+        subtitle: _statusMessage,
       ),
     );
   }

@@ -87,17 +87,6 @@ class ApiClient {
 
     while (attempt < _maxRetries) {
       try {
-        // Check internet connectivity before making request
-        bool isConnected = await NetworkInfo.checkConnectivity();
-        if (!isConnected) {
-          Logger.w('⚠️ No internet connection. Attempt ${attempt + 1}/$_maxRetries');
-          throw DioException(
-            requestOptions: RequestOptions(path: path),
-            type: DioExceptionType.connectionError,
-            error: 'No internet connection',
-          );
-        }
-
         // Make the request
         Response response = await request();
         return response;
