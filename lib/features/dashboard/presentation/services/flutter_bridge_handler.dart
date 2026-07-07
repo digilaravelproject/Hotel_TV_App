@@ -70,12 +70,24 @@ class FlutterBridgeHandler {
       case 'identifyDevice':
       case 'getSystemInfo':
         final info = await DeviceInfoService.getFullDeviceInfo();
-        return {
-          ...info,
+        final deviceMap = {
           'device_id': info['deviceId'] ?? '',
           'mac_address': info['macAddress'] ?? '',
           'ip_address': info['ipAddress'] ?? '',
+          'model': info['model'] ?? '',
+          'brand': info['brand'] ?? '',
           'os_version': info['osVersion'] ?? '',
+          'deviceId': info['deviceId'] ?? '',
+          'macAddress': info['macAddress'] ?? '',
+          'ipAddress': info['ipAddress'] ?? '',
+          'osVersion': info['osVersion'] ?? '',
+        };
+        return {
+          'status': true,
+          'success': true,
+          'data': deviceMap,
+          'device': deviceMap,
+          ...deviceMap,
         };
 
       case 'launchHdmi':
