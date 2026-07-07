@@ -38,9 +38,78 @@ class TemplateManagerService {
     return p.join(dir.path, 'index.html');
   }
 
+  static Future<void> _cacheOfflineMedia() async {
+    try {
+      final loginDataStr = SharedPrefs.getString(AppConstants.tvLoginDataKey);
+      if (loginDataStr == null || loginDataStr.isEmpty) return;
+
+      final Map<String, dynamic> root = jsonDecode(loginDataStr);
+      final Map<String, dynamic>? data = root['data'] as Map<String, dynamic>?;
+      if (data == null) return;
+
+      final Map<String, dynamic>? hotel = data['hotel'] as Map<String, dynamic>?;
+      if (hotel == null) return;
+
+      final Map<String, dynamic>? media = hotel['media'] as Map<String, dynamic>?;
+      if (media == null) return;
+
+      final dir = await getTemplateDirectory();
+      final cacheDir = Directory(p.join(dir.path, 'cached_media'));
+      if (!await cacheDir.exists()) {
+        await cacheDir.create(recursive: true);
+      }
+
+      final dio = Dio();
+
+      Future<String> _cacheImage(String url) async {
+        if (!url.startsWith('http')) return url;
+        try {
+          final uri = Uri.parse(url);
+          final fileName = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'image_${url.hashCode}';
+          final localFile = File(p.join(cacheDir.path, fileName));
+          
+          Logger.i('[TemplateManager] Downloading offline media: $url');
+          await dio.download(url, localFile.path);
+          Logger.i('[TemplateManager] Offline media cached at: ${localFile.path}');
+          
+          return 'cached_media/$fileName';
+        } catch (e) {
+          Logger.w('[TemplateManager] Failed to cache offline media ($url): $e');
+          return url;
+        }
+      }
+
+      final String? logoImage = media['logo_image'] as String?;
+      if (logoImage != null && logoImage.isNotEmpty) {
+        media['logo_image'] = await _cacheImage(logoImage);
+      }
+
+      final String? coverImage = media['cover_image'] as String?;
+      if (coverImage != null && coverImage.isNotEmpty) {
+        media['cover_image'] = await _cacheImage(coverImage);
+      }
+
+      final List? sliders = media['slider_images'] as List?;
+      if (sliders != null && sliders.isNotEmpty) {
+        final List<String> cachedSliders = [];
+        for (final item in sliders) {
+          if (item != null) {
+            cachedSliders.add(await _cacheImage(item.toString()));
+          }
+        }
+        media['slider_images'] = cachedSliders;
+      }
+
+      await SharedPrefs.setString(AppConstants.tvLoginDataKey, jsonEncode(root));
+    } catch (e) {
+      Logger.e('[TemplateManager] Error caching offline media: $e');
+    }
+  }
+
   /// Regenerates data.json in the template directory from stored login data
   static Future<void> regenerateDataJson() async {
     try {
+      await _cacheOfflineMedia();
       final loginData = SharedPrefs.getString(AppConstants.tvLoginDataKey);
       if (loginData == null || loginData.isEmpty) return;
 
