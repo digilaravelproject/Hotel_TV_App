@@ -54,13 +54,8 @@ class FlutterBridgeHandler {
       case 'getInstalledApps':
       case 'getApps':
       case 'getAppList':
-        final List? apps = await _tvChannel.invokeMethod<List>('getInstalledApps');
-        if (apps == null) return [];
-        return apps.map((app) {
-          final map = Map<String, dynamic>.from(app as Map);
-          map['icon_url'] = map['icon'] ?? '';
-          return map;
-        }).toList();
+        final apps = await _tvChannel.invokeMethod<List>('getInstalledApps');
+        return apps ?? [];
 
       case 'launchApp':
         final package = args[0] as String?;
