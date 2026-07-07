@@ -16,6 +16,7 @@ class AppStartupDecider extends StatefulWidget {
 
 class _AppStartupDeciderState extends State<AppStartupDecider> {
   String _statusMessage = '';
+  bool _showLoader = false;
 
   @override
   void initState() {
@@ -41,7 +42,10 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
         return;
       }
 
-      setState(() => _statusMessage = 'Installing...');
+      setState(() {
+        _showLoader = true;
+        _statusMessage = 'Installing...';
+      });
       await TemplateManagerService.checkAndUpdateTemplateSilent(
         onProgress: (progress) {
           if (!mounted) return;
@@ -84,10 +88,12 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: LoadingWidget(
-        type: LoadingType.tvScreen,
-        subtitle: _statusMessage,
-      ),
+      body: _showLoader
+          ? LoadingWidget(
+              type: LoadingType.tvScreen,
+              subtitle: _statusMessage,
+            )
+          : const SizedBox.shrink(),
     );
   }
 }
