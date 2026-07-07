@@ -33,7 +33,15 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
         return;
       }
 
-      setState(() => _statusMessage = 'Checking for updates...');
+      final isDownloaded = await TemplateManagerService.isTemplateDownloaded();
+      if (isDownloaded) {
+        _navigateToWebview();
+        // Background silent check without showing any UI or blocking
+        TemplateManagerService.checkAndUpdateTemplateSilent();
+        return;
+      }
+
+      setState(() => _statusMessage = 'Installing...');
       await TemplateManagerService.checkAndUpdateTemplateSilent(
         onProgress: (progress) {
           if (!mounted) return;
