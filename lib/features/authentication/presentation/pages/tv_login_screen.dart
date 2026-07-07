@@ -687,7 +687,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
         CustomSnackbar.showError(message: msg);
       }
     } catch (e) {
-      // Close loading dialog
       if (context.mounted) {
         Navigator.pop(context);
       }
@@ -700,7 +699,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
           errorMsg = e.message!;
         }
       }
-      CustomSnackbar.showError(message: errorMsg);
+      CustomSnackbar.showError(message: '$errorMsg ($e)');
     }
   }
 }
