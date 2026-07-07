@@ -20,23 +20,32 @@ class FlutterBridgeHandler {
 
   Future<void> handleMessage(String rawMessage) async {
     try {
+      print('[WebToFlutter] Received Message: $rawMessage');
       final call = jsonDecode(rawMessage) as Map<String, dynamic>;
       final method = call['method'] as String?;
       final args = call['args'] as List<dynamic>?;
       final id = call['id'] as int?;
 
-      if (method == null || id == null) return;
+      if (method == null || id == null) {
+        print('[WebToFlutter] Invalid message format (missing method or id)');
+        return;
+      }
 
+      print('[WebToFlutter] Dispatching: method=$method, args=$args, id=$id');
       dynamic result;
       try {
         result = await _dispatch(method, args ?? []);
       } catch (e) {
+        print('[WebToFlutter] Error in method $method: $e');
         await _reject(id, e.toString());
         return;
       }
 
+      print('[WebToFlutter] Resolved: method=$method, result=$result');
       await _resolve(id, result);
-    } catch (_) {}
+    } catch (e) {
+      print('[WebToFlutter] Exception parsing message: $e');
+    }
   }
 
   Future<dynamic> _dispatch(String method, List<dynamic> args) async {
