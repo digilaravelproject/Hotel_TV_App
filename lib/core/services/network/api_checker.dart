@@ -157,18 +157,14 @@ class ApiChecker {
           CustomSnackbar.showError(message: 'Request cancelled');
           break;
         case DioExceptionType.connectionError:
-          CustomSnackbar.showError(
-            message: 'No internet connection. Please check your network and try again.',
-          );
+          // Silent fallback for connection errors
           break;
         case DioExceptionType.unknown:
           if (error.error.toString().contains('SocketException') ||
               error.error.toString().contains('Failed host lookup')) {
-            CustomSnackbar.showError(
-              message: 'Network error. Please check your internet connection.',
-            );
+            // Silent fallback for offline/socket errors
           } else if (error.error.toString().contains('HttpException')) {
-            CustomSnackbar.showError(message: 'Connection failed. Please try again.');
+            // Silent fallback for HttpException
           } else {
             CustomSnackbar.showError(message: 'Something went wrong. Please try again.');
           }
