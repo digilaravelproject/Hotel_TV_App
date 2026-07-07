@@ -119,35 +119,40 @@ class ApiChecker {
           break;
         case DioExceptionType.badResponse:
           if (error.response?.data != null) {
-            try {
-              ErrorResponse errorResponse = ErrorResponse.fromJson(error.response!.data);
-              if (errorResponse.errors != null && errorResponse.errors!.isNotEmpty) {
-                CustomSnackbar.showError(
-                  message: errorResponse.errors!.first.message ?? 'Unknown error',
-                );
-              } else if (error.response?.data['msg'] != null) {
-                CustomSnackbar.showError(
-                  message: error.response!.data['msg'].toString(),
-                );
-              } else if (error.response?.data['message'] != null) {
-                CustomSnackbar.showError(
-                  message: error.response!.data['message'].toString(),
-                );
-              } else {
-                CustomSnackbar.showError(message: 'Something went wrong');
+            final responseData = error.response!.data;
+            if (responseData is Map) {
+              try {
+                ErrorResponse errorResponse = ErrorResponse.fromJson(responseData);
+                if (errorResponse.errors != null && errorResponse.errors!.isNotEmpty) {
+                  CustomSnackbar.showError(
+                    message: errorResponse.errors!.first.message ?? 'Unknown error',
+                  );
+                } else if (responseData['msg'] != null) {
+                  CustomSnackbar.showError(
+                    message: responseData['msg'].toString(),
+                  );
+                } else if (responseData['message'] != null) {
+                  CustomSnackbar.showError(
+                    message: responseData['message'].toString(),
+                  );
+                } else {
+                  CustomSnackbar.showError(message: 'Something went wrong');
+                }
+              } catch (e) {
+                if (responseData['msg'] != null) {
+                  CustomSnackbar.showError(
+                    message: responseData['msg'].toString(),
+                  );
+                } else if (responseData['message'] != null) {
+                  CustomSnackbar.showError(
+                    message: responseData['message'].toString(),
+                  );
+                } else {
+                  CustomSnackbar.showError(message: 'Something went wrong');
+                }
               }
-            } catch (e) {
-              if (error.response?.data['msg'] != null) {
-                CustomSnackbar.showError(
-                  message: error.response!.data['msg'].toString(),
-                );
-              } else if (error.response?.data['message'] != null) {
-                CustomSnackbar.showError(
-                  message: error.response!.data['message'].toString(),
-                );
-              } else {
-                CustomSnackbar.showError(message: 'Something went wrong');
-              }
+            } else {
+              CustomSnackbar.showError(message: responseData.toString());
             }
           } else {
             CustomSnackbar.showError(message: 'Server error. Please try again.');

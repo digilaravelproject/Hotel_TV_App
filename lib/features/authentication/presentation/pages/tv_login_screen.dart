@@ -663,7 +663,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
         _isLoading = false;
       });
 
-      if (response.data != null && response.data['status'] == true) {
+      if (response.data != null && response.data is Map && response.data['status'] == true) {
         final dataMap = response.data['data'] as Map<String, dynamic>?;
         final token = dataMap?['auth']?['token'] ?? '';
         if (token.isNotEmpty) {
@@ -684,7 +684,14 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
           );
         }
       } else {
-        final msg = response.data?['message'] ?? 'Failed to register TV';
+        String msg = 'Failed to register TV';
+        if (response.data != null) {
+          if (response.data is Map) {
+            msg = response.data['message'] ?? response.data['msg'] ?? msg;
+          } else {
+            msg = response.data.toString();
+          }
+        }
         CustomSnackbar.showError(message: msg);
       }
     } catch (e) {
@@ -694,8 +701,12 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
 
       String errorMsg = 'Failed to register TV';
       if (e is DioException) {
-        if (e.response?.data != null && e.response?.data['message'] != null) {
-          errorMsg = e.response?.data['message'];
+        if (e.response?.data != null) {
+          if (e.response?.data is Map) {
+            errorMsg = e.response?.data['message'] ?? e.response?.data['msg'] ?? errorMsg;
+          } else {
+            errorMsg = e.response?.data.toString();
+          }
         } else if (e.message != null) {
           errorMsg = e.message!;
         }
