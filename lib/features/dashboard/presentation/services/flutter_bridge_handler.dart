@@ -120,8 +120,19 @@ class FlutterBridgeHandler {
       case 'getHdmiModels':
       case 'getTvInputs':
       case 'getLiveTvInputs':
-        final result = await _tvChannel.invokeMethod<Map>('getHdmiModels');
-        return result ?? {};
+        final Map? nativeMap = await _tvChannel.invokeMethod<Map>('getHdmiModels');
+        if (nativeMap == null) return [];
+        final list = [];
+        nativeMap.forEach((key, val) {
+          list.add({
+            'name': key.toString(),
+            'label': key.toString(),
+            'id': val.toString(),
+            'value': val.toString(),
+            'model': val.toString(),
+          });
+        });
+        return list;
 
       case 'launchIptv':
         final package = args[0] as String?;
