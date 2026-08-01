@@ -363,6 +363,7 @@ class MainActivity : FlutterActivity() {
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 data = targetUri
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
             startActivity(intent)
             true
