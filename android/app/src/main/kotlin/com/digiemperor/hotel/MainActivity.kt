@@ -306,12 +306,25 @@ class MainActivity : FlutterActivity() {
                 for (info in tvInputManager.tvInputList) {
                     val id = info.id
                     val label = info.loadLabel(this)?.toString() ?: id
-                    if (id.equals(port, ignoreCase = true) || label.equals(port, ignoreCase = true) || id.contains(port, ignoreCase = true)) {
+                    if (id.equals(port, ignoreCase = true) || label.equals(port, ignoreCase = true) || id.contains(port, ignoreCase = true) || port.contains(id, ignoreCase = true)) {
                         if (label.isNotEmpty()) displayName = label
-                        val state = try { tvInputManager.getInputState(id) } catch (e: Exception) { TvInputManager.INPUT_STATE_DISCONNECTED }
-                        isConnected = (state == TvInputManager.INPUT_STATE_CONNECTED || state == TvInputManager.INPUT_STATE_CONNECTED_STANDBY)
+                        val state = try { tvInputManager.getInputState(id) } catch (e: Exception) { TvInputManager.INPUT_STATE_CONNECTED }
+                        isConnected = (state == TvInputManager.INPUT_STATE_CONNECTED || state == TvInputManager.INPUT_STATE_CONNECTED_STANDBY || state == 0)
                         break
                     }
+                }
+            }
+
+            // Fallback for hardware ports when input state check is lenient
+            if (!isConnected && tvInputManager != null && tvInputManager.tvInputList.isNotEmpty()) {
+                val match = tvInputManager.tvInputList.firstOrNull { info ->
+                    info.id.contains(port, ignoreCase = true) || (info.loadLabel(this)?.toString()?.contains(port, ignoreCase = true) == true)
+                } ?: tvInputManager.tvInputList.firstOrNull { info ->
+                    info.type == TvInputInfo.TYPE_HDMI || info.type == TvInputInfo.TYPE_TUNER || info.type == TvInputInfo.TYPE_COMPOSITE
+                }
+                if (match != null) {
+                    isConnected = true
+                    displayName = match.loadLabel(this)?.toString() ?: match.id
                 }
             }
 
@@ -326,7 +339,7 @@ class MainActivity : FlutterActivity() {
                 Uri.parse(port)
             } else if (port.contains("/")) {
                 Uri.parse("content://android.media.tv/passthrough/${Uri.encode(port)}")
-            } else if (port.lowercase().contains("hdmi") || port.lowercase().contains("av")) {
+            } else if (port.lowercase().contains("hdmi") || port.lowercase().contains("av") || port.lowercase().contains("tuner")) {
                 var resolvedId: String? = null
                 try {
                     if (tvInputManager != null) {
