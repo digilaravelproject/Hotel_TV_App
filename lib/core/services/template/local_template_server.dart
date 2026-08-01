@@ -48,7 +48,20 @@ class LocalTemplateServer {
           return;
         }
 
-        final file = File(fullPath);
+        var file = File(fullPath);
+        if (!file.existsSync()) {
+          final rootDir = Directory(dirPath);
+          if (rootDir.existsSync()) {
+            final list = rootDir.listSync();
+            if (list.length == 1 && list.first is Directory) {
+              final altPath = p.join(list.first.path, filePath);
+              if (File(altPath).existsSync()) {
+                file = File(altPath);
+              }
+            }
+          }
+        }
+
         if (!file.existsSync()) {
           request.response.statusCode = 404;
           request.response.close();

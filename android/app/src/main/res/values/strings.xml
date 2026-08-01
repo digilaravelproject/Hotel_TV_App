@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PAX TV Hospitality</string>
+    <string name="license_key_title">License Key</string>
+    <string name="license_key_desc">Enter the hospitality licensing key for this room group.</string>
+    <string name="room_no_title">Room Number</string>
+    <string name="room_no_desc">Enter the specific room number for this TV.</string>
+</resources>

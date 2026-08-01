@@ -29,6 +29,11 @@ subprojects {
             val android = extensions.getByName("android") as? com.android.build.gradle.BaseExtension
             android?.compileSdkVersion(36)
         }
+        tasks.withType<JavaCompile> {
+            sourceCompatibility = "17"
+            targetCompatibility = "17"
+            options.compilerArgs.add("-Xlint:-options")
+        }
     }
     if (state.executed) {
         configureAction.execute(this)

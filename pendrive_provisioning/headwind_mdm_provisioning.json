@@ -1,0 +1,12 @@
+{
+  "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.hmdm.launcher/com.hmdm.launcher.AdminReceiver",
+  "android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM": "L9z7e-oX6H-sM07wQ-745g==",
+  "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": "https://h-mdm.com/files/hmdm-6.37-os.apk",
+  "android.app.extra.PROVISIONING_SKIP_ENCRYPTION": true,
+  "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": true,
+  "android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE": {
+    "com.hmdm.URL": "https://mdm.digiemperor.com",
+    "com.hmdm.DEVICE_ID": "",
+    "com.hmdm.GROUP": "Managed Launcher"
+  }
+}

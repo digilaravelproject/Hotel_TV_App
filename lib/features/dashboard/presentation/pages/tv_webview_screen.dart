@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,18 +9,31 @@ import '../bloc/webview_event.dart';
 import '../bloc/webview_state.dart';
 import '../../../../core/widget/loading_widget.dart';
 import '../../../../core/widget/custom_app_text.dart';
+import '../../../../core/utils/logger.dart';
+import '../../../../core/services/template/template_manager_service.dart';
+import '../../../../core/services/template/local_template_server.dart';
+import '../../../../core/services/storage/shared_prefs.dart';
+import '../../../../core/services/storage/token_manger.dart';
+import '../../../../core/constants/app_constants.dart';
+import '../../../authentication/presentation/pages/tv_login_screen.dart';
 
 class TvWebviewScreen extends StatefulWidget {
-  const TvWebviewScreen({Key? key}) : super(key: key);
+  final bool clearCache;
+  const TvWebviewScreen({Key? key, this.clearCache = false}) : super(key: key);
 
   @override
   State<TvWebviewScreen> createState() => _TvWebviewScreenState();
 }
 
 class _TvWebviewScreenState extends State<TvWebviewScreen> {
-  final FocusNode _webViewFocusNode = FocusNode();
-  final MethodChannel _backChannel = const MethodChannel('com.digiemperor.hotel/back_handler');
   WebViewController? _controller;
+  final FocusNode _webViewFocusNode = FocusNode();
+  final _backChannel = const MethodChannel('com.digiemperor.hotel/back_navigation');
+
+  bool _showBottomUpdating = false;
+  double _downloadProgress = 0.0;
+  bool _showCenterLoading = false;
+  Timer? _realtimeSyncTimer;
 
   @override
   void initState() {
@@ -29,10 +44,114 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
         if (ctrl != null) await _handleBackNavigation(ctrl);
       }
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkSilentUpdate();
+      // Polling every 60s for real-time Admin Panel updates (Guest Name, Logo, Banners)
+      _realtimeSyncTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+        _checkSilentUpdate();
+      });
+    });
+  }
+
+  Future<void> _checkSilentUpdate() async {
+    try {
+      if (!await TemplateManagerService.isTemplateDownloaded()) {
+        Logger.i('[TvWebviewScreen] Template not downloaded yet. Skipping silent background update.');
+        return;
+      }
+      Logger.i('[TvWebviewScreen] Starting silent background update check...');
+      final int updateType = await TemplateManagerService.checkAndUpdateTemplateSilent(
+        onProgress: (progress) {
+          if (mounted) {
+            setState(() {
+              _showBottomUpdating = true;
+              _downloadProgress = progress;
+            });
+          }
+        },
+      );
+      
+      if (mounted) {
+        setState(() {
+          _showBottomUpdating = false;
+        });
+      }
+
+      if (updateType == -1) {
+        Logger.w('[TvWebviewScreen] Token is unauthenticated! Performing automatic logout...');
+        await TokenManager.clearToken();
+        await SharedPrefs.remove(AppConstants.tvLoginDataKey);
+        await LocalTemplateServer.stop();
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const TvLoginScreen()),
+            (route) => false,
+          );
+        }
+        return;
+      }
+
+      if (updateType == 2) {
+        Logger.i('[TvWebviewScreen] Template version updated. Clearing cache and reloading webview...');
+        if (mounted && _controller != null) {
+          setState(() {
+            _showCenterLoading = true;
+          });
+          await _controller?.clearCache();
+          try {
+            await _controller?.clearLocalStorage();
+          } catch (_) {}
+          await _controller?.reload();
+        }
+      } else if (updateType == 1) {
+        Logger.i('[TvWebviewScreen] Data JSON updated. Injecting new data smoothly...');
+        if (mounted && _controller != null) {
+          final raw = SharedPrefs.getString(AppConstants.tvLoginDataKey);
+          if (raw != null && raw.isNotEmpty) {
+            final b64 = base64Encode(utf8.encode(raw));
+            await _controller?.runJavaScript('''
+              (function() {
+                try {
+                  window.tvLoginData = JSON.parse(atob('$b64'));
+                  var normalized = window.tvLoginData.data || window.tvLoginData;
+                  localStorage.setItem('cachedHotelData', JSON.stringify(normalized));
+                  
+                  if (typeof window.initGallery === 'function') {
+                    window.initGallery();
+                  } else if (typeof window.TVCore === 'object' && typeof window.TVCore.init === 'function') {
+                    window.TVCore.init();
+                  } else if (typeof window.updateDateTime === 'function') {
+                    window.updateDateTime();
+                    if (typeof window.applyTranslations === 'function') window.applyTranslations();
+                  } else {
+                    window.location.reload();
+                  }
+                } catch(e) {
+                  console.error("Failed to apply silent update:", e);
+                  window.location.reload();
+                }
+              })();
+            ''');
+          } else {
+            await _controller?.reload();
+          }
+        }
+      } else {
+        Logger.i('[TvWebviewScreen] Silent update finished. No changes found.');
+      }
+    } catch (e) {
+      Logger.e('[TvWebviewScreen] Error during silent update check: $e');
+      if (mounted) {
+        setState(() {
+          _showBottomUpdating = false;
+        });
+      }
+    }
   }
 
   @override
   void dispose() {
+    _realtimeSyncTimer?.cancel();
     _backChannel.setMethodCallHandler(null);
     _webViewFocusNode.dispose();
     super.dispose();
@@ -41,7 +160,17 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
   @override
   Widget build(BuildContext context) {
     return BlocProvider<WebViewBloc>(
-      create: (_) => WebViewBloc()..add(InitializeWebView()),
+      create: (context) {
+        final bloc = WebViewBloc();
+        bloc.onPageFinished = () {
+          if (mounted) {
+            setState(() {
+              _showCenterLoading = false;
+            });
+          }
+        };
+        return bloc..add(InitializeWebView(clearCache: widget.clearCache));
+      },
       child: PopScope(
         canPop: false,
         onPopInvokedWithResult: (didPop, result) async {
@@ -87,20 +216,21 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
     }
     _isBackHandling = true;
     try {
+      // 1. Check if JavaScript triggerTVBack handles closing an active overlay/popup first
       try {
-        final Object isOverlayVisible = await controller.runJavaScriptReturningResult(
-          "!!(document.getElementById('appsOverlay') && document.getElementById('appsOverlay').classList.contains('show'))"
+        final Object? isTVBackHandled = await controller.runJavaScriptReturningResult(
+          "typeof window.triggerTVBack === 'function' ? window.triggerTVBack() : false"
         );
-        print('[BackNavigation] isOverlayVisible: $isOverlayVisible');
-        if (isOverlayVisible == true || isOverlayVisible == 'true' || isOverlayVisible == 1) {
-          await controller.runJavaScript('window.closeAppsOverlay()');
-          print('[BackNavigation] Closed overlay');
+        print('[BackNavigation] isTVBackHandled result: $isTVBackHandled');
+        if (isTVBackHandled == true || isTVBackHandled == 'true' || isTVBackHandled == 1 || isTVBackHandled == '1') {
+          print('[BackNavigation] Back press handled successfully by JS overlay/page');
           return;
         }
       } catch (e) {
-        print('[BackNavigation] Error checking overlay: $e');
+        print('[BackNavigation] Error checking triggerTVBack: $e');
       }
 
+      // 2. Fallback to path check: if we are on index/home page and no overlay was closed, ignore back to prevent exit.
       final currentUrl = await controller.currentUrl() ?? '';
       print('[BackNavigation] currentUrl: $currentUrl');
       final uri = Uri.tryParse(currentUrl);
@@ -109,30 +239,22 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
         final hash = uri.fragment;
         print('[BackNavigation] Parsed path: $path, hash: $hash');
         if ((path == '/' || path == '/index.html') && (hash.isEmpty || hash == '/')) {
-          print('[BackNavigation] On home page, ignoring back press to prevent app exit');
+          print('[BackNavigation] On home page with no active overlays, ignoring back press to prevent app exit');
           return;
         }
       }
 
-      if (await controller.canGoBack()) {
-        print('[BackNavigation] canGoBack is true, going back');
-        await controller.goBack();
-        return;
-      } else {
-        print('[BackNavigation] canGoBack is false');
-      }
-
-      final beforeUrl = await controller.currentUrl();
-      print('[BackNavigation] Trying history.back() from $beforeUrl');
-      await controller.runJavaScript('history.back()');
-      await Future.delayed(const Duration(milliseconds: 300));
-      final afterUrl = await controller.currentUrl();
-      print('[BackNavigation] URL after history.back(): $afterUrl');
-      if (beforeUrl != afterUrl) {
-        print('[BackNavigation] history.back() succeeded');
-        return;
-      }
-      print('[BackNavigation] history.back() did not change URL');
+      // 3. Fallback to TVNavigation.goBack() or browser history.back() redirection
+      print('[BackNavigation] Executing TVNavigation.goBack fallback redirection');
+      await controller.runJavaScript('''
+        (function() {
+          if (typeof window.TVNavigation === 'object' && typeof window.TVNavigation.goBack === 'function') {
+            window.TVNavigation.goBack();
+          } else {
+            window.history.back();
+          }
+        })();
+      ''');
     } catch (e) {
       print('[BackNavigation] Error in back navigation: $e');
     } finally {
@@ -155,7 +277,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
                 var e = new KeyboardEvent('keydown', { 'key': 'ArrowRight', 'bubbles': true });
                 Object.defineProperty(e, 'keyCode', { value: 39 });
                 Object.defineProperty(e, 'which', { value: 39 });
-                document.dispatchEvent(e);
+                (document.activeElement || document).dispatchEvent(e);
               })();
             """);
           } else if (key == LogicalKeyboardKey.arrowLeft) {
@@ -164,7 +286,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
                 var e = new KeyboardEvent('keydown', { 'key': 'ArrowLeft', 'bubbles': true });
                 Object.defineProperty(e, 'keyCode', { value: 37 });
                 Object.defineProperty(e, 'which', { value: 37 });
-                document.dispatchEvent(e);
+                (document.activeElement || document).dispatchEvent(e);
               })();
             """);
           } else if (key == LogicalKeyboardKey.arrowUp) {
@@ -173,7 +295,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
                 var e = new KeyboardEvent('keydown', { 'key': 'ArrowUp', 'bubbles': true });
                 Object.defineProperty(e, 'keyCode', { value: 38 });
                 Object.defineProperty(e, 'which', { value: 38 });
-                document.dispatchEvent(e);
+                (document.activeElement || document).dispatchEvent(e);
               })();
             """);
           } else if (key == LogicalKeyboardKey.arrowDown) {
@@ -182,7 +304,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
                 var e = new KeyboardEvent('keydown', { 'key': 'ArrowDown', 'bubbles': true });
                 Object.defineProperty(e, 'keyCode', { value: 40 });
                 Object.defineProperty(e, 'which', { value: 40 });
-                document.dispatchEvent(e);
+                (document.activeElement || document).dispatchEvent(e);
               })();
             """);
           } else if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.select) {
@@ -191,17 +313,147 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
                 var e = new KeyboardEvent('keydown', { 'key': 'Enter', 'bubbles': true });
                 Object.defineProperty(e, 'keyCode', { value: 13 });
                 Object.defineProperty(e, 'which', { value: 13 });
-                document.dispatchEvent(e);
+                (document.activeElement || document).dispatchEvent(e);
               })();
             """);
-            } else if (key == LogicalKeyboardKey.goBack) {
-              _handleBackNavigation(controller);
+            } else if (key == LogicalKeyboardKey.goBack || 
+                       key == LogicalKeyboardKey.escape) {
+              controller.runJavaScript(
+                "if (typeof window.triggerTVBack === 'function') { window.triggerTVBack(); }"
+              );
+              return KeyEventResult.handled;
+            } else if (key.keyId >= LogicalKeyboardKey.digit0.keyId && 
+                       key.keyId <= LogicalKeyboardKey.digit9.keyId) {
+              final digit = key.keyLabel;
+              controller.runJavaScript(
+                "if (typeof window.TVKeyInjector === 'object') { window.TVKeyInjector.triggerNumber('$digit'); }"
+              );
               return KeyEventResult.handled;
             }
         }
         return KeyEventResult.ignored;
       },
-      child: WebViewWidget(controller: controller),
+      child: Stack(
+        children: [
+          WebViewWidget(controller: controller),
+          
+          // Bottom Updating Banner
+          if (_showBottomUpdating)
+            Positioned(
+              left: 20,
+              right: 20,
+              bottom: 20,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.85),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFb38a2d), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.5),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    )
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFb38a2d)),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Updating...',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          LinearProgressIndicator(
+                            value: _downloadProgress,
+                            backgroundColor: Colors.white24,
+                            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFb38a2d)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Text(
+                      '${(_downloadProgress * 100).toStringAsFixed(0)}%',
+                      style: const TextStyle(
+                        color: Color(0xFFb38a2d),
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
+          // Center Loading Overlay
+          if (_showCenterLoading)
+            Container(
+              color: Colors.black.withOpacity(0.75),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1a1a2e).withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFb38a2d), width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFb38a2d).withOpacity(0.2),
+                        blurRadius: 20,
+                        spreadRadius: 2,
+                      )
+                    ],
+                  ),
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFb38a2d)),
+                      ),
+                      SizedBox(height: 24),
+                      Text(
+                        'Applying Updates...',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Please wait, refreshing template.',
+                        style: TextStyle(
+                          color: Colors.white60,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 

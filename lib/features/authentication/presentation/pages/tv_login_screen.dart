@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/api_constents.dart';
@@ -47,7 +48,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   void initState() {
     super.initState();
     licenseKeyController = TextEditingController(text: 'P1SU-FOO9-F4T7-YJZF');
-    roomNoController = TextEditingController(text: '101');
+    roomNoController = TextEditingController(text: '1519');
     qrTabFocus = FocusNode();
     manualTabFocus = FocusNode();
     licenseKeyFocus = FocusNode();
@@ -55,7 +56,28 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     submitFocus = FocusNode();
     isQrModeNotifier = ValueNotifier<bool>(true);
 
-    // Focus will be set via autofocus on QR tab
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkEmmConfig();
+    });
+  }
+
+  Future<void> _checkEmmConfig() async {
+    try {
+      final platform = MethodChannel('com.digiemperor.hotel/emm_config');
+      final Map<dynamic, dynamic>? config = await platform.invokeMethod<Map>('getEmmConfig');
+      if (config != null) {
+        final String licenseKey = config['license_key']?.toString() ?? '';
+        final String roomNo = config['room_no']?.toString() ?? '';
+        if (licenseKey.isNotEmpty && roomNo.isNotEmpty) {
+          Logger.i('[EMM] Found config. Performing automatic registration...');
+          if (mounted) {
+            _performRegistration(context, licenseKey, roomNo);
+          }
+        }
+      }
+    } catch (e) {
+      Logger.e('[EMM] Error fetching EMM config: $e');
+    }
   }
 
   @override
@@ -665,7 +687,10 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
 
       if (response.data != null && response.data is Map && response.data['status'] == true) {
         final dataMap = response.data['data'] as Map<String, dynamic>?;
-        final token = dataMap?['auth']?['token'] ?? '';
+        final token = dataMap?['auth']?['token']?.toString() ??
+            dataMap?['token']?.toString() ??
+            response.data['token']?.toString() ??
+            '';
         if (token.isNotEmpty) {
           await TokenManager.saveToken(token);
         }

@@ -1,4 +1,4 @@
-name: virtual_office
+name: hotel
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -56,6 +56,9 @@ dependencies:
   webview_flutter: ^4.14.0
   webview_flutter_android: ^4.12.0
   archive: ^4.0.9
+  firebase_core: ^4.11.0
+  firebase_messaging: ^16.4.1
+  firebase_crashlytics: ^5.2.4
 
 
 dev_dependencies:

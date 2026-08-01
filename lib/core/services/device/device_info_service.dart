@@ -67,12 +67,34 @@ class DeviceInfoService {
       }
     }
 
+    String serial = '';
+
     final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
     try {
       if (Platform.isAndroid) {
         final AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
-        // In newer versions of device_info_plus, unique ID is exposed via androidInfo.id
-        deviceId = androidInfo.id;
+        // Fetch secure android_id natively
+        try {
+          final String? nativeAndroidId = await _channel.invokeMethod<String>('getAndroidId');
+          if (nativeAndroidId != null && nativeAndroidId.isNotEmpty) {
+            deviceId = nativeAndroidId;
+          }
+        } catch (_) {}
+        if (deviceId.isEmpty) {
+          deviceId = androidInfo.id;
+        }
+
+        // Fetch hardware serial number natively
+        try {
+          final String? nativeSerial = await _channel.invokeMethod<String>('getSerialNumber');
+          if (nativeSerial != null && nativeSerial.isNotEmpty) {
+            serial = nativeSerial;
+          }
+        } catch (_) {}
+        if (serial.isEmpty) {
+          serial = androidInfo.serialNumber != 'unknown' ? androidInfo.serialNumber : '';
+        }
+
         model = androidInfo.model;
         brand = androidInfo.brand;
         osVersion = androidInfo.version.release;
@@ -91,10 +113,29 @@ class DeviceInfoService {
       }
     } catch (_) {}
 
+    String gateway = '';
+    String subnet = '';
+    String dns = '';
+
+    try {
+      if (Platform.isAndroid) {
+        final Map? netDetails = await _channel.invokeMethod<Map>('getNetworkDetails');
+        if (netDetails != null) {
+          gateway = netDetails['gateway']?.toString() ?? '';
+          subnet = netDetails['subnet']?.toString() ?? '';
+          dns = netDetails['dns']?.toString() ?? '';
+        }
+      }
+    } catch (_) {}
+
     _cachedDeviceInfo = {
       'deviceId': deviceId,
+      'serial': serial,
       'macAddress': macAddress,
       'ipAddress': ipAddress,
+      'gateway': gateway,
+      'subnet': subnet,
+      'dns': dns,
       'model': model,
       'brand': brand,
       'osVersion': osVersion,

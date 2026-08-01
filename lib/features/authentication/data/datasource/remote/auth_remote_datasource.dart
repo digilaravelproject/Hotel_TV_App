@@ -1,5 +1,5 @@
-import 'package:virtual_office/core/services/network/api_response.dart';
-import 'package:virtual_office/core/services/network/api_client.dart';
+import 'package:hotel/core/services/network/api_response.dart';
+import 'package:hotel/core/services/network/api_client.dart';
 
 import '../../../../../core/constants/api_constents.dart';
 import '../../models/auth_response_model.dart';

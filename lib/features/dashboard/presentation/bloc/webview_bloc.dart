@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import '../../../../core/utils/logger.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
@@ -11,6 +13,8 @@ import 'webview_event.dart';
 import 'webview_state.dart';
 
 class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
+  void Function()? onPageFinished;
+
   WebViewBloc() : super(WebViewInitial()) {
     on<InitializeWebView>(_onInitialize);
     on<DownloadProgressUpdated>(_onDownloadProgress);
@@ -22,7 +26,17 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
     Emitter<WebViewState> emit,
   ) async {
     try {
-      await TemplateManagerService.regenerateDataJson();
+      // Only block UI with regeneration if data.json doesn't exist yet
+      final dir = await TemplateManagerService.getTemplateDirectory();
+      final dataJsonFile = File('${dir.path}/data.json');
+      if (!await dataJsonFile.exists()) {
+        await TemplateManagerService.regenerateDataJson();
+      } else {
+        // Otherwise, regenerate in the background to avoid blocking startup (especially when offline)
+        TemplateManagerService.regenerateDataJson().catchError((e) {
+          Logger.e('[WebViewBloc] Background regenerateDataJson failed: $e');
+        });
+      }
 
       var exists = await TemplateManagerService.isTemplateDownloaded();
       if (!exists) {
@@ -48,6 +62,12 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
       await LocalTemplateServer.start();
 
       final controller = WebViewController();
+      if (event.clearCache) {
+        await controller.clearCache();
+        try {
+          await controller.clearLocalStorage();
+        } catch (_) {}
+      }
       final bridgeHandler = FlutterBridgeHandler(controller);
       controller
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -60,9 +80,12 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
             onPageFinished: (url) {
               _injectTvNavigationJs(controller);
               _injectLoginData(controller);
+              if (onPageFinished != null) {
+                onPageFinished!();
+              }
             },
             onWebResourceError: (error) {
-              if (!isClosed) {
+              if (error.isForMainFrame == true && !isClosed) {
                 emit(WebViewError(
                   message: 'Failed to load asset: ${error.description}',
                 ));
@@ -73,10 +96,17 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
 
       if (controller.platform is AndroidWebViewController) {
         AndroidWebViewController.enableDebugging(true);
+        try {
+          final androidController = controller.platform as AndroidWebViewController;
+          await androidController.setAllowFileAccess(true);
+          await androidController.setAllowContentAccess(true);
+        } catch (_) {}
       }
 
-      await controller
-          .loadRequest(Uri.parse('${LocalTemplateServer.baseUrl}/index.html'));
+      final port = await LocalTemplateServer.port;
+      final serverUrl = 'http://127.0.0.1:$port/index.html';
+      Logger.i('[WebViewBloc] Loading template from LocalTemplateServer: $serverUrl');
+      await controller.loadRequest(Uri.parse(serverUrl));
 
       emit(WebViewReady(controller: controller));
     } catch (e) {
@@ -101,6 +131,7 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
     const js = '''
 (function() {
   function makeFocusable() {
+    if (!document.body) return;
     document.body.setAttribute('tabindex', '-1');
     var all = document.querySelectorAll('a, button, input, select, textarea, [onclick], [role="button"], [role="link"], [role="tab"], [role="menuitem"], [tabindex]');
     all.forEach(function(e) {
@@ -110,7 +141,7 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
   makeFocusable();
   var s = document.createElement('style');
   s.textContent = '*:focus { outline: 2px solid #6366F1 !important; outline-offset: 2px !important; }';
-  document.head.appendChild(s);
+  if (document.head) document.head.appendChild(s);
   var first = document.querySelector('[tabindex]:not([tabindex="-1"])');
   if (first) first.focus();
 })();

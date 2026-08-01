@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "217827216586",
+    "project_id": "hotel-tv-app-fbbe6",
+    "storage_bucket": "hotel-tv-app-fbbe6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:217827216586:android:7d2878df0f30c48072f833",
+        "android_client_info": {
+          "package_name": "com.digiemperor.hotel"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBY2vP_zekF-NVzXY8sNrQMfp51JoNbaoE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

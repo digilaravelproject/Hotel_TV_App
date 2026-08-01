@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:responsive_sizer/responsive_sizer.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'firebase_options.dart';
 import 'core/constants/app_constants.dart';
 import 'core/services/storage/shared_prefs.dart';
 import 'features/authentication/presentation/pages/app_startup_decider.dart';
@@ -10,6 +14,24 @@ final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    
+    // Pass all uncaught asynchronous errors that aren't handled by the Flutter framework to Crashlytics
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+    
+    // Pass all uncaught errors from the framework to Crashlytics
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FirebaseCrashlytics.instance.recordFlutterError(details);
+    };
+  } catch (e) {
+    debugPrint('Firebase initialization failed: \$e');
+  }
   await SharedPrefs.init();
 
   // Expose crash errors on screen for easy remote TV troubleshooting via photos/screenshots

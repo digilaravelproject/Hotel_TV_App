@@ -4,6 +4,7 @@ import '../../../../core/services/storage/shared_prefs.dart';
 import '../../../../core/services/storage/token_manger.dart';
 import '../../../../core/services/template/template_manager_service.dart';
 import '../../../../core/widget/loading_widget.dart';
+import '../../../../core/utils/logger.dart';
 import '../../../dashboard/presentation/pages/tv_webview_screen.dart';
 import 'tv_login_screen.dart';
 
@@ -38,16 +39,15 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
       if (isDownloaded) {
         await TemplateManagerService.regenerateDataJson();
         _navigateToWebview();
-        // Background silent check without showing any UI or blocking
-        TemplateManagerService.checkAndUpdateTemplateSilent();
         return;
       }
 
       setState(() {
         _showLoader = true;
-        _statusMessage = 'Installing...';
+        _statusMessage = 'Downloading template...';
       });
-      await TemplateManagerService.checkAndUpdateTemplateSilent(
+
+      await TemplateManagerService.downloadTemplateFromSavedData(
         onProgress: (progress) {
           if (!mounted) return;
           setState(() {
@@ -58,8 +58,8 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
       );
 
       if (!mounted) return;
-      final nowDownloaded = await TemplateManagerService.isTemplateDownloaded();
-      if (nowDownloaded) {
+      final finalDownloaded = await TemplateManagerService.isTemplateDownloaded();
+      if (finalDownloaded) {
         _navigateToWebview();
       } else {
         _navigateToLogin();

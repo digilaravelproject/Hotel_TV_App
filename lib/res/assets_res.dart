@@ -6,7 +6,7 @@
 class AssetsRes {
   AssetsRes._();
 
-  static const String PROJECT_NAME = 'virtual_office';
+  static const String PROJECT_NAME = 'hotel';
   static const String PROJECT_VERSION = '1.0.0+1';
   static const String LOGO = 'assets/logo.png';
 }
