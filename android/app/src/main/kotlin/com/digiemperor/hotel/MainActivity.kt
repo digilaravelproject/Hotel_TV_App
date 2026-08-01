@@ -368,17 +368,32 @@ class MainActivity : FlutterActivity() {
                 val inputList = tvInputManager.tvInputList
                 for (input in inputList) {
                     val id = input.id
+                    
+                    // Exclude non-hardware / virtual app inputs (like Google Play Movies & TV, etc.)
+                    val isHardwareInput = input.type == TvInputInfo.TYPE_HDMI ||
+                                          input.type == TvInputInfo.TYPE_TUNER ||
+                                          input.type == TvInputInfo.TYPE_COMPOSITE ||
+                                          input.type == TvInputInfo.TYPE_COMPONENT ||
+                                          input.type == TvInputInfo.TYPE_DISPLAY_PORT ||
+                                          input.type == TvInputInfo.TYPE_VGA ||
+                                          input.type == TvInputInfo.TYPE_DVI ||
+                                          input.isPassthroughInput
+
+                    if (!isHardwareInput) {
+                        continue
+                    }
+
                     var label = try { input.loadLabel(this)?.toString() } catch(e: Exception) { null }
-                    if (label.isNullOrEmpty()) {
+                    if (label.isNullOrEmpty() || label.contains("Google Play", ignoreCase = true) || label.contains("Shop", ignoreCase = true)) {
                         label = when (input.type) {
                             TvInputInfo.TYPE_HDMI -> "HDMI (${id.substringAfterLast('/')})"
                             TvInputInfo.TYPE_TUNER -> "Live TV (Tuner)"
                             TvInputInfo.TYPE_DISPLAY_PORT -> "DisplayPort"
-                            TvInputInfo.TYPE_COMPOSITE -> "AV / Composite"
+                            TvInputInfo.TYPE_COMPOSITE -> "AV Input"
                             TvInputInfo.TYPE_COMPONENT -> "Component"
                             TvInputInfo.TYPE_VGA -> "VGA"
                             TvInputInfo.TYPE_DVI -> "DVI"
-                            else -> if (input.isPassthroughInput) "Passthrough Input" else id
+                            else -> if (input.isPassthroughInput) "Passthrough Input" else "Hardware Input"
                         }
                     }
 
