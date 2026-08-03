@@ -16,8 +16,10 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import android.app.admin.DevicePolicyManager
+import android.app.role.RoleManager
 import android.content.ComponentName
 import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
 import android.content.RestrictionsManager
 import java.io.ByteArrayOutputStream
@@ -30,18 +32,82 @@ class MainActivity : FlutterActivity() {
     private val TV_CONTROL_CHANNEL = "com.digiemperor.hotel/tv_control"
     private val EMM_CONFIG_CHANNEL = "com.digiemperor.hotel/emm_config"
 
+    companion object {
+        private const val REQUEST_CODE_SET_DEFAULT_HOME = 1001
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setupDeviceOwnerLock()
+        requestDefaultLauncherRole()
+    }
+
+    /**
+     * Requests this app to become the default Home Launcher.
+     * - Android 10+ (API 29+): Uses RoleManager to show "Set as Home App" system dialog.
+     * - Android < 10: Shows the standard home picker chooser dialog.
+     * This mimics the behavior of apps like Nova Launcher / Microsoft Launcher.
+     */
+    /**
+     * Requests this app to become the default Home Launcher on Android TV.
+     * Triggers standard Home Chooser / Launcher Picker dialog reliably across TV versions.
+     */
+    private fun requestDefaultLauncherRole() {
+        try {
+            if (!isAlreadyDefaultLauncher()) {
+                // Method 1: Fake Intent Trigger to show "Complete action using / Select Home App" dialog
+                val selectorIntent = Intent(Intent.ACTION_MAIN).apply {
+                    addCategory(Intent.CATEGORY_HOME)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                
+                // Intent Chooser forces Android TV to ask user: "Use as Home App (Always / Just Once)"
+                val chooserIntent = Intent.createChooser(selectorIntent, "Select Home App / Launcher").apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(chooserIntent)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Fallback: Open system Home Settings directly if chooser fails
+            try {
+                val settingsIntent = Intent(android.provider.Settings.ACTION_HOME_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(settingsIntent)
+            } catch (ex: Exception) {
+                ex.printStackTrace()
+            }
+        }
+    }
+
+    private fun isAlreadyDefaultLauncher(): Boolean {
+        return try {
+            val intent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_HOME) }
+            val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            resolveInfo?.activityInfo?.packageName == packageName
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_CODE_SET_DEFAULT_HOME) {
+            if (resultCode == RESULT_OK) {
+                Toast.makeText(this, "Hotel TV App set as default launcher!", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun setupDeviceOwnerLock() {
         try {
             val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-            val adminName = ComponentName(this, MyDeviceAdminReceiver::class.java)
+            val adminName = MyDeviceAdminReceiver.getComponentName(this)
 
             if (dpm.isDeviceOwnerApp(packageName)) {
-                // 1. Force this app as the permanent Home Launcher (bypasses launcher picker)
+                // Already Device Owner — apply all kiosk settings
+                // 1. Silently bind Home button to our app permanently (no user prompt)
                 val intentFilter = IntentFilter(Intent.ACTION_MAIN).apply {
                     addCategory(Intent.CATEGORY_HOME)
                     addCategory(Intent.CATEGORY_DEFAULT)
@@ -49,9 +115,136 @@ class MainActivity : FlutterActivity() {
                 val activityName = ComponentName(this, MainActivity::class.java)
                 dpm.addPersistentPreferredActivity(adminName, intentFilter, activityName)
 
-                // 2. Lock task packages (disable notification drawer, status bar, recent apps, etc.)
+                // 2. Lock task packages — disables status bar, notifications, recent apps
                 dpm.setLockTaskPackages(adminName, arrayOf(packageName))
-                startLockTask() // Starts Kiosk mode
+                startLockTask() // Enter Kiosk mode
+
+                // 3. Silently enable ADB/USB debugging (Device Owner privilege required)
+                enableAdbDebugging()
+            } else {
+                // Not yet Device Owner — try to self-provision
+                trySetDeviceOwnerSelf()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    /**
+     * Attempts to run "dpm set-device-owner" from within the app itself.
+     *
+     * Flow:
+     *   App install → App open → this runs automatically →
+     *   If success: full kiosk lock, ADB enabled, permanent launcher
+     *   If fail: RoleManager dialog shown as fallback
+     *
+     * Works on: AOSP-based Android TVs, some OEM TVs with relaxed shell policy.
+     * Requires: No active Google accounts on device.
+     */
+    private fun trySetDeviceOwnerSelf() {
+        Thread {
+            try {
+                val adminComponent = "${packageName}/.MyDeviceAdminReceiver"
+                android.util.Log.i("HotelTV", "Attempting self device-owner provisioning...")
+
+                // Method 1: Direct dpm command (works on many Android TVs)
+                val result1 = runShellCommand("dpm set-device-owner $adminComponent")
+                if (result1.contains("Success", ignoreCase = true)) {
+                    android.util.Log.i("HotelTV", "Device Owner set via dpm command!")
+                    runOnUiThread { setupDeviceOwnerLock() } // re-run to apply kiosk
+                    return@Thread
+                }
+
+                // Method 2: Via su (rooted devices)
+                val result2 = runShellCommand("su -c dpm set-device-owner $adminComponent")
+                if (result2.contains("Success", ignoreCase = true)) {
+                    android.util.Log.i("HotelTV", "Device Owner set via su!")
+                    runOnUiThread { setupDeviceOwnerLock() }
+                    return@Thread
+                }
+
+                // Method 3: pm grant WRITE_SECURE_SETTINGS then retry (some AOSP TVs)
+                runShellCommand("pm grant $packageName android.permission.WRITE_SECURE_SETTINGS")
+                val result3 = runShellCommand("dpm set-device-owner $adminComponent")
+                if (result3.contains("Success", ignoreCase = true)) {
+                    android.util.Log.i("HotelTV", "Device Owner set after granting permissions!")
+                    runOnUiThread { setupDeviceOwnerLock() }
+                    return@Thread
+                }
+
+                android.util.Log.w("HotelTV", "Self provisioning failed. Results: $result1 | $result2 | $result3")
+                android.util.Log.w("HotelTV", "Manual ADB required: adb shell dpm set-device-owner $adminComponent")
+
+            } catch (e: Exception) {
+                android.util.Log.e("HotelTV", "Self provisioning error: ${e.message}")
+            }
+        }.start()
+    }
+
+    /**
+     * Runs a shell command and returns the output + error as a single string.
+     */
+    private fun runShellCommand(command: String): String {
+        return try {
+            val process = ProcessBuilder("/system/bin/sh", "-c", command)
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().readText()
+            process.waitFor()
+            android.util.Log.d("HotelTV", "CMD [$command] → $output")
+            output
+        } catch (e: Exception) {
+            android.util.Log.e("HotelTV", "runShellCommand error: ${e.message}")
+            ""
+        }
+    }
+
+    /**
+     * Programmatically enables ADB debugging and Developer Options.
+     * Only works when this app is the Device Owner.
+     * After this runs, you can connect via:
+     *   adb connect [TV_IP]:5555
+     * without manually enabling Developer Options on the TV.
+     */
+    private fun enableAdbDebugging() {
+        try {
+            val cr = contentResolver
+
+            // Enable Developer Options
+            android.provider.Settings.Global.putInt(
+                cr,
+                android.provider.Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 1
+            )
+
+            // Enable ADB over USB
+            android.provider.Settings.Global.putInt(
+                cr,
+                android.provider.Settings.Global.ADB_ENABLED, 1
+            )
+
+            // Enable ADB over Network/WiFi (port 5555)
+            android.provider.Settings.Global.putInt(
+                cr,
+                "adb_wifi_enabled", 1
+            )
+
+            android.util.Log.i("HotelTV", "ADB debugging enabled silently via Device Owner")
+        } catch (e: Exception) {
+            android.util.Log.w("HotelTV", "Failed to enable ADB: ${e.message}")
+        }
+    }
+
+    /**
+     * Re-engage Kiosk (Lock Task) mode on every resume.
+     * Prevents users from escaping back to the TV launcher even if the app
+     * was temporarily suspended.
+     */
+    override fun onResume() {
+        super.onResume()
+        try {
+            val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            if (dpm.isDeviceOwnerApp(packageName)) {
+                startLockTask()
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -135,9 +328,29 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    /**
+     * Intercepts all hardware key events.
+     * - HOME: Prevents TV launcher from opening; brings our app to foreground.
+     * - BACK: Sends to JS WebView bridge instead of exiting app.
+     * - MENU: Forwards to JS for custom handling.
+     * - DPAD/ENTER/NUMBERS: Pass through to Flutter/WebView.
+     */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val keyCode = event.keyCode
 
+        // HOME button: block TV launcher from opening, keep our app in foreground
+        if (keyCode == KeyEvent.KEYCODE_HOME) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                // Bring our app to front if it somehow went to background
+                val intent = Intent(this, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                startActivity(intent)
+            }
+            return true // consume the event - prevents TV launcher
+        }
+
+        // BACK button: send to JS WebView bridge, do NOT exit app
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             if (event.action == KeyEvent.ACTION_DOWN) {
                 flutterEngine?.dartExecutor?.let { executor ->
@@ -145,9 +358,21 @@ class MainActivity : FlutterActivity() {
                         .invokeMethod("onBackPressed", null)
                 }
             }
+            return true // consume - prevents app from exiting
+        }
+
+        // MENU button: forward to JS for custom menu handling
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                flutterEngine?.dartExecutor?.let { executor ->
+                    MethodChannel(executor.binaryMessenger, "com.digiemperor.hotel/back_navigation")
+                        .invokeMethod("onMenuPressed", null)
+                }
+            }
             return true
         }
 
+        // DPAD, ENTER, NUMBER keys: pass to Flutter/WebView
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
             keyCode == KeyEvent.KEYCODE_ENTER ||
             keyCode == KeyEvent.KEYCODE_DPAD_UP ||
@@ -158,7 +383,14 @@ class MainActivity : FlutterActivity() {
         ) {
             return window.superDispatchKeyEvent(event)
         }
+
         return super.dispatchKeyEvent(event)
+    }
+
+    // Prevent back button from ever closing/exiting the app
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        // Do nothing - back is handled via JS bridge in dispatchKeyEvent
     }
 
     private fun getMacAddress(): String {
