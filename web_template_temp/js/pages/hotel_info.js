@@ -255,7 +255,7 @@ let images = [];
                 langFile = window.AndroidBridge.getSelectedLanguageFile();
             }
 
-            fetch(`../admin/languages/${langFile}?t=${Date.now()}`)
+            fetch(`../languages/${langFile}?t=${Date.now()}`)
                 .then(res => res.json())
                 .then(data => {
                     const titleKey = 'hotel_info';
@@ -351,7 +351,7 @@ window.onTVNavigate = function(direction) {
 };
 
 window.onTVBack = function() {
-    goBack();
+    window.location.href = "../index.html";
     return true;
 };
 

@@ -243,7 +243,16 @@ window.TVCore = {
                 img.alt = config.hotel.hotel_name || 'Hotel Logo';
 
                 container.appendChild(img);
-                document.body.appendChild(container);
+
+                const logoSlot = document.getElementById('hotelLogoSlot');
+                const headerRight = document.querySelector('.header-right');
+                if (logoSlot) {
+                    logoSlot.appendChild(container);
+                } else if (headerRight) {
+                    headerRight.appendChild(container);
+                } else {
+                    document.body.appendChild(container);
+                }
             }
         }
     }
@@ -266,3 +275,20 @@ if (document.readyState === 'loading') {
         }
     });
 }
+
+// Global Zoom Prevention (Disable Ctrl + Wheel / Pinch-to-zoom / Touch gestures)
+window.addEventListener('wheel', function (e) {
+    if (e.ctrlKey) {
+        e.preventDefault();
+    }
+}, { passive: false });
+
+window.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '-' || e.key === '=' || e.keyCode === 187 || e.keyCode === 189)) {
+        e.preventDefault();
+    }
+});
+
+document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+document.addEventListener('gesturechange', function (e) { e.preventDefault(); });
+document.addEventListener('gestureend', function (e) { e.preventDefault(); });
