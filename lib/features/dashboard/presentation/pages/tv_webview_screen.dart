@@ -141,6 +141,26 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
             setState(() {
               _showCenterLoading = false;
             });
+            // Pure Flutter-side DOM override: Fix static '6.0' version in web template automatically
+            _controller?.runJavaScript('''
+              (function() {
+                try {
+                  var verEl = document.getElementById('v-version');
+                  if (verEl) {
+                    var dataStr = localStorage.getItem('cachedHotelData') || (window.tvLoginData && JSON.stringify(window.tvLoginData));
+                    if (dataStr) {
+                      var parsed = JSON.parse(dataStr);
+                      var deviceObj = parsed.device || (parsed.data && parsed.data.device) || parsed;
+                      var templateObj = parsed.template || (parsed.data && parsed.data.template);
+                      var ver = (templateObj && templateObj.latest_version) || (deviceObj && (deviceObj.version || deviceObj.Ver)) || '';
+                      verEl.innerText = ver;
+                    } else {
+                      verEl.innerText = '';
+                    }
+                  }
+                } catch(e) {}
+              })();
+            ''');
           }
         };
         return bloc..add(InitializeWebView(clearCache: widget.clearCache));

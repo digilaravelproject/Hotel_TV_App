@@ -449,7 +449,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Populate Template Version if present
         var verEl = document.getElementById('v-version');
         if (verEl) {
-            verEl.innerText = d.version || "6.0";
+            verEl.innerText = d.version || d.Ver || "";
         }
         
         if (d.room && d.room !== "---" && room) {

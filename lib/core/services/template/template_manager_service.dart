@@ -140,6 +140,15 @@ class TemplateManagerService {
             devMap['gateway'] = deviceDetails['gateway'] ?? '';
             devMap['subnet_mask'] = deviceDetails['subnet'] ?? '';
             devMap['dns'] = deviceDetails['dns'] ?? '';
+
+            // Inject dynamic template version from template object or SharedPreferences
+            final templateMap = dataMap['template'] as Map<String, dynamic>?;
+            final dynamicVer = templateMap?['latest_version']?.toString() ??
+                SharedPrefs.getString(AppConstants.templateVersionKey) ??
+                '';
+            devMap['version'] = dynamicVer;
+            devMap['Ver'] = dynamicVer;
+
             if (savedPort != null && savedPort.isNotEmpty && savedPort != 'null') {
               devMap['tvInputPort'] = savedPort;
               devMap['liveTvPort'] = savedPort;
