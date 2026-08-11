@@ -14,6 +14,8 @@ import '../../../../core/services/template/template_manager_service.dart';
 import '../../../../core/services/template/local_template_server.dart';
 import '../../../../core/services/storage/shared_prefs.dart';
 import '../../../../core/services/storage/token_manger.dart';
+import '../../../../core/services/device/device_info_service.dart';
+import '../../../../core/services/sync/tv_sync_manager.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../authentication/presentation/pages/tv_login_screen.dart';
 
@@ -33,7 +35,6 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
   bool _showBottomUpdating = false;
   double _downloadProgress = 0.0;
   bool _showCenterLoading = false;
-  Timer? _realtimeSyncTimer;
 
   @override
   void initState() {
@@ -45,113 +46,86 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkSilentUpdate();
-      // Polling every 60s for real-time Admin Panel updates (Guest Name, Logo, Banners)
-      _realtimeSyncTimer = Timer.periodic(const Duration(seconds: 60), (_) {
-        _checkSilentUpdate();
-      });
+      _initHybridSync();
     });
   }
 
-  Future<void> _checkSilentUpdate() async {
-    try {
-      if (!await TemplateManagerService.isTemplateDownloaded()) {
-        Logger.i('[TvWebviewScreen] Template not downloaded yet. Skipping silent background update.');
-        return;
-      }
-      Logger.i('[TvWebviewScreen] Starting silent background update check...');
-      final int updateType = await TemplateManagerService.checkAndUpdateTemplateSilent(
-        onProgress: (progress) {
-          if (mounted) {
-            setState(() {
-              _showBottomUpdating = true;
-              _downloadProgress = progress;
-            });
-          }
-        },
-      );
-      
-      if (mounted) {
-        setState(() {
-          _showBottomUpdating = false;
-        });
-      }
+  Future<void> _initHybridSync() async {
+    final rawLoginData = SharedPrefs.getString(AppConstants.tvLoginDataKey);
+    String hotelId = "1";
+    String deviceId = "";
 
-      if (updateType == -1) {
+    if (rawLoginData != null && rawLoginData.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawLoginData);
+        final dataMap = decoded['data'] ?? decoded;
+        hotelId = dataMap['device']?['hotel_id']?.toString() ??
+            dataMap['hotel']?['id']?.toString() ??
+            "1";
+        deviceId = dataMap['device']?['device_id']?.toString() ??
+            dataMap['device']?['deviceId']?.toString() ??
+            "";
+      } catch (_) {}
+    }
+
+    if (deviceId.isEmpty) {
+      final info = await DeviceInfoService.getFullDeviceInfo();
+      deviceId = info['deviceId'] ?? '';
+    }
+
+    await TvSyncManager.startHybridSync(
+      hotelId: hotelId,
+      deviceId: deviceId,
+      onDataUpdated: (updateType) async {
+        if (!mounted || _controller == null) return;
+
+        if (updateType == 2) {
+          Logger.i('[TvWebviewScreen] Template ZIP Updated. Reloading WebView...');
+          await _controller?.clearCache();
+          try {
+            await _controller?.clearLocalStorage();
+          } catch (_) {}
+          await _controller?.reload();
+        } else if (updateType == 1) {
+          Logger.i('[TvWebviewScreen] Data Updated. Triggering smooth in-page JS reload...');
+          if (mounted && _controller != null) {
+            await _controller?.runJavaScript('''
+              (function() {
+                try {
+                  if (typeof window.TVCore === 'object' && typeof window.TVCore.reload === 'function') {
+                    window.TVCore.reload();
+                  } else {
+                    window.location.reload();
+                  }
+                } catch(e) {
+                  window.location.reload();
+                }
+              })();
+            ''');
+          }
+        }
+      },
+      onUnauthenticated: () async {
         Logger.w('[TvWebviewScreen] Token is unauthenticated! Performing automatic logout...');
         await TokenManager.clearToken();
         await SharedPrefs.remove(AppConstants.tvLoginDataKey);
         await LocalTemplateServer.stop();
+        await TvSyncManager.dispose();
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const TvLoginScreen()),
             (route) => false,
           );
         }
-        return;
-      }
-
-      if (updateType == 2) {
-        Logger.i('[TvWebviewScreen] Template version updated. Clearing cache and reloading webview...');
-        if (mounted && _controller != null) {
-          setState(() {
-            _showCenterLoading = true;
-          });
-          await _controller?.clearCache();
-          try {
-            await _controller?.clearLocalStorage();
-          } catch (_) {}
-          await _controller?.reload();
-        }
-      } else if (updateType == 1) {
-        Logger.i('[TvWebviewScreen] Data JSON updated. Injecting new data smoothly...');
-        if (mounted && _controller != null) {
-          final raw = SharedPrefs.getString(AppConstants.tvLoginDataKey);
-          if (raw != null && raw.isNotEmpty) {
-            final b64 = base64Encode(utf8.encode(raw));
-            await _controller?.runJavaScript('''
-              (function() {
-                try {
-                  window.tvLoginData = JSON.parse(atob('$b64'));
-                  var normalized = window.tvLoginData.data || window.tvLoginData;
-                  localStorage.setItem('cachedHotelData', JSON.stringify(normalized));
-                  
-                  if (typeof window.initGallery === 'function') {
-                    window.initGallery();
-                  } else if (typeof window.TVCore === 'object' && typeof window.TVCore.init === 'function') {
-                    window.TVCore.init();
-                  } else if (typeof window.updateDateTime === 'function') {
-                    window.updateDateTime();
-                    if (typeof window.applyTranslations === 'function') window.applyTranslations();
-                  } else {
-                    window.location.reload();
-                  }
-                } catch(e) {
-                  console.error("Failed to apply silent update:", e);
-                  window.location.reload();
-                }
-              })();
-            ''');
-          } else {
-            await _controller?.reload();
-          }
-        }
-      } else {
-        Logger.i('[TvWebviewScreen] Silent update finished. No changes found.');
-      }
-    } catch (e) {
-      Logger.e('[TvWebviewScreen] Error during silent update check: $e');
-      if (mounted) {
-        setState(() {
-          _showBottomUpdating = false;
-        });
-      }
-    }
+      },
+    );
   }
+
+
 
   @override
   void dispose() {
-    _realtimeSyncTimer?.cancel();
+    TvSyncManager.dispose();
     _backChannel.setMethodCallHandler(null);
     _webViewFocusNode.dispose();
     super.dispose();

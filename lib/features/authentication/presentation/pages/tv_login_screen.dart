@@ -19,6 +19,7 @@ import '../../../../core/services/storage/shared_prefs.dart';
 import '../../../../core/services/storage/token_manger.dart';
 import '../../../../core/services/template/template_manager_service.dart';
 import '../../../dashboard/presentation/pages/tv_webview_screen.dart';
+import 'app_startup_decider.dart';
 import '../widgets/qr_mode_widget.dart';
 import '../widgets/manual_mode_widget.dart';
 
@@ -44,6 +45,14 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   // ValueNotifier to track tab state
   late final ValueNotifier<bool> isQrModeNotifier;
 
+  // Pairing state variables
+  String _pairCode = '';
+  int _remainingSeconds = 180;
+  bool _isPairCodeLoading = false;
+  String? _pairCodeError;
+  Timer? _countdownTimer;
+  Timer? _pollingTimer;
+
   @override
   void initState() {
     super.initState();
@@ -56,9 +65,223 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     submitFocus = FocusNode();
     isQrModeNotifier = ValueNotifier<bool>(true);
 
+    // D-Pad navigation: attach onKeyEvent directly to focus nodes
+    // Using new API (onKeyEvent + KeyDownEvent) instead of deprecated onKey + RawKeyDownEvent
+    licenseKeyFocus.onKeyEvent = (node, event) {
+      if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          roomNoFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+          licenseKeyFocus.unfocus();
+          manualTabFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+      }
+      return KeyEventResult.ignored;
+    };
+
+    roomNoFocus.onKeyEvent = (node, event) {
+      if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          licenseKeyFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          submitFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+          roomNoFocus.unfocus();
+          manualTabFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+      }
+      return KeyEventResult.ignored;
+    };
+
+    submitFocus.onKeyEvent = (node, event) {
+      if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          roomNoFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+          manualTabFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+      }
+      return KeyEventResult.ignored;
+    };
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkEmmConfig();
+      _generatePairCode();
     });
+  }
+
+  Future<void> _generatePairCode() async {
+    _stopPairingTimers();
+    if (!mounted) return;
+
+    // Check if already logged in
+    final token = await TokenManager.getToken();
+    final hasLoginData = SharedPrefs.containsKey(AppConstants.tvLoginDataKey);
+    if (token.isNotEmpty && hasLoginData) {
+      Logger.i('[Pairing] Already logged in. Aborting pair code generation and polling.');
+      return;
+    }
+    setState(() {
+      _isPairCodeLoading = true;
+      _pairCodeError = null;
+    });
+
+    try {
+      final info = await DeviceInfoService.getFullDeviceInfo();
+      final Map<String, dynamic> requestData = {
+        'deviceId': info['deviceId'] ?? '',
+        'macAddress': info['macAddress'] ?? '',
+        'ipAddress': info['ipAddress'] ?? '',
+        'model': info['model'] ?? '',
+        'brand': info['brand'] ?? '',
+        'osVersion': info['osVersion'] ?? '',
+      };
+
+      final ApiClient apiClient = ApiClient();
+      final response = await apiClient.post(
+        ApiConstants.generatePairCodeUri,
+        data: requestData,
+      );
+
+      if (response.data != null && response.data is Map && response.data['status'] == true) {
+        final data = response.data['data'] as Map<String, dynamic>?;
+        final code = data?['pair_code']?.toString() ?? '';
+        final expiresIn = (data?['expires_in_seconds'] as num?)?.toInt() ?? 180;
+
+        if (mounted) {
+          setState(() {
+            _pairCode = code;
+            _remainingSeconds = expiresIn;
+            _isPairCodeLoading = false;
+          });
+          _startCountdownTimer();
+          _startPolling();
+        }
+      } else {
+        String msg = response.data?['message']?.toString() ?? 'Failed to generate pairing code';
+        if (mounted) {
+          setState(() {
+            _isPairCodeLoading = false;
+            _pairCodeError = msg;
+          });
+        }
+      }
+    } catch (e) {
+      Logger.e('Error generating pair code: $e');
+      if (mounted) {
+        setState(() {
+          _isPairCodeLoading = false;
+          _pairCodeError = 'Failed to load pairing code';
+        });
+      }
+    }
+  }
+
+  void _startCountdownTimer() {
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_remainingSeconds > 1) {
+        if (mounted) {
+          setState(() {
+            _remainingSeconds--;
+          });
+        }
+      } else {
+        _stopPairingTimers();
+        if (mounted) {
+          setState(() {
+            _remainingSeconds = 0;
+          });
+          _generatePairCode();
+        }
+      }
+    });
+  }
+
+  void _startPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      await _checkPairStatus();
+    });
+  }
+
+  Future<void> _checkPairStatus() async {
+    if (_pairCode.isEmpty) return;
+
+    try {
+      final info = await DeviceInfoService.getFullDeviceInfo();
+      final Map<String, dynamic> requestData = {
+        'pair_code': _pairCode,
+        'deviceId': info['deviceId'] ?? '',
+      };
+
+      final ApiClient apiClient = ApiClient();
+      final response = await apiClient.post(
+        ApiConstants.pairStatusUri,
+        data: requestData,
+      );
+
+      if (response.data != null && response.data is Map) {
+        final state = response.data['state']?.toString();
+        final status = response.data['status'];
+
+        if (state == 'expired' || status == false && state != 'pending') {
+          _stopPairingTimers();
+          _generatePairCode();
+        } else if (state == 'paired' || (status == true && response.data['data'] != null && response.data['data']['auth'] != null)) {
+          _stopPairingTimers();
+          await _handleLoginSuccess(response.data);
+        }
+      }
+    } catch (e) {
+      Logger.e('Error checking pair status: $e');
+    }
+  }
+
+  Future<void> _handleLoginSuccess(dynamic responseData) async {
+    if (!mounted) return;
+    try {
+      final dataMap = responseData['data'] as Map<String, dynamic>?;
+      final token = dataMap?['auth']?['token']?.toString() ??
+          dataMap?['token']?.toString() ??
+          responseData['token']?.toString() ??
+          '';
+
+      if (token.isNotEmpty) {
+        await TokenManager.saveToken(token);
+      }
+      await SharedPrefs.setString(AppConstants.tvLoginDataKey, jsonEncode(responseData));
+      await TemplateManagerService.regenerateDataJson();
+
+      CustomSnackbar.showSuccess(
+        message: responseData['message'] ?? 'TV Paired and logged in successfully!',
+      );
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => AppStartupDecider()),
+        );
+      }
+    } catch (e) {
+      Logger.e('Error handling login success: $e');
+    }
+  }
+
+  void _stopPairingTimers() {
+    _countdownTimer?.cancel();
+    _pollingTimer?.cancel();
   }
 
   Future<void> _checkEmmConfig() async {
@@ -82,6 +305,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
 
   @override
   void dispose() {
+    _stopPairingTimers();
     licenseKeyController.dispose();
     roomNoController.dispose();
     qrTabFocus.dispose();
@@ -95,77 +319,92 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final textTheme = theme.textTheme;
-
     return CustomBaseWidget(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: Colors.black,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF07090E), // Deep cosmos black-blue
-              Color(0xFF0C1322), // Soft night navy
-              Color(0xFF07090D), // Deep space black
+              Color(0xFF150A21),
+              Color(0xFF09040E),
+              Color(0xFF1B0715),
             ],
-            stops: [0.0, 0.5, 1.0],
           ),
         ),
         child: Stack(
           children: [
-            // Background Subtle Glow Effect
+            // Ambient glow top right
             Positioned(
-              top: -100,
-              left: -100,
+              top: -50,
+              right: -80,
               child: Container(
-                width: 300,
-                height: 300,
+                width: 550,
+                height: 550,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF00E5FF).withOpacity(0.04), // Cyan neon glow
-                      blurRadius: 120,
-                      spreadRadius: 60,
-                    ),
-                  ],
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFFE11D48).withOpacity(0.35),
+                      const Color(0xFF9333EA).withOpacity(0.20),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.5, 1.0],
+                  ),
                 ),
               ),
             ),
             Positioned(
-              bottom: -150,
-              right: -50,
+              bottom: -100,
+              right: 50,
               child: Container(
-                width: 400,
-                height: 400,
+                width: 500,
+                height: 500,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF7000FF).withOpacity(0.04), // Violet neon glow
-                      blurRadius: 150,
-                      spreadRadius: 80,
-                    ),
-                  ],
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFFC084FC).withOpacity(0.25),
+                      const Color(0xFFE11D48).withOpacity(0.15),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: -100,
+              left: -50,
+              child: Container(
+                width: 450,
+                height: 450,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFF4F46E5).withOpacity(0.18),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
               ),
             ),
 
-            // Main layout content
+            // Main layout
             Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Left Side: Welcome Panel (52% width)
+                // ─── LEFT PANEL ───────────────────────────────────────
                 Expanded(
-                  flex: 11,
+                  flex: 9,
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(64, 32, 48, 32),
+                    padding: const EdgeInsets.fromLTRB(64, 40, 32, 40),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // App Branding Logo Header
+                        // Branding
                         Row(
                           children: [
                             Container(
@@ -180,124 +419,197 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                                 size: 24,
                               ),
                             ),
-                            UiSpacer.hSpace(14),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                CustomAppText(
-                                  AppConstants.appName,
-                                  
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.5,
-                                ),
-                                const SizedBox(height: 2),
-                                CustomAppText(
-                                  "Entertainment. Your Way.",
-                                  
-                                  color: Colors.white70.withOpacity(0.5),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        UiSpacer.expandedSpace(),
-
-                        // Welcome Heading with purple underline
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+                            UiSpacer.hSpace(12),
                             CustomAppText(
-                              AppText.welcome,
-                              
+                              AppConstants.appName,
                               color: Colors.white,
-                              fontSize: 40,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -1.0,
-                            ),
-                            const SizedBox(height: 6),
-                            Container(
-                              width: 80,
-                              height: 3,
-                              color: const Color(0xFF6366F1), // Purple underline
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
                             ),
                           ],
                         ),
-                        UiSpacer.vSpace(14),
+                        UiSpacer.vSpace(32),
 
-                        // Subtitle Description
+                        // Title
+                        const CustomAppText(
+                          "Pair Your TV",
+                          color: Colors.white,
+                          fontSize: 38,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                        ),
+                        UiSpacer.vSpace(10),
+
+                        // Subtitle
                         CustomAppText(
-                          AppText.welcomeSubtitle,
-                          
-                          color: Colors.white.withOpacity(0.85),
-                          fontSize: 14,
+                          "Scan the QR code with your phone/admin dashboard or sign in manually using your remote.",
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 13,
                           height: 1.4,
                         ),
-                        UiSpacer.vSpace(14),
+                        UiSpacer.vSpace(32),
 
-                        // 3 Bullet Feature Items
-                        _buildFeatureItem(
-                          icon: Icons.business,
-                          iconColor: const Color(0xFF818CF8),
-                          tileColor: const Color(0xFF6366F1).withOpacity(0.15),
-                          title: "Personalized Experience",
-                          subtitle: "Access your favorite shows and services.",
-                        ),
-                        const SizedBox(height: 10),
-                        _buildFeatureItem(
-                          icon: Icons.security,
-                          iconColor: const Color(0xFF34D399),
-                          tileColor: const Color(0xFF10B981).withOpacity(0.15),
-                          title: "Secure & Private",
-                          subtitle: "Your data is safe and protected.",
-                        ),
-                        const SizedBox(height: 10),
-                        _buildFeatureItem(
-                          icon: Icons.settings_remote,
-                          iconColor: const Color(0xFF60A5FA),
-                          tileColor: const Color(0xFF3B82F6).withOpacity(0.15),
-                          title: "Quick & Easy",
-                          subtitle: "Setup will take just a few seconds.",
+                        // ── Option buttons ───────────────────────────────
+                        ValueListenableBuilder<bool>(
+                          valueListenable: isQrModeNotifier,
+                          builder: (context, isQrMode, child) {
+                            return Column(
+                              children: [
+                                // Option 1: Pair with QR Code
+                                Focus(
+                                  onKeyEvent: (node, event) {
+                                    if (event is KeyDownEvent) {
+                                      if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                                        manualTabFocus.requestFocus();
+                                        return KeyEventResult.handled;
+                                      }
+                                    }
+                                    return KeyEventResult.ignored;
+                                  },
+                                  child: TvFocusable(
+                                    focusNode: qrTabFocus,
+                                    autofocus: true,
+                                    onFocusChange: (focused) {
+                                      if (focused) isQrModeNotifier.value = true;
+                                    },
+                                    onTap: () => isQrModeNotifier.value = true,
+                                    child: Container(
+                                      height: 52,
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                                      decoration: BoxDecoration(
+                                        color: isQrMode
+                                            ? Colors.white
+                                            : Colors.white.withOpacity(0.06),
+                                        borderRadius: BorderRadius.circular(16),
+                                        boxShadow: isQrMode
+                                            ? [
+                                                BoxShadow(
+                                                  color: Colors.white.withOpacity(0.2),
+                                                  blurRadius: 16,
+                                                  spreadRadius: 1,
+                                                )
+                                              ]
+                                            : null,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.qr_code_scanner_rounded,
+                                            color: isQrMode ? Colors.black : Colors.white70,
+                                            size: 22,
+                                          ),
+                                          const SizedBox(width: 16),
+                                          CustomAppText(
+                                            "Pair with QR Code",
+                                            color: isQrMode ? Colors.black : Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                UiSpacer.vSpace(12),
+
+                                // Option 2: Sign in with Remote
+                                Focus(
+                                  onKeyEvent: (node, event) {
+                                    if (event is KeyDownEvent) {
+                                      if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                                        qrTabFocus.requestFocus();
+                                        return KeyEventResult.handled;
+                                      }
+                                      if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+                                        isQrModeNotifier.value = false;
+                                        // Delay so AnimatedSwitcher can mount the widget
+                                        Future.delayed(const Duration(milliseconds: 300), () {
+                                          licenseKeyFocus.requestFocus();
+                                        });
+                                        return KeyEventResult.handled;
+                                      }
+                                    }
+                                    return KeyEventResult.ignored;
+                                  },
+                                  child: TvFocusable(
+                                    focusNode: manualTabFocus,
+                                    onFocusChange: (focused) {
+                                      if (focused) isQrModeNotifier.value = false;
+                                    },
+                                    onTap: () => isQrModeNotifier.value = false,
+                                    child: Container(
+                                      height: 52,
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                                      decoration: BoxDecoration(
+                                        color: !isQrMode
+                                            ? Colors.white
+                                            : Colors.white.withOpacity(0.06),
+                                        borderRadius: BorderRadius.circular(16),
+                                        boxShadow: !isQrMode
+                                            ? [
+                                                BoxShadow(
+                                                  color: Colors.white.withOpacity(0.2),
+                                                  blurRadius: 16,
+                                                  spreadRadius: 1,
+                                                )
+                                              ]
+                                            : null,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.keyboard_alt_outlined,
+                                            color: !isQrMode ? Colors.black : Colors.white70,
+                                            size: 22,
+                                          ),
+                                          const SizedBox(width: 16),
+                                          CustomAppText(
+                                            "Sign in with Remote",
+                                            color: !isQrMode ? Colors.black : Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
 
-                        UiSpacer.expandedSpace(),
+                        UiSpacer.vSpace(32),
 
-                        // Footer: Device ID Container
+                        // Device ID Badge
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.04),
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: Colors.white.withOpacity(0.08),
-                              width: 1,
                             ),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               CustomAppText(
-                                "Device ID",
-                                
-                                color: Colors.white70.withOpacity(0.4),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
+                                "Device ID: ",
+                                color: Colors.white38,
+                                fontSize: 11,
                               ),
-                              const SizedBox(height: 4),
                               FutureBuilder<String>(
                                 future: DeviceInfoService.getDeviceId(),
                                 builder: (context, snapshot) {
-                                  final deviceId = snapshot.data ?? 'Loading...';
                                   return CustomAppText(
-                                    deviceId,
-                                    
-                                    color: Colors.white,
-                                    fontSize: 14,
+                                    snapshot.data ?? '...',
+                                    color: Colors.white70,
+                                    fontSize: 11,
                                     fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
                                   );
                                 },
                               ),
@@ -309,244 +621,52 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                   ),
                 ),
 
-                // Right Side: Setup Options Card Panel (48% width)
+                // ─── RIGHT PANEL ──────────────────────────────────────
                 Expanded(
-                  flex: 9,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 12, 64, 12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A).withOpacity(0.35),
-                        borderRadius: BorderRadius.circular(28),
-                        border: Border.all(
-                          color: const Color(0xFF1E293B).withOpacity(0.8),
-                          width: 1.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.4),
-                            blurRadius: 40,
-                            spreadRadius: -5,
-                            offset: const Offset(0, 15),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          UiSpacer.vSpace(4),
-                          // Heading
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.auto_awesome,
-                                color: Color(0xFF60A5FA),
-                                size: 18,
-                              ),
-                              const SizedBox(width: 8),
-                              CustomAppText(
-                                AppText.setupTitle,
-                                
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          CustomAppText(
-                            "Choose an option below to get started.",
-                            
-                            color: Colors.white70.withOpacity(0.5),
-                            fontSize: 11,
-                          ),
-                          UiSpacer.vSpace(10),
-
-                          // Toggle selector capsule bar (TV Styled - Gradient select pill)
-                          Container(
-                            height: 40,
-                            width: 280,
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.4),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.05),
-                                width: 1,
-                              ),
-                            ),
-                            padding: const EdgeInsets.all(4),
-                            child: Row(
-                              children: [
-                                // Scan QR Tab
-                                Expanded(
-                                  child: TvFocusable(
-                                    focusNode: qrTabFocus,
-                                    autofocus: true,
-                                    scaleFactor: 1.0,
-                                    onFocusChange: (focused) {
-                                      if (focused) {
-                                        isQrModeNotifier.value = true;
-                                      }
-                                    },
-                                    onTap: () {
-                                      isQrModeNotifier.value = true;
-                                    },
-                                    child: ValueListenableBuilder<bool>(
-                                      valueListenable: isQrModeNotifier,
-                                      builder: (context, isQrMode, child) {
-                                        return Container(
-                                          alignment: Alignment.center,
-                                          decoration: BoxDecoration(
-                                            gradient: isQrMode
-                                                ? const LinearGradient(
-                                                    colors: [
-                                                      Color(0xFF6366F1), // Purple
-                                                      Color(0xFF3B82F6), // Blue
-                                                    ],
-                                                  )
-                                                : null,
-                                            borderRadius: BorderRadius.circular(16),
-                                            boxShadow: isQrMode
-                                                ? [
-                                                    BoxShadow(
-                                                      color: const Color(0xFF6366F1).withOpacity(0.3),
-                                                      blurRadius: 10,
-                                                      spreadRadius: 1,
-                                                    )
-                                                  ]
-                                                : null,
-                                          ),
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(
-                                                Icons.qr_code_scanner,
-                                                color: isQrMode ? Colors.white : Colors.white70.withOpacity(0.5),
-                                                size: 14,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              CustomAppText(
-                                                AppText.scanQrTab,
-                                                
-                                                color: isQrMode ? Colors.white : Colors.white70.withOpacity(0.5),
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 12,
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
+                  flex: 11,
+                  child: Container(
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.fromLTRB(16, 32, 64, 32),
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: isQrModeNotifier,
+                      builder: (context, isQrMode, child) {
+                        return AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 250),
+                          child: isQrMode
+                              ? QrModeWidget(
+                                  pairCode: _pairCode,
+                                  remainingSeconds: _remainingSeconds,
+                                  isLoading: _isPairCodeLoading,
+                                  errorMessage: _pairCodeError,
+                                  onRefresh: _generatePairCode,
+                                )
+                              : ManualModeWidget(
+                                  formKey: formKey,
+                                  licenseKeyController: licenseKeyController,
+                                  roomNoController: roomNoController,
+                                  licenseKeyFocus: licenseKeyFocus,
+                                  roomNoFocus: roomNoFocus,
+                                  submitFocus: submitFocus,
+                                  manualTabFocus: manualTabFocus,
+                                  onSaveAndStart: () {
+                                    if (formKey.currentState!.validate()) {
+                                      _performRegistration(
+                                        context,
+                                        licenseKeyController.text,
+                                        roomNoController.text,
+                                      );
+                                    }
+                                  },
                                 ),
-                                // Manual Entry Tab
-                                Expanded(
-                                  child: TvFocusable(
-                                    focusNode: manualTabFocus,
-                                    scaleFactor: 1.0,
-                                    onFocusChange: (focused) {
-                                      if (focused) {
-                                        isQrModeNotifier.value = false;
-                                      }
-                                    },
-                                    onTap: () {
-                                      isQrModeNotifier.value = false;
-                                    },
-                                    child: ValueListenableBuilder<bool>(
-                                      valueListenable: isQrModeNotifier,
-                                      builder: (context, isQrMode, child) {
-                                        return Container(
-                                          alignment: Alignment.center,
-                                          decoration: BoxDecoration(
-                                            gradient: !isQrMode
-                                                ? const LinearGradient(
-                                                    colors: [
-                                                      Color(0xFF6366F1), // Purple
-                                                      Color(0xFF3B82F6), // Blue
-                                                    ],
-                                                  )
-                                                : null,
-                                            borderRadius: BorderRadius.circular(16),
-                                            boxShadow: !isQrMode
-                                                ? [
-                                                    BoxShadow(
-                                                      color: const Color(0xFF6366F1).withOpacity(0.3),
-                                                      blurRadius: 10,
-                                                      spreadRadius: 1,
-                                                    )
-                                                  ]
-                                                : null,
-                                          ),
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(
-                                                Icons.keyboard_alt_outlined,
-                                                color: !isQrMode ? Colors.white : Colors.white70.withOpacity(0.5),
-                                                size: 14,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              CustomAppText(
-                                                AppText.manualEntryTab,
-                                                
-                                                color: !isQrMode ? Colors.white : Colors.white70.withOpacity(0.5),
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 12,
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          UiSpacer.vSpace(12),
-
-                          // Tab Views (QR View or Manual Form)
-                          ValueListenableBuilder<bool>(
-                            valueListenable: isQrModeNotifier,
-                            builder: (context, isQrMode, child) {
-                              return AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 200),
-                                child: isQrMode
-                                    ? const QrModeWidget()
-                                    : ManualModeWidget(
-                                        formKey: formKey,
-                                        licenseKeyController: licenseKeyController,
-                                        roomNoController: roomNoController,
-                                        licenseKeyFocus: licenseKeyFocus,
-                                        roomNoFocus: roomNoFocus,
-                                        submitFocus: submitFocus,
-                                        onSaveAndStart: () {
-                                          if (formKey.currentState!.validate()) {
-                                            _performRegistration(
-                                              context,
-                                              licenseKeyController.text,
-                                              roomNoController.text,
-                                            );
-                                          }
-                                        },
-                                      ),
-                              );
-                            },
-                          ),
-
-                        ],
-                      ),
+                        );
+                      },
                     ),
                   ),
                 ),
               ],
             ),
 
-            // Top Right Status Bar (Network Icon, Settings Icon, stacked Time and Date)
+            // Top Right: Status Bar
             Positioned(
               top: 32,
               right: 64,
@@ -560,7 +680,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                       final netType = snapshot.data ?? '';
                       IconData iconData;
                       Color iconColor = Colors.white70;
-
                       switch (netType) {
                         case 'WiFi':
                           iconData = Icons.wifi;
@@ -578,12 +697,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                         default:
                           iconData = Icons.wifi;
                       }
-
-                      return Icon(
-                        iconData,
-                        color: iconColor,
-                        size: 20,
-                      );
+                      return Icon(iconData, color: iconColor, size: 20);
                     },
                   ),
                   const SizedBox(width: 16),
@@ -591,6 +705,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                 ],
               ),
             ),
+
             if (_isLoading)
               Positioned.fill(
                 child: Container(
@@ -605,53 +720,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildFeatureItem({
-    required IconData icon,
-    required Color iconColor,
-    required Color tileColor,
-    required String title,
-    required String subtitle,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: tileColor,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(
-            icon,
-            color: iconColor,
-            size: 18,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CustomAppText(
-              title,
-              
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
-            const SizedBox(height: 4),
-            CustomAppText(
-              subtitle,
-              
-              color: Colors.white70.withOpacity(0.5),
-              fontSize: 11,
-            ),
-          ],
-        ),
-      ],
     );
   }
 
@@ -686,28 +754,8 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
       });
 
       if (response.data != null && response.data is Map && response.data['status'] == true) {
-        final dataMap = response.data['data'] as Map<String, dynamic>?;
-        final token = dataMap?['auth']?['token']?.toString() ??
-            dataMap?['token']?.toString() ??
-            response.data['token']?.toString() ??
-            '';
-        if (token.isNotEmpty) {
-          await TokenManager.saveToken(token);
-        }
-        await SharedPrefs.setString(AppConstants.tvLoginDataKey, jsonEncode(response.data));
-        await TemplateManagerService.regenerateDataJson();
-
-        CustomSnackbar.showSuccess(
-          message: response.data['message'] ?? 'TV logged in successfully.',
-        );
-
-        // Navigate to dashboard webview
-        if (context.mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const TvWebviewScreen()),
-          );
-        }
+        _stopPairingTimers();
+        await _handleLoginSuccess(response.data);
       } else {
         String msg = 'Failed to register TV';
         if (response.data != null) {
@@ -776,7 +824,6 @@ class _LiveDateTimeWidgetState extends State<LiveDateTimeWidget> {
   String _getFormattedDate() {
     const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    
     final dayName = weekDays[_dateTime.weekday - 1];
     final monthName = months[_dateTime.month - 1];
     return '$dayName, ${_dateTime.day} $monthName';
@@ -786,10 +833,8 @@ class _LiveDateTimeWidgetState extends State<LiveDateTimeWidget> {
     int hour = _dateTime.hour;
     final minute = _dateTime.minute.toString().padLeft(2, '0');
     final period = hour >= 12 ? 'PM' : 'AM';
-    
     hour = hour % 12;
     if (hour == 0) hour = 12;
-    
     return '$hour:$minute $period';
   }
 
@@ -801,7 +846,6 @@ class _LiveDateTimeWidgetState extends State<LiveDateTimeWidget> {
       children: [
         CustomAppText(
           _getFormattedTime(),
-          
           fontSize: 12,
           fontWeight: FontWeight.bold,
           color: Colors.white,
@@ -809,10 +853,9 @@ class _LiveDateTimeWidgetState extends State<LiveDateTimeWidget> {
         const SizedBox(height: 2),
         CustomAppText(
           _getFormattedDate(),
-          
           fontSize: 9,
           fontWeight: FontWeight.w400,
-          color: Colors.white70.withOpacity(0.5),
+          color: Colors.white70,
         ),
       ],
     );

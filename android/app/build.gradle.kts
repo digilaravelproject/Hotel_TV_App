@@ -31,7 +31,9 @@ android {
         create("release") {
             keyAlias = keystoreProperties["keyAlias"] as String? ?: ""
             keyPassword = keystoreProperties["keyPassword"] as String? ?: ""
-            storeFile = keystoreProperties["storeFile"]?.let { file(it) }
+            keystoreProperties["storeFile"]?.toString()?.takeIf { it.isNotBlank() }?.let {
+                storeFile = file(it)
+            }
             storePassword = keystoreProperties["storePassword"] as String? ?: ""
         }
     }
@@ -49,7 +51,13 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            val hasStoreFile = keystorePropertiesFile.exists() && 
+                keystoreProperties["storeFile"]?.toString()?.isNotBlank() == true
+            signingConfig = if (hasStoreFile) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             configure<com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension> {
                 mappingFileUploadEnabled = false
             }

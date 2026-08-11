@@ -31,6 +31,7 @@ class MainActivity : FlutterActivity() {
     private val DEVICE_INFO_CHANNEL = "com.digiemperor.hotel/device_info"
     private val TV_CONTROL_CHANNEL = "com.digiemperor.hotel/tv_control"
     private val EMM_CONFIG_CHANNEL = "com.digiemperor.hotel/emm_config"
+    private val ACCESSIBILITY_CHANNEL = "com.digiemperor.hotel/accessibility"
 
     companion object {
         private const val REQUEST_CODE_SET_DEFAULT_HOME = 1001
@@ -54,14 +55,40 @@ class MainActivity : FlutterActivity() {
      */
     private fun requestDefaultLauncherRole() {
         try {
-            if (!isAlreadyDefaultLauncher()) {
-                // Method 1: Fake Intent Trigger to show "Complete action using / Select Home App" dialog
+            val prefs = getSharedPreferences("hotel_tv_launcher_prefs", Context.MODE_PRIVATE)
+            val alreadyRequested = prefs.getBoolean("has_prompted_launcher_dialog", false)
+
+            if (!alreadyRequested && !isAlreadyDefaultLauncher()) {
+                prefs.edit().putBoolean("has_prompted_launcher_dialog", true).apply()
+
+                // 1. Android 10+ (API 29+) RoleManager
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val roleManager = getSystemService(Context.ROLE_SERVICE) as? RoleManager
+                    if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) {
+                        if (!roleManager.isRoleHeld(RoleManager.ROLE_HOME)) {
+                            val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME)
+                            startActivityForResult(intent, REQUEST_CODE_SET_DEFAULT_HOME)
+                            return
+                        }
+                    }
+                }
+
+                // 2. Android 7 - 9: Home Settings Intent
+                try {
+                    val homeSettingsIntent = Intent(android.provider.Settings.ACTION_HOME_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    if (homeSettingsIntent.resolveActivity(packageManager) != null) {
+                        startActivity(homeSettingsIntent)
+                        return
+                    }
+                } catch (e: Exception) {}
+
+                // 3. Fallback: Standard Chooser Dialog
                 val selectorIntent = Intent(Intent.ACTION_MAIN).apply {
                     addCategory(Intent.CATEGORY_HOME)
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
-                
-                // Intent Chooser forces Android TV to ask user: "Use as Home App (Always / Just Once)"
                 val chooserIntent = Intent.createChooser(selectorIntent, "Select Home App / Launcher").apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
@@ -69,23 +96,15 @@ class MainActivity : FlutterActivity() {
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            // Fallback: Open system Home Settings directly if chooser fails
-            try {
-                val settingsIntent = Intent(android.provider.Settings.ACTION_HOME_SETTINGS).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                startActivity(settingsIntent)
-            } catch (ex: Exception) {
-                ex.printStackTrace()
-            }
         }
     }
 
     private fun isAlreadyDefaultLauncher(): Boolean {
         return try {
             val intent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_HOME) }
-            val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
-            resolveInfo?.activityInfo?.packageName == packageName
+            val resolveInfo = packageManager.resolveActivity(intent, 0)
+            val currentDefault = resolveInfo?.activityInfo?.packageName
+            currentDefault == packageName
         } catch (e: Exception) {
             false
         }
@@ -260,6 +279,22 @@ class MainActivity : FlutterActivity() {
                 result.success(getEmmConfig())
             } else {
                 result.notImplemented()
+            }
+        }
+
+        // Accessibility Channel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ACCESSIBILITY_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isAccessibilityEnabled" -> {
+                    result.success(isAccessibilityServiceEnabled())
+                }
+                "openAccessibilitySettings" -> {
+                    openAccessibilitySettings()
+                    result.success(true)
+                }
+                else -> {
+                    result.notImplemented()
+                }
             }
         }
 
@@ -825,6 +860,38 @@ class MainActivity : FlutterActivity() {
             ipAddress shr 8 and 0xff,
             ipAddress shr 16 and 0xff,
             ipAddress shr 24 and 0xff)
+    }
+
+    private fun isAccessibilityServiceEnabled(): Boolean {
+        try {
+            val accessibilityEnabled = android.provider.Settings.Secure.getInt(
+                contentResolver,
+                android.provider.Settings.Secure.ACCESSIBILITY_ENABLED, 0
+            )
+            if (accessibilityEnabled == 1) {
+                val services = android.provider.Settings.Secure.getString(
+                    contentResolver,
+                    android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+                )
+                if (services != null) {
+                    val myService = "$packageName/"
+                    return services.contains(myService, ignoreCase = true)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return false
+    }
+
+    private fun openAccessibilitySettings() {
+        try {
+            val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }
 

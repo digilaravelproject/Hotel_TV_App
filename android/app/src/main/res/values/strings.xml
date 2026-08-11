@@ -5,4 +5,5 @@
     <string name="license_key_desc">Enter the hospitality licensing key for this room group.</string>
     <string name="room_no_title">Room Number</string>
     <string name="room_no_desc">Enter the specific room number for this TV.</string>
+    <string name="accessibility_service_description">PAX TV Hospitality Launcher Accessibility Service for TV Remote Home Button Remapping.</string>
 </resources>

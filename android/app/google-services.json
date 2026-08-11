@@ -1,26 +1,37 @@
 {
   "project_info": {
-    "project_number": "217827216586",
-    "project_id": "hotel-tv-app-fbbe6",
-    "storage_bucket": "hotel-tv-app-fbbe6.firebasestorage.app"
+    "project_number": "901856795489",
+    "firebase_url": "https://hotel-tv-app-fbf2b-default-rtdb.firebaseio.com",
+    "project_id": "hotel-tv-app-fbf2b",
+    "storage_bucket": "hotel-tv-app-fbf2b.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:217827216586:android:7d2878df0f30c48072f833",
+        "mobilesdk_app_id": "1:901856795489:android:7e1afa6474f5075d6a0320",
         "android_client_info": {
           "package_name": "com.digiemperor.hotel"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "901856795489-ek4nbr22o3qsfs3c0grsublasi6l1sdn.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyBY2vP_zekF-NVzXY8sNrQMfp51JoNbaoE"
+          "current_key": "AIzaSyBZT23_XXDUV16FUFBvt7hkbS08jfzrVoc"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "901856795489-ek4nbr22o3qsfs3c0grsublasi6l1sdn.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

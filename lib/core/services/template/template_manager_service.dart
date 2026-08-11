@@ -253,6 +253,11 @@ class TemplateManagerService {
     return 0;
   }
 
+  /// Public wrapper to download template from a specific URL and version
+  static Future<void> downloadTemplateFromUrl(String url, String newVersion, {Function(double)? onProgress}) async {
+    await _downloadAndExtractTemplate(url, newVersion, onProgress: onProgress);
+  }
+
   /// Downloads the template ZIP, unzips it into the template directory, and deletes the ZIP file.
   static Future<void> _downloadAndExtractTemplate(String url, String newVersion, {Function(double)? onProgress}) async {
     try {
@@ -366,14 +371,18 @@ class TemplateManagerService {
         return;
       }
 
-      final dataMap = jsonDecode(loginData) as Map<String, dynamic>;
+      dynamic decoded = jsonDecode(loginData);
+      if (decoded is String) {
+        decoded = jsonDecode(decoded);
+      }
+      final dataMap = decoded as Map<String, dynamic>;
       final innerData = dataMap['data'] as Map<String, dynamic>?;
       final templateData = ((innerData != null && innerData['template'] is Map)
           ? innerData['template']
           : (dataMap['template'] is Map ? dataMap['template'] : null)) as Map<String, dynamic>?;
 
       final String? latestVersion = templateData?['latest_version']?.toString();
-      final String? downloadUrl = templateData?['download_url'];
+      final String? downloadUrl = templateData?['download_url']?.toString();
 
       if (latestVersion == null || downloadUrl == null || downloadUrl.isEmpty) {
         Logger.w('[TemplateManager] Template version or download URL not found in login data.');

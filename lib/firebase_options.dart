@@ -17,10 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -50,18 +47,31 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBY2vP_zekF-NVzXY8sNrQMfp51JoNbaoE',
-    appId: '1:217827216586:android:7d2878df0f30c48072f833',
-    messagingSenderId: '217827216586',
-    projectId: 'hotel-tv-app-fbbe6',
-    storageBucket: 'hotel-tv-app-fbbe6.firebasestorage.app',
+    apiKey: 'AIzaSyBZT23_XXDUV16FUFBvt7hkbS08jfzrVoc',
+    appId: '1:901856795489:android:7e1afa6474f5075d6a0320',
+    messagingSenderId: '901856795489',
+    projectId: 'hotel-tv-app-fbf2b',
+    databaseURL: 'https://hotel-tv-app-fbf2b-default-rtdb.firebaseio.com',
+    storageBucket: 'hotel-tv-app-fbf2b.firebasestorage.app',
   );
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBcqLwfEMJ5n6rCZttIfkS0LFcnhw7KgGo',
-    appId: '1:217827216586:ios:bfa16958e88585ab72f833',
-    messagingSenderId: '217827216586',
-    projectId: 'hotel-tv-app-fbbe6',
-    storageBucket: 'hotel-tv-app-fbbe6.firebasestorage.app',
+    apiKey: 'AIzaSyDsaMmtsuCojaqVuXHCMoZXQdmMgiUREYQ',
+    appId: '1:901856795489:ios:72a97e49dffb94fc6a0320',
+    messagingSenderId: '901856795489',
+    projectId: 'hotel-tv-app-fbf2b',
+    databaseURL: 'https://hotel-tv-app-fbf2b-default-rtdb.firebaseio.com',
+    storageBucket: 'hotel-tv-app-fbf2b.firebasestorage.app',
+    iosClientId: '901856795489-fqimic2v2bmdg4kjik87qhrhent5ohvj.apps.googleusercontent.com',
     iosBundleId: 'com.example.hotel',
+  );
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyBmyzlS9C_ErothA4Yqp71LAvWJQbhjZsQ',
+    appId: '1:901856795489:web:b608932c0c108c976a0320',
+    messagingSenderId: '901856795489',
+    projectId: 'hotel-tv-app-fbf2b',
+    authDomain: 'hotel-tv-app-fbf2b.firebaseapp.com',
+    databaseURL: 'https://hotel-tv-app-fbf2b-default-rtdb.firebaseio.com',
+    storageBucket: 'hotel-tv-app-fbf2b.firebasestorage.app',
+    measurementId: 'G-1MHE6TPT82',
   );
 }

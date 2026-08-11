@@ -4,9 +4,10 @@ import '../../../../core/services/storage/shared_prefs.dart';
 import '../../../../core/services/storage/token_manger.dart';
 import '../../../../core/services/template/template_manager_service.dart';
 import '../../../../core/widget/loading_widget.dart';
-import '../../../../core/utils/logger.dart';
 import '../../../dashboard/presentation/pages/tv_webview_screen.dart';
 import 'tv_login_screen.dart';
+import '../../../../core/services/device/accessibility_service.dart';
+import 'accessibility_permission_screen.dart';
 
 class AppStartupDecider extends StatefulWidget {
   const AppStartupDecider({Key? key}) : super(key: key);
@@ -18,10 +19,24 @@ class AppStartupDecider extends StatefulWidget {
 class _AppStartupDeciderState extends State<AppStartupDecider> {
   String _statusMessage = '';
   bool _showLoader = false;
+  bool _needsAccessibilityConsent = false;
 
   @override
   void initState() {
     super.initState();
+    _checkAccessibilityAndProceed();
+  }
+
+  Future<void> _checkAccessibilityAndProceed() async {
+    final bool isEnabled = await AccessibilityService.isAccessibilityEnabled();
+    if (!isEnabled) {
+      if (mounted) {
+        setState(() {
+          _needsAccessibilityConsent = true;
+        });
+      }
+      return;
+    }
     _decideStartupFlow();
   }
 
@@ -87,6 +102,19 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
 
   @override
   Widget build(BuildContext context) {
+    if (_needsAccessibilityConsent) {
+      return AccessibilityPermissionScreen(
+        onGranted: () {
+          if (mounted) {
+            setState(() {
+              _needsAccessibilityConsent = false;
+            });
+            _decideStartupFlow();
+          }
+        },
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: _showLoader
