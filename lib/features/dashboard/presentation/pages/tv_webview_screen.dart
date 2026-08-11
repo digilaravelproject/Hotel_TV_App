@@ -245,65 +245,97 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent || event is KeyRepeatEvent) {
           final key = event.logicalKey;
-          if (key == LogicalKeyboardKey.arrowRight) {
+          final physicalKey = event.physicalKey;
+          final int keyId = key.keyId;
+
+          // Universal Remote D-Pad / Key Identifiers
+          int? targetKeyCode;
+          String? targetKeyName;
+
+          // 1. LEFT Keys (TV Remote D-Pad Left, USB Mouse Wheel Left, Gamepad DPAD_LEFT, Numpad 4)
+          if (key == LogicalKeyboardKey.arrowLeft ||
+              keyId == 0x00070050 ||
+              keyId == 0x00010004 ||
+              physicalKey.usbHidUsage == 0x00070050) {
+            targetKeyCode = 37;
+            targetKeyName = 'ArrowLeft';
+          }
+          // 2. RIGHT Keys (TV Remote D-Pad Right, Gamepad DPAD_RIGHT, Numpad 6)
+          else if (key == LogicalKeyboardKey.arrowRight ||
+              keyId == 0x0007004f ||
+              keyId == 0x00010003 ||
+              physicalKey.usbHidUsage == 0x0007004f) {
+            targetKeyCode = 39;
+            targetKeyName = 'ArrowRight';
+          }
+          // 3. UP Keys (TV Remote D-Pad Up, Gamepad DPAD_UP, Channel Up, Numpad 8)
+          else if (key == LogicalKeyboardKey.arrowUp ||
+              key == LogicalKeyboardKey.channelUp ||
+              keyId == 0x00070052 ||
+              keyId == 0x00010001 ||
+              physicalKey.usbHidUsage == 0x00070052) {
+            targetKeyCode = 38;
+            targetKeyName = 'ArrowUp';
+          }
+          // 4. DOWN Keys (TV Remote D-Pad Down, Gamepad DPAD_DOWN, Channel Down, Numpad 2)
+          else if (key == LogicalKeyboardKey.arrowDown ||
+              key == LogicalKeyboardKey.channelDown ||
+              keyId == 0x00070051 ||
+              keyId == 0x00010002 ||
+              physicalKey.usbHidUsage == 0x00070051) {
+            targetKeyCode = 40;
+            targetKeyName = 'ArrowDown';
+          }
+          // 5. SELECT / ENTER / OK Keys (Center OK button, Gamepad A, Enter, Numpad Enter, Space)
+          else if (key == LogicalKeyboardKey.enter ||
+              key == LogicalKeyboardKey.select ||
+              key == LogicalKeyboardKey.space ||
+              key == LogicalKeyboardKey.gameButtonA ||
+              keyId == 0x00070028 ||
+              keyId == 0x00070058) {
+            targetKeyCode = 13;
+            targetKeyName = 'Enter';
+          }
+          // 6. BACK / ESCAPE / RETURN Keys
+          else if (key == LogicalKeyboardKey.goBack ||
+              key == LogicalKeyboardKey.escape ||
+              key == LogicalKeyboardKey.backspace ||
+              keyId == 0x00070029) {
+            controller.runJavaScript(
+              "if (typeof window.triggerTVBack === 'function') { window.triggerTVBack(); } else { history.back(); }"
+            );
+            return KeyEventResult.handled;
+          }
+          // 7. NUMERIC DIGITS 0-9 (Direct Channel / Number Input)
+          else if (keyId >= LogicalKeyboardKey.digit0.keyId &&
+              keyId <= LogicalKeyboardKey.digit9.keyId) {
+            final digit = key.keyLabel;
+            controller.runJavaScript(
+              "if (typeof window.TVKeyInjector === 'object') { window.TVKeyInjector.triggerNumber('$digit'); }"
+            );
+            return KeyEventResult.handled;
+          }
+
+          // Inject Universal Normalized Key Event into JavaScript Runtime
+          if (targetKeyCode != null && targetKeyName != null) {
             controller.runJavaScript("""
               (function() {
-                var e = new KeyboardEvent('keydown', { 'key': 'ArrowRight', 'bubbles': true });
-                Object.defineProperty(e, 'keyCode', { value: 39 });
-                Object.defineProperty(e, 'which', { value: 39 });
-                (document.activeElement || document).dispatchEvent(e);
+                var target = document.activeElement || document.body;
+                var e = new KeyboardEvent('keydown', {
+                  key: '$targetKeyName',
+                  code: '$targetKeyName',
+                  keyCode: $targetKeyCode,
+                  which: $targetKeyCode,
+                  bubbles: true,
+                  cancelable: true
+                });
+                Object.defineProperty(e, 'keyCode', { get: function() { return $targetKeyCode; } });
+                Object.defineProperty(e, 'which', { get: function() { return $targetKeyCode; } });
+                target.dispatchEvent(e);
               })();
             """);
-          } else if (key == LogicalKeyboardKey.arrowLeft) {
-            controller.runJavaScript("""
-              (function() {
-                var e = new KeyboardEvent('keydown', { 'key': 'ArrowLeft', 'bubbles': true });
-                Object.defineProperty(e, 'keyCode', { value: 37 });
-                Object.defineProperty(e, 'which', { value: 37 });
-                (document.activeElement || document).dispatchEvent(e);
-              })();
-            """);
-          } else if (key == LogicalKeyboardKey.arrowUp) {
-            controller.runJavaScript("""
-              (function() {
-                var e = new KeyboardEvent('keydown', { 'key': 'ArrowUp', 'bubbles': true });
-                Object.defineProperty(e, 'keyCode', { value: 38 });
-                Object.defineProperty(e, 'which', { value: 38 });
-                (document.activeElement || document).dispatchEvent(e);
-              })();
-            """);
-          } else if (key == LogicalKeyboardKey.arrowDown) {
-            controller.runJavaScript("""
-              (function() {
-                var e = new KeyboardEvent('keydown', { 'key': 'ArrowDown', 'bubbles': true });
-                Object.defineProperty(e, 'keyCode', { value: 40 });
-                Object.defineProperty(e, 'which', { value: 40 });
-                (document.activeElement || document).dispatchEvent(e);
-              })();
-            """);
-          } else if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.select) {
-            controller.runJavaScript("""
-              (function() {
-                var e = new KeyboardEvent('keydown', { 'key': 'Enter', 'bubbles': true });
-                Object.defineProperty(e, 'keyCode', { value: 13 });
-                Object.defineProperty(e, 'which', { value: 13 });
-                (document.activeElement || document).dispatchEvent(e);
-              })();
-            """);
-            } else if (key == LogicalKeyboardKey.goBack || 
-                       key == LogicalKeyboardKey.escape) {
-              controller.runJavaScript(
-                "if (typeof window.triggerTVBack === 'function') { window.triggerTVBack(); }"
-              );
-              return KeyEventResult.handled;
-            } else if (key.keyId >= LogicalKeyboardKey.digit0.keyId && 
-                       key.keyId <= LogicalKeyboardKey.digit9.keyId) {
-              final digit = key.keyLabel;
-              controller.runJavaScript(
-                "if (typeof window.TVKeyInjector === 'object') { window.TVKeyInjector.triggerNumber('$digit'); }"
-              );
-              return KeyEventResult.handled;
-            }
+            return KeyEventResult.handled;
+          }
         }
         return KeyEventResult.ignored;
       },
