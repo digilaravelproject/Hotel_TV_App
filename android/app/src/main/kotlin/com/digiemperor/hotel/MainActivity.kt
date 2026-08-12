@@ -55,58 +55,94 @@ class MainActivity : FlutterActivity() {
      */
     private fun requestDefaultLauncherRole() {
         try {
-            val prefs = getSharedPreferences("hotel_tv_launcher_prefs", Context.MODE_PRIVATE)
-            val alreadyRequested = prefs.getBoolean("has_prompted_launcher_dialog", false)
+            val isDefault = isAlreadyDefaultLauncher()
+            println("====================================================")
+            println("🏠 [HOME LAUNCHER CHECK]: isAlreadyDefaultLauncher = $isDefault")
+            println("====================================================")
 
-            if (!alreadyRequested && !isAlreadyDefaultLauncher()) {
-                prefs.edit().putBoolean("has_prompted_launcher_dialog", true).apply()
+            if (isDefault) {
+                println("✅ [HOME LAUNCHER STATUS]: App is ALREADY Default Home Launcher. Skipping prompt.")
+                return
+            }
 
-                // 1. Android 10+ (API 29+) RoleManager
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val roleManager = getSystemService(Context.ROLE_SERVICE) as? RoleManager
-                    if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) {
-                        if (!roleManager.isRoleHeld(RoleManager.ROLE_HOME)) {
+            println("⚠️ [HOME LAUNCHER STATUS]: App is NOT Default Launcher. Triggering Home Launcher Selector...")
+
+            // 1. Android 10+ (API 29+) RoleManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val roleManager = getSystemService(Context.ROLE_SERVICE) as? RoleManager
+                if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) {
+                    if (!roleManager.isRoleHeld(RoleManager.ROLE_HOME)) {
+                        try {
                             val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME)
                             startActivityForResult(intent, REQUEST_CODE_SET_DEFAULT_HOME)
                             return
-                        }
+                        } catch (_: Exception) {}
                     }
                 }
+            }
 
-                // 2. Android 7 - 9: Home Settings Intent
+            // 2. Fallback: Action Home Settings
+            try {
+                val homeSettingsIntent = Intent(android.provider.Settings.ACTION_HOME_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                if (homeSettingsIntent.resolveActivity(packageManager) != null) {
+                    startActivity(homeSettingsIntent)
+                    return
+                }
+            } catch (_: Exception) {}
+
+            // 3. Fallback: Android TV Launcher / Main Settings Activity
+            val tvSettingIntents = arrayOf(
+                Intent("com.android.tv.settings.MainSettings"),
+                Intent(android.provider.Settings.ACTION_SETTINGS),
+                Intent(android.provider.Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS)
+            )
+            for (intent in tvSettingIntents) {
                 try {
-                    val homeSettingsIntent = Intent(android.provider.Settings.ACTION_HOME_SETTINGS).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    if (homeSettingsIntent.resolveActivity(packageManager) != null) {
-                        startActivity(homeSettingsIntent)
+                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    if (intent.resolveActivity(packageManager) != null) {
+                        startActivity(intent)
                         return
                     }
-                } catch (e: Exception) {}
-
-                // 3. Fallback: Standard Chooser Dialog
-                val selectorIntent = Intent(Intent.ACTION_MAIN).apply {
-                    addCategory(Intent.CATEGORY_HOME)
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                val chooserIntent = Intent.createChooser(selectorIntent, "Select Home App / Launcher").apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                startActivity(chooserIntent)
+                } catch (_: Exception) {}
             }
+
+            // 4. Fallback: Intent Chooser
+            val selectorIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(Intent.createChooser(selectorIntent, "Select Home Launcher").apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            })
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
     private fun isAlreadyDefaultLauncher(): Boolean {
-        return try {
+        try {
             val intent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_HOME) }
-            val resolveInfo = packageManager.resolveActivity(intent, 0)
+            val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
             val currentDefault = resolveInfo?.activityInfo?.packageName
-            currentDefault == packageName
+            println("[LauncherCheck] currentDefaultPackage = $currentDefault, myPackage = $packageName")
+            
+            if (currentDefault != null && currentDefault == packageName) {
+                return true
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val roleManager = getSystemService(Context.ROLE_SERVICE) as? RoleManager
+                if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) {
+                    if (roleManager.isRoleHeld(RoleManager.ROLE_HOME)) {
+                        return true
+                    }
+                }
+            }
+            return false
         } catch (e: Exception) {
-            false
+            return false
         }
     }
 
@@ -292,6 +328,13 @@ class MainActivity : FlutterActivity() {
                     openAccessibilitySettings()
                     result.success(true)
                 }
+                "requestDefaultLauncher" -> {
+                    requestDefaultLauncherRole()
+                    result.success(isAlreadyDefaultLauncher())
+                }
+                "isDefaultLauncher" -> {
+                    result.success(isAlreadyDefaultLauncher())
+                }
                 else -> {
                     result.notImplemented()
                 }
@@ -373,12 +416,12 @@ class MainActivity : FlutterActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val keyCode = event.keyCode
 
-        // HOME button: block TV launcher from opening, keep our app in foreground
-        if (keyCode == KeyEvent.KEYCODE_HOME) {
+        // HOME / TV button: block TV launcher from opening, keep our app in foreground
+        if (keyCode == KeyEvent.KEYCODE_HOME || keyCode == KeyEvent.KEYCODE_TV) {
             if (event.action == KeyEvent.ACTION_DOWN) {
                 // Bring our app to front if it somehow went to background
                 val intent = Intent(this, MainActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }
                 startActivity(intent)
             }
@@ -874,8 +917,12 @@ class MainActivity : FlutterActivity() {
                     android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
                 )
                 if (services != null) {
-                    val myService = "$packageName/"
-                    return services.contains(myService, ignoreCase = true)
+                    val myService1 = "$packageName/com.digiemperor.hotel.TvButtonAccessibilityService"
+                    val myService2 = "$packageName/.TvButtonAccessibilityService"
+                    val myService3 = "$packageName/"
+                    return services.contains(myService1, ignoreCase = true) ||
+                           services.contains(myService2, ignoreCase = true) ||
+                           services.contains(myService3, ignoreCase = true)
                 }
             }
         } catch (e: Exception) {
@@ -885,12 +932,20 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun openAccessibilitySettings() {
-        try {
-            val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-        } catch (e: Exception) {
-            e.printStackTrace()
+        val intentsToTry = listOf(
+            Intent("android.settings.ACCESSIBILITY_SETTINGS"),
+            Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.accessibility.AccessibilityActivity"),
+            Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.MainSettings"),
+            Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS),
+            Intent(android.provider.Settings.ACTION_SETTINGS)
+        )
+
+        for (intent in intentsToTry) {
+            try {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+                return
+            } catch (_: Exception) {}
         }
     }
 }

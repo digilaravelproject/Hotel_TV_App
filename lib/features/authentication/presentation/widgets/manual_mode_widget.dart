@@ -56,10 +56,9 @@ class ManualModeWidget extends StatelessWidget {
                 controller: licenseKeyController,
                 focusNode: licenseKeyFocus,
                 hintText: AppText.hotelIdHint,
-                borderColor: theme.dividerColor,
-                borderRadius: 8,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                textStyle: TextStyle(color: colorScheme.onSurface, fontSize: 13),
+                borderRadius: 14,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                textStyle: const TextStyle(color: Colors.white, fontSize: 13.5),
                 textInputAction: TextInputAction.next,
                 onFieldSubmitted: (_) => roomNoFocus.requestFocus(),
                 validator: (value) {
@@ -77,10 +76,9 @@ class ManualModeWidget extends StatelessWidget {
                 controller: roomNoController,
                 focusNode: roomNoFocus,
                 hintText: AppText.roomNoHint,
-                borderColor: theme.dividerColor,
-                borderRadius: 8,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                textStyle: TextStyle(color: colorScheme.onSurface, fontSize: 13),
+                borderRadius: 14,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                textStyle: const TextStyle(color: Colors.white, fontSize: 13.5),
                 textInputAction: TextInputAction.done,
                 onFieldSubmitted: (_) => submitFocus.requestFocus(),
                 validator: (value) {
@@ -92,28 +90,35 @@ class ManualModeWidget extends StatelessWidget {
               ),
               UiSpacer.vSpace(22),
 
-              // Save & Start button
-              // Navigation handled via submitFocus.onKey in tv_login_screen.dart
+              // Confirm button
               SizedBox(
                 width: double.infinity,
-                height: 40,
+                height: 48,
                 child: TvFocusable(
                   focusNode: submitFocus,
-                  scaleFactor: 1.04,
+                  scaleFactor: 1.03,
                   onTap: onSaveAndStart,
-                  child: CustomButton(
-                    text: AppText.saveAndStart,
-                    onPressed: onSaveAndStart,
-                    buttonType: ButtonStyleType.gradient,
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF6366F1),
-                        Color(0xFF3B82F6),
+                  child: Container(
+                    height: 48,
+                    width: double.infinity,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.white.withOpacity(0.2),
+                          blurRadius: 16,
+                          spreadRadius: 1,
+                        ),
                       ],
                     ),
-                    textColor: Colors.white,
-                    borderRadius: 8,
-                    height: 40,
+                    child: const CustomAppText(
+                      'Confirm',
+                      color: Colors.black,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),

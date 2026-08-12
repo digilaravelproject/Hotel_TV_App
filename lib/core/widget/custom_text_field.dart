@@ -83,31 +83,33 @@ class CustomTextField extends StatelessWidget {
       validator: validator,
       decoration: InputDecoration(
         hintText: hintText,
+        hintStyle: TextStyle(
+          color: Colors.white.withOpacity(0.4),
+          fontSize: 13,
+        ),
         labelText: labelText,
         prefixIcon: prefixIcon,
         suffixIcon: suffixIcon,
         counterText: "",
-        contentPadding: contentPadding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding: contentPadding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         enabledBorder: OutlineInputBorder(
           borderSide: BorderSide(
-            color: isDark
-                ? theme.dividerColor
-                : effectiveBorderColor.withOpacity(0.5),
-            width: 1.5,
+            color: Colors.white.withOpacity(0.12),
+            width: 1,
           ),
           borderRadius: BorderRadius.circular(borderRadius),
         ),
         focusedBorder: OutlineInputBorder(
-          borderSide: BorderSide(
-            color: Colors.amber.shade700,
-            width: 3.0,
+          borderSide: const BorderSide(
+            color: Colors.white,
+            width: 2.0,
           ),
           borderRadius: BorderRadius.circular(borderRadius),
         ),
         errorBorder: OutlineInputBorder(
           borderSide: BorderSide(
             color: theme.colorScheme.error,
-            width: 2,
+            width: 1.5,
           ),
           borderRadius: BorderRadius.circular(borderRadius),
         ),
@@ -119,8 +121,7 @@ class CustomTextField extends StatelessWidget {
           borderRadius: BorderRadius.circular(borderRadius),
         ),
         filled: true,
-        fillColor: theme.inputDecorationTheme.fillColor ??
-            (isDark ? theme.cardColor : Colors.white),
+        fillColor: Colors.white.withOpacity(0.06),
       ),
     );
   }

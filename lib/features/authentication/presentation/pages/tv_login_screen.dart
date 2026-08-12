@@ -56,8 +56,8 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   @override
   void initState() {
     super.initState();
-    licenseKeyController = TextEditingController(text: 'P1SU-FOO9-F4T7-YJZF');
-    roomNoController = TextEditingController(text: '1519');
+    licenseKeyController = TextEditingController();
+    roomNoController = TextEditingController();
     qrTabFocus = FocusNode();
     manualTabFocus = FocusNode();
     licenseKeyFocus = FocusNode();
@@ -408,15 +408,15 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF6366F1).withOpacity(0.2),
+                              width: 36,
+                              height: 36,
+                              clipBehavior: Clip.antiAlias,
+                              decoration: const BoxDecoration(
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(
-                                Icons.android,
-                                color: Color(0xFF818CF8),
-                                size: 24,
+                              child: Image.asset(
+                                'assets/logo.png',
+                                fit: BoxFit.cover,
                               ),
                             ),
                             UiSpacer.hSpace(12),
@@ -482,7 +482,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                                         color: isQrMode
                                             ? Colors.white
                                             : Colors.white.withOpacity(0.06),
-                                        borderRadius: BorderRadius.circular(16),
+                                        borderRadius: BorderRadius.circular(14),
                                         boxShadow: isQrMode
                                             ? [
                                                 BoxShadow(
@@ -547,7 +547,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                                         color: !isQrMode
                                             ? Colors.white
                                             : Colors.white.withOpacity(0.06),
-                                        borderRadius: BorderRadius.circular(16),
+                                        borderRadius: BorderRadius.circular(14),
                                         boxShadow: !isQrMode
                                             ? [
                                                 BoxShadow(

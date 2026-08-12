@@ -19,6 +19,8 @@ import '../../../../core/services/sync/tv_sync_manager.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../authentication/presentation/pages/tv_login_screen.dart';
 
+import '../../../../core/services/device/accessibility_service.dart';
+
 class TvWebviewScreen extends StatefulWidget {
   final bool clearCache;
   const TvWebviewScreen({Key? key, this.clearCache = false}) : super(key: key);
@@ -47,12 +49,18 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initHybridSync();
+      // Prompt Home Set Dialog once web template download completes & screen shows
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) {
+          AccessibilityService.requestDefaultLauncher();
+        }
+      });
     });
   }
 
   Future<void> _initHybridSync() async {
     final rawLoginData = SharedPrefs.getString(AppConstants.tvLoginDataKey);
-    String hotelId = "1";
+    String hotelId = "";
     String deviceId = "";
 
     if (rawLoginData != null && rawLoginData.isNotEmpty) {
@@ -61,7 +69,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
         final dataMap = decoded['data'] ?? decoded;
         hotelId = dataMap['device']?['hotel_id']?.toString() ??
             dataMap['hotel']?['id']?.toString() ??
-            "1";
+            "";
         deviceId = dataMap['device']?['device_id']?.toString() ??
             dataMap['device']?['deviceId']?.toString() ??
             "";
@@ -351,7 +359,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
                 });
                 Object.defineProperty(e, 'keyCode', { get: function() { return $targetKeyCode; } });
                 Object.defineProperty(e, 'which', { get: function() { return $targetKeyCode; } });
-                target.dispatchEvent(e);
+                window.dispatchEvent(e);
               })();
             """);
             return KeyEventResult.handled;

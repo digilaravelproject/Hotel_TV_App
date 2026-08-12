@@ -11,6 +11,8 @@
         android:label="PAX TV Hospitality"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:logo="@mipmap/ic_launcher"
+        android:banner="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"

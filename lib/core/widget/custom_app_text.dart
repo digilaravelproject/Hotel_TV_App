@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 enum TextTransform {
   none,
@@ -84,14 +85,13 @@ class CustomAppText extends StatelessWidget {
 
   TextStyle _buildStyle(BuildContext context) {
     final base =
-        style ?? Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
+        style ?? Theme.of(context).textTheme.bodyMedium ?? GoogleFonts.poppins(fontWeight: FontWeight.w400);
 
-    return base.copyWith(
+    return GoogleFonts.poppins(
       fontSize: fontSize ?? base.fontSize,
-      fontWeight: fontWeight ?? base.fontWeight,
+      fontWeight: fontWeight ?? FontWeight.w400,
       fontStyle: fontStyle ?? base.fontStyle,
       color: color ?? base.color,
-      fontFamily: fontFamily ?? base.fontFamily,
       letterSpacing: letterSpacing ?? base.letterSpacing,
       height: height ?? base.height,
       decoration: decoration ?? base.decoration,

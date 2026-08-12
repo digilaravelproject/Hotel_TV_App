@@ -18,4 +18,13 @@ class AccessibilityService {
       await _channel.invokeMethod('openAccessibilitySettings');
     } catch (_) {}
   }
+
+  static Future<bool> requestDefaultLauncher() async {
+    try {
+      final bool result = await _channel.invokeMethod('requestDefaultLauncher');
+      return result;
+    } catch (_) {
+      return false;
+    }
+  }
 }

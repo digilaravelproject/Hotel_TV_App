@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:path/path.dart';
@@ -333,33 +332,12 @@ class ApiClient {
 
       // Add documents
       for (MultipartDocument file in otherFile) {
-        if (kIsWeb) {
-          if (fromChat) {
-            PlatformFile platformFile = file.file!.files.first;
-            formData.files.add(MapEntry(
-              'image[]',
-              MultipartFile.fromBytes(
-                platformFile.bytes!,
-                filename: platformFile.name,
-              ),
-            ));
-          } else {
-            var fileBytes = file.file!.files.first.bytes!;
-            formData.files.add(MapEntry(
-              file.key,
-              MultipartFile.fromBytes(
-                fileBytes,
-                filename: file.file!.files.first.name,
-              ),
-            ));
-          }
-        } else {
-          File other = File(file.file!.files.single.path!);
+        if (file.file != null) {
           formData.files.add(MapEntry(
             file.key,
             await MultipartFile.fromFile(
-              other.path,
-              filename: basename(other.path),
+              file.file!.path,
+              filename: basename(file.file!.path),
             ),
           ));
         }
