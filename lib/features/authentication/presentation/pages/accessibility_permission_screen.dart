@@ -59,13 +59,12 @@ class _AccessibilityPermissionScreenState
 
     bool opened = false;
     try {
-      await AccessibilityService.openAccessibilitySettings();
-      opened = true;
+      opened = await AccessibilityService.openAccessibilitySettings();
     } catch (e) {
       _errorMessage = "Unable to open TV Settings: $e";
     }
 
-    await Future.delayed(const Duration(seconds: 2));
+    await Future.delayed(const Duration(seconds: 1));
     if (mounted) {
       setState(() {
         _isChecking = false;

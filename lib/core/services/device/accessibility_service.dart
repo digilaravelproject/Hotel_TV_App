@@ -13,10 +13,13 @@ class AccessibilityService {
     }
   }
 
-  static Future<void> openAccessibilitySettings() async {
+  static Future<bool> openAccessibilitySettings() async {
     try {
-      await _channel.invokeMethod('openAccessibilitySettings');
-    } catch (_) {}
+      final bool? result = await _channel.invokeMethod<bool>('openAccessibilitySettings');
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
   }
 
   static Future<bool> requestDefaultLauncher() async {

@@ -264,9 +264,9 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
       await SharedPrefs.setString(AppConstants.tvLoginDataKey, jsonEncode(responseData));
       await TemplateManagerService.regenerateDataJson();
 
-      CustomSnackbar.showSuccess(
-        message: responseData['message'] ?? 'TV Paired and logged in successfully!',
-      );
+      // CustomSnackbar.showSuccess(
+      //   message: responseData['message'] ?? 'TV Paired and logged in successfully!',
+      // );
 
       if (mounted) {
         Navigator.pushReplacement(

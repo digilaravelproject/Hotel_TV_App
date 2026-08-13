@@ -346,7 +346,7 @@ class FlutterBridgeHandler {
 
         if (model == null || model.isEmpty || model == 'null') {
           model = 'HDMI 1';
-          checkedSource = 'default_fallback';
+          checkedSource = 'default_hdmi1_fallback';
         }
         print('[FlutterBridge] Launching Live TV input port: $model (source: $checkedSource)');
         await _tvChannel.invokeMethod('launchHdmi', {'model': model});

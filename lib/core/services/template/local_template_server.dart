@@ -52,6 +52,7 @@ class LocalTemplateServer {
         if (!file.existsSync()) {
           final rootDir = Directory(dirPath);
           if (rootDir.existsSync()) {
+            // 1. Check if unzipped into single child root directory
             final list = rootDir.listSync();
             if (list.length == 1 && list.first is Directory) {
               final altPath = p.join(list.first.path, filePath);
@@ -59,10 +60,25 @@ class LocalTemplateServer {
                 file = File(altPath);
               }
             }
+
+            // 2. Recursive Search Fallback if direct path still doesn't exist
+            if (!file.existsSync()) {
+              final fileName = p.basename(filePath);
+              try {
+                final entities = rootDir.listSync(recursive: true, followLinks: false);
+                for (final entity in entities) {
+                  if (entity is File && p.basename(entity.path) == fileName) {
+                    file = entity;
+                    break;
+                  }
+                }
+              } catch (_) {}
+            }
           }
         }
 
         if (!file.existsSync()) {
+          Logger.w('[LocalServer] File 404 Not Found: $filePath (searched root: $dirPath)');
           request.response.statusCode = 404;
           request.response.close();
           return;

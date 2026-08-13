@@ -325,8 +325,8 @@ class MainActivity : FlutterActivity() {
                     result.success(isAccessibilityServiceEnabled())
                 }
                 "openAccessibilitySettings" -> {
-                    openAccessibilitySettings()
-                    result.success(true)
+                    val opened = openAccessibilitySettings()
+                    result.success(opened)
                 }
                 "requestDefaultLauncher" -> {
                     requestDefaultLauncherRole()
@@ -603,71 +603,64 @@ class MainActivity : FlutterActivity() {
         }
         lastLaunchHdmiTime = now
 
+        var displayName = port
+        if (displayName.contains("/")) {
+            displayName = displayName.substringAfterLast('/')
+        }
+        displayName = displayName.replace("_", " ").trim()
+
         return try {
             val tvInputManager = getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager
+            var resolvedId: String? = null
+
             var isConnected = false
-            var displayName = port
-            if (displayName.contains("/")) {
-                displayName = displayName.substringAfterLast('/')
-            }
-            displayName = displayName.replace("_", " ").trim()
+
+            val normalizedPort = port.lowercase().replace(" ", "").replace("-", "").replace("_", "")
 
             if (tvInputManager != null) {
                 for (info in tvInputManager.tvInputList) {
                     val id = info.id
                     val label = info.loadLabel(this)?.toString() ?: id
-                    if (id.equals(port, ignoreCase = true) || label.equals(port, ignoreCase = true) || id.contains(port, ignoreCase = true) || port.contains(id, ignoreCase = true)) {
+                    val normId = id.lowercase().replace(" ", "").replace("-", "").replace("_", "")
+                    val normLabel = label.lowercase().replace(" ", "").replace("-", "").replace("_", "")
+
+                    if (normId == normalizedPort || normLabel == normalizedPort ||
+                        normId.contains(normalizedPort) || normLabel.contains(normalizedPort) ||
+                        (normalizedPort.isNotEmpty() && (normalizedPort.contains(normId) || normalizedPort.contains(normLabel)))) {
+                        resolvedId = id
                         if (label.isNotEmpty()) displayName = label
-                        val state = try { tvInputManager.getInputState(id) } catch (e: Exception) { TvInputManager.INPUT_STATE_CONNECTED }
-                        isConnected = (state == TvInputManager.INPUT_STATE_CONNECTED || state == TvInputManager.INPUT_STATE_CONNECTED_STANDBY || state == 0)
                         break
                     }
                 }
             }
 
-            // Fallback for hardware ports when input state check is lenient
-            if (!isConnected && tvInputManager != null && tvInputManager.tvInputList.isNotEmpty()) {
+            // Fallback match if no exact normalized ID matched
+            if (resolvedId == null && tvInputManager != null && tvInputManager.tvInputList.isNotEmpty()) {
                 val match = tvInputManager.tvInputList.firstOrNull { info ->
-                    info.id.contains(port, ignoreCase = true) || (info.loadLabel(this)?.toString()?.contains(port, ignoreCase = true) == true)
+                    val normId = info.id.lowercase().replace(" ", "").replace("-", "").replace("_", "")
+                    val normLabel = (info.loadLabel(this)?.toString() ?: "").lowercase().replace(" ", "").replace("-", "").replace("_", "")
+                    normId.contains(normalizedPort) || normLabel.contains(normalizedPort)
                 } ?: tvInputManager.tvInputList.firstOrNull { info ->
                     info.type == TvInputInfo.TYPE_HDMI || info.type == TvInputInfo.TYPE_TUNER || info.type == TvInputInfo.TYPE_COMPOSITE
-                }
+                } ?: tvInputManager.tvInputList.firstOrNull()
+
                 if (match != null) {
-                    isConnected = true
+                    resolvedId = match.id
                     displayName = match.loadLabel(this)?.toString() ?: match.id
                 }
             }
 
-            if (!isConnected) {
-                Toast.makeText(applicationContext, "$displayName is not connected", Toast.LENGTH_LONG).show()
-                return false
-            }
-
+            // Note: Some custom TV boards (e.g. MediaTek/Realtek/MStar AOSP) return TvInputManager.INPUT_STATE_DISCONNECTED (2)
+            // even when cable is physically connected. So we do NOT block intent launch here; instead we let Android TV Intent open it.
+            val finalTargetId = resolvedId ?: port
             Toast.makeText(applicationContext, "Opening $displayName...", Toast.LENGTH_SHORT).show()
 
-            val targetUri: Uri = if (port.startsWith("content://")) {
-                Uri.parse(port)
-            } else if (port.contains("/")) {
-                Uri.parse("content://android.media.tv/passthrough/${Uri.encode(port)}")
-            } else if (port.lowercase().contains("hdmi") || port.lowercase().contains("av") || port.lowercase().contains("tuner")) {
-                var resolvedId: String? = null
-                try {
-                    if (tvInputManager != null) {
-                        for (info in tvInputManager.tvInputList) {
-                            val id = info.id
-                            val label = info.loadLabel(this)?.toString() ?: ""
-                            if (id.contains(port, ignoreCase = true) || label.contains(port, ignoreCase = true)) {
-                                resolvedId = id
-                                break
-                            }
-                        }
-                    }
-                } catch (e: Exception) {}
-
-                val finalId = resolvedId ?: port
-                Uri.parse("content://android.media.tv/passthrough/${Uri.encode(finalId)}")
+            val targetUri: Uri = if (finalTargetId.startsWith("content://")) {
+                Uri.parse(finalTargetId)
+            } else if (finalTargetId.contains("/")) {
+                Uri.parse("content://android.media.tv/passthrough/${Uri.encode(finalTargetId)}")
             } else {
-                Uri.parse("content://android.media.tv/passthrough/${Uri.encode(port)}")
+                Uri.parse("content://android.media.tv/passthrough/${Uri.encode(finalTargetId)}")
             }
 
             val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -675,11 +668,26 @@ class MainActivity : FlutterActivity() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
-            startActivity(intent)
-            true
+            try {
+                startActivity(intent)
+                true
+            } catch (e: Exception) {
+                // If direct URI fails, fallback to TV Input Intent safely
+                try {
+                    val fallbackIntent = Intent("android.intent.action.VIEW_TV_INPUT").apply {
+                        data = targetUri
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(fallbackIntent)
+                    true
+                } catch (_: Exception) {
+                    Toast.makeText(applicationContext, "$displayName is not connected", Toast.LENGTH_LONG).show()
+                    false
+                }
+            }
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(applicationContext, "$port is not connected", Toast.LENGTH_LONG).show()
+            Toast.makeText(applicationContext, "$displayName is not connected", Toast.LENGTH_LONG).show()
             false
         }
     }
@@ -727,7 +735,7 @@ class MainActivity : FlutterActivity() {
                         TvInputManager.INPUT_STATE_CONNECTED
                     }
 
-                    val isConnected = (state == TvInputManager.INPUT_STATE_CONNECTED || state == TvInputManager.INPUT_STATE_CONNECTED_STANDBY)
+                    val isConnected = (state == TvInputManager.INPUT_STATE_CONNECTED || state == TvInputManager.INPUT_STATE_CONNECTED_STANDBY || state == 0)
 
                     inputsList.add(mapOf(
                         "id" to id,
@@ -931,22 +939,57 @@ class MainActivity : FlutterActivity() {
         return false
     }
 
-    private fun openAccessibilitySettings() {
-        val intentsToTry = listOf(
+    private fun openAccessibilitySettings(): Boolean {
+        val intentsToTry = mutableListOf<Intent>(
+            Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS),
             Intent("android.settings.ACCESSIBILITY_SETTINGS"),
             Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.accessibility.AccessibilityActivity"),
+            Intent().setClassName("com.google.android.tv.settings", "com.google.android.tv.settings.accessibility.AccessibilityActivity"),
+            Intent().setClassName("com.android.settings", "com.android.settings.AccessibilitySettings"),
+            Intent().setClassName("com.android.settings", "com.android.settings.Settings\$AccessibilitySettingsActivity"),
             Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.MainSettings"),
-            Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS),
+            Intent().setClassName("com.google.android.tv.settings", "com.google.android.tv.settings.MainSettings"),
             Intent(android.provider.Settings.ACTION_SETTINGS)
         )
+
+        // Try launching via package manager launch intents if specific components aren't found
+        val tvSettingsPackages = listOf("com.android.tv.settings", "com.google.android.tv.settings", "com.android.settings")
+        for (pkg in tvSettingsPackages) {
+            try {
+                val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
+                if (launchIntent != null) {
+                    intentsToTry.add(launchIntent)
+                }
+            } catch (_: Exception) {}
+        }
 
         for (intent in intentsToTry) {
             try {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
-                return
-            } catch (_: Exception) {}
+                // Crucial check: verify activity can be resolved before calling startActivity to avoid OS "You don't have an app that can do this" toast
+                if (intent.resolveActivity(packageManager) != null) {
+                    startActivity(intent)
+                    android.util.Log.i("HotelTV", "Successfully launched settings intent: $intent")
+                    return true
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("HotelTV", "Failed to launch settings intent: $intent - ${e.message}")
+            }
         }
+
+        // Direct fallback: Force launch standard ACTION_SETTINGS if all resolve checks were restricted by OS
+        try {
+            val fallback = Intent(android.provider.Settings.ACTION_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(fallback)
+            return true
+        } catch (e: Exception) {
+            android.util.Log.e("HotelTV", "All accessibility and settings fallback intents failed: ${e.message}")
+        }
+
+        return false
     }
 }
+
 
