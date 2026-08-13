@@ -359,7 +359,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
                 });
                 Object.defineProperty(e, 'keyCode', { get: function() { return $targetKeyCode; } });
                 Object.defineProperty(e, 'which', { get: function() { return $targetKeyCode; } });
-                window.dispatchEvent(e);
+                target.dispatchEvent(e);
               })();
             """);
             return KeyEventResult.handled;
