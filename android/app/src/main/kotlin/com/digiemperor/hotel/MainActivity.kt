@@ -40,7 +40,6 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setupDeviceOwnerLock()
-        requestDefaultLauncherRole()
     }
 
     /**
@@ -161,8 +160,7 @@ class MainActivity : FlutterActivity() {
             val adminName = MyDeviceAdminReceiver.getComponentName(this)
 
             if (dpm.isDeviceOwnerApp(packageName)) {
-                // Already Device Owner — apply all kiosk settings
-                // 1. Silently bind Home button to our app permanently (no user prompt)
+                android.util.Log.i("HotelTV", "Device Owner detected — applying Kiosk lock policies...")
                 val intentFilter = IntentFilter(Intent.ACTION_MAIN).apply {
                     addCategory(Intent.CATEGORY_HOME)
                     addCategory(Intent.CATEGORY_DEFAULT)
@@ -170,47 +168,35 @@ class MainActivity : FlutterActivity() {
                 val activityName = ComponentName(this, MainActivity::class.java)
                 dpm.addPersistentPreferredActivity(adminName, intentFilter, activityName)
 
-                // 2. Lock task packages — disables status bar, notifications, recent apps
                 dpm.setLockTaskPackages(adminName, arrayOf(packageName))
-                startLockTask() // Enter Kiosk mode
+                startLockTask()
 
-                // 3. Silently enable ADB/USB debugging (Device Owner privilege required)
                 enableAdbDebugging()
             } else {
-                // Not yet Device Owner — try to self-provision
-                trySetDeviceOwnerSelf()
+                trySetDeviceOwnerSmartly()
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    /**
-     * Attempts to run "dpm set-device-owner" from within the app itself.
-     *
-     * Flow:
-     *   App install → App open → this runs automatically →
-     *   If success: full kiosk lock, ADB enabled, permanent launcher
-     *   If fail: RoleManager dialog shown as fallback
-     *
-     * Works on: AOSP-based Android TVs, some OEM TVs with relaxed shell policy.
-     * Requires: No active Google accounts on device.
-     */
-    private fun trySetDeviceOwnerSelf() {
+    private fun trySetDeviceOwnerSmartly() {
+        val prefs = getSharedPreferences("hotel_tv_device_owner_prefs", Context.MODE_PRIVATE)
+        val attempted = prefs.getBoolean("has_attempted_provisioning", false)
+        if (attempted) return
+
         Thread {
             try {
+                prefs.edit().putBoolean("has_attempted_provisioning", true).apply()
                 val adminComponent = "${packageName}/.MyDeviceAdminReceiver"
-                android.util.Log.i("HotelTV", "Attempting self device-owner provisioning...")
 
-                // Method 1: Direct dpm command (works on many Android TVs)
                 val result1 = runShellCommand("dpm set-device-owner $adminComponent")
                 if (result1.contains("Success", ignoreCase = true)) {
-                    android.util.Log.i("HotelTV", "Device Owner set via dpm command!")
-                    runOnUiThread { setupDeviceOwnerLock() } // re-run to apply kiosk
+                    android.util.Log.i("HotelTV", "Device Owner auto-provisioned successfully!")
+                    runOnUiThread { setupDeviceOwnerLock() }
                     return@Thread
                 }
 
-                // Method 2: Via su (rooted devices)
                 val result2 = runShellCommand("su -c dpm set-device-owner $adminComponent")
                 if (result2.contains("Success", ignoreCase = true)) {
                     android.util.Log.i("HotelTV", "Device Owner set via su!")
@@ -218,21 +204,14 @@ class MainActivity : FlutterActivity() {
                     return@Thread
                 }
 
-                // Method 3: pm grant WRITE_SECURE_SETTINGS then retry (some AOSP TVs)
                 runShellCommand("pm grant $packageName android.permission.WRITE_SECURE_SETTINGS")
                 val result3 = runShellCommand("dpm set-device-owner $adminComponent")
                 if (result3.contains("Success", ignoreCase = true)) {
-                    android.util.Log.i("HotelTV", "Device Owner set after granting permissions!")
+                    android.util.Log.i("HotelTV", "Device Owner set after permission grant!")
                     runOnUiThread { setupDeviceOwnerLock() }
                     return@Thread
                 }
-
-                android.util.Log.w("HotelTV", "Self provisioning failed. Results: $result1 | $result2 | $result3")
-                android.util.Log.w("HotelTV", "Manual ADB required: adb shell dpm set-device-owner $adminComponent")
-
-            } catch (e: Exception) {
-                android.util.Log.e("HotelTV", "Self provisioning error: ${e.message}")
-            }
+            } catch (_: Exception) {}
         }.start()
     }
 
@@ -506,6 +485,89 @@ class MainActivity : FlutterActivity() {
         } catch (ex: Exception) {
         }
         return ""
+    }
+
+    private fun getAndroidId(): String {
+        return try {
+            android.provider.Settings.Secure.getString(
+                contentResolver,
+                android.provider.Settings.Secure.ANDROID_ID
+            ) ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    private fun getSerialNumber(): String {
+        // Primary: Secure Android ID (Present on 100% of Android devices across all versions 4.4 to 16+)
+        val androidId = getAndroidId()
+        if (androidId.isNotEmpty() && androidId != "unknown") {
+            return androidId
+        }
+
+        // Fallback: Factory Hardware Serial Number
+        try {
+            val c = Class.forName("android.os.SystemProperties")
+            val get = c.getMethod("get", String::class.java)
+
+            val propSerial = get.invoke(c, "ro.serialno") as? String
+            if (!propSerial.isNullOrEmpty() && propSerial != "unknown") {
+                return propSerial
+            }
+
+            val bootSerial = get.invoke(c, "ro.boot.serialno") as? String
+            if (!bootSerial.isNullOrEmpty() && bootSerial != "unknown") {
+                return bootSerial
+            }
+        } catch (_: Exception) {}
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                try {
+                    val serial = Build.getSerial()
+                    if (!serial.isNullOrEmpty() && serial != "unknown") {
+                        return serial
+                    }
+                } catch (_: SecurityException) {}
+            }
+        } catch (_: Exception) {}
+
+        try {
+            @Suppress("DEPRECATION")
+            val serial = Build.SERIAL
+            if (!serial.isNullOrEmpty() && serial != "unknown") {
+                return serial
+            }
+        } catch (_: Exception) {}
+
+        return ""
+    }
+
+    private fun getNetworkDetails(): Map<String, String> {
+        val resultMap = mutableMapOf<String, String>()
+        try {
+            val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+            val dhcpInfo = wifiManager?.dhcpInfo
+            if (dhcpInfo != null) {
+                resultMap["gateway"] = formatIpAddress(dhcpInfo.gateway)
+                resultMap["subnet"] = formatIpAddress(dhcpInfo.netmask)
+                resultMap["dns"] = formatIpAddress(dhcpInfo.dns1)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return resultMap
+    }
+
+    private fun formatIpAddress(ip: Int): String {
+        return String.format(
+            java.util.Locale.US,
+            "%d.%d.%d.%d",
+            ip and 0xff,
+            ip shr 8 and 0xff,
+            ip shr 16 and 0xff,
+            ip shr 24 and 0xff
+        )
     }
 
     private fun getInstalledApps(): List<Map<String, Any>> {
@@ -856,144 +918,28 @@ class MainActivity : FlutterActivity() {
         return configMap
     }
 
-    private fun getAndroidId(): String {
-        return try {
-            android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ANDROID_ID) ?: ""
-        } catch (e: Exception) {
-            ""
-        }
-    }
-
-    private fun getSerialNumber(): String {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            try {
-                val serial = android.os.Build.getSerial()
-                if (serial != android.os.Build.UNKNOWN) {
-                    return serial
-                }
-            } catch (e: SecurityException) {
-                e.printStackTrace()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-        
-        try {
-            val serial = android.os.Build.SERIAL
-            if (serial != android.os.Build.UNKNOWN) {
-                return serial
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        
-        return ""
-    }
-
-    private fun getNetworkDetails(): Map<String, String> {
-        val details = mutableMapOf<String, String>()
-        
-        // 1. Query ConnectivityManager default link properties
-        try {
-            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
-            if (cm != null) {
-                val activeNetwork = cm.activeNetwork
-                if (activeNetwork != null) {
-                    val linkProperties = cm.getLinkProperties(activeNetwork)
-                    if (linkProperties != null) {
-                        for (route in linkProperties.routes) {
-                            if (route.isDefaultRoute && route.gateway != null) {
-                                val gw = route.gateway?.hostAddress
-                                if (!gw.isNullOrEmpty()) details["gateway"] = gw
-                                break
-                            }
-                        }
-                        val dnsServers = linkProperties.dnsServers
-                        if (dnsServers.isNotEmpty()) {
-                            val dns = dnsServers[0].hostAddress
-                            if (!dns.isNullOrEmpty()) details["dns"] = dns
-                        }
-                        for (linkAddr in linkProperties.linkAddresses) {
-                            val addr = linkAddr.address
-                            if (addr is java.net.Inet4Address && !addr.isLoopbackAddress) {
-                                val prefixLength = linkAddr.prefixLength
-                                details["subnet"] = prefixLengthToSubnetMask(prefixLength)
-                                break
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-
-        // 2. WifiManager DhcpInfo fallback
-        if (details["gateway"].isNullOrEmpty() || details["dns"].isNullOrEmpty()) {
-            try {
-                val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
-                val dhcpInfo = wifiManager?.dhcpInfo
-                if (dhcpInfo != null) {
-                    if (dhcpInfo.gateway != 0 && details["gateway"].isNullOrEmpty()) details["gateway"] = intToIp(dhcpInfo.gateway)
-                    if (dhcpInfo.netmask != 0 && details["subnet"].isNullOrEmpty()) details["subnet"] = intToIp(dhcpInfo.netmask)
-                    if (dhcpInfo.dns1 != 0 && details["dns"].isNullOrEmpty()) details["dns"] = intToIp(dhcpInfo.dns1)
-                }
-            } catch (e: Exception) {}
-        }
-
-        // 3. Dynamic IP-based derivation fallback if network link doesn't expose route (e.g. Ethernet / Emulator)
-        val ip = getMacAddress().let { "" } // Trigger interface scan if needed
-        val activeIp = getLocalIpAddress()
-        if (activeIp.isNotEmpty()) {
-            val parts = activeIp.split(".")
-            if (parts.size == 4) {
-                if (details["gateway"].isNullOrEmpty()) {
-                    details["gateway"] = "${parts[0]}.${parts[1]}.${parts[2]}.1"
-                }
-                if (details["subnet"].isNullOrEmpty()) {
-                    details["subnet"] = "255.255.255.0"
-                }
-                if (details["dns"].isNullOrEmpty()) {
-                    details["dns"] = "8.8.8.8"
-                }
-            }
-        }
-
-        return details
-    }
-
-    private fun getLocalIpAddress(): String {
-        try {
-            val en = NetworkInterface.getNetworkInterfaces()
-            while (en.hasMoreElements()) {
-                val intf = en.nextElement()
-                val enumIpAddr = intf.inetAddresses
-                while (enumIpAddr.hasMoreElements()) {
-                    val inetAddress = enumIpAddr.nextElement()
-                    if (!inetAddress.isLoopbackAddress && inetAddress is java.net.Inet4Address) {
-                        return inetAddress.hostAddress ?: ""
-                    }
-                }
-            }
-        } catch (ex: Exception) {}
-        return ""
-    }
-
     private fun prefixLengthToSubnetMask(prefixLength: Int): String {
+        if (prefixLength <= 0 || prefixLength > 32) return "255.255.255.0"
         val mask = -0x1 shl (32 - prefixLength)
-        return String.format("%d.%d.%d.%d",
+        return String.format(
+            java.util.Locale.US,
+            "%d.%d.%d.%d",
             (mask shr 24) and 0xff,
             (mask shr 16) and 0xff,
             (mask shr 8) and 0xff,
-            mask and 0xff)
+            mask and 0xff
+        )
     }
 
     private fun intToIp(ipAddress: Int): String {
-        return String.format("%d.%d.%d.%d",
+        return String.format(
+            java.util.Locale.US,
+            "%d.%d.%d.%d",
             ipAddress and 0xff,
             ipAddress shr 8 and 0xff,
             ipAddress shr 16 and 0xff,
-            ipAddress shr 24 and 0xff)
+            ipAddress shr 24 and 0xff
+        )
     }
 
     private fun isAccessibilityServiceEnabled(): Boolean {
@@ -1022,26 +968,55 @@ class MainActivity : FlutterActivity() {
         return false
     }
 
+    private fun isTvDevice(): Boolean {
+        return try {
+            val uiModeManager = getSystemService(Context.UI_MODE_SERVICE) as? android.app.UiModeManager
+            if (uiModeManager?.currentModeType == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION) {
+                return true
+            }
+            packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     private fun openAccessibilitySettings(): Boolean {
         prepareForExternalLaunch()
         val pm = packageManager
-        val intentsToTry = mutableListOf<Intent>(
-            Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS),
-            Intent("android.settings.ACCESSIBILITY_SETTINGS"),
-            Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.accessibility.AccessibilityActivity"),
-            Intent().setClassName("com.google.android.tv.settings", "com.google.android.tv.settings.accessibility.AccessibilityActivity"),
-            Intent().setClassName("com.android.settings", "com.android.settings.AccessibilitySettings"),
-            Intent().setClassName("com.android.settings", "com.android.settings.Settings\$AccessibilitySettingsActivity"),
-            Intent(android.provider.Settings.ACTION_SETTINGS),
-            Intent("android.settings.SETTINGS"),
-            Intent(android.provider.Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS),
-            Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.MainSettings"),
-            Intent().setClassName("com.google.android.tv.settings", "com.google.android.tv.settings.MainSettings"),
-            Intent().setClassName("com.android.settings", "com.android.settings.Settings")
-        )
+        val sdkVersion = Build.VERSION.SDK_INT
+        val isTv = isTvDevice()
 
-        // Try launching via package manager launch intents if specific components aren't found
-        val tvSettingsPackages = listOf(
+        val intentsToTry = mutableListOf<Intent>()
+
+        // 1. Android TV Main Settings (Proven stable across TV OS 9 to 16+ without OEM trampoline crash)
+        if (isTv) {
+            intentsToTry.add(Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.MainSettings"))
+            intentsToTry.add(Intent().setClassName("com.google.android.tv.settings", "com.google.android.tv.settings.MainSettings"))
+            intentsToTry.add(Intent("android.settings.SETTINGS"))
+            intentsToTry.add(Intent(android.provider.Settings.ACTION_SETTINGS))
+        }
+
+        // 2. Mobile / Framework Accessibility Intents (Mobile / Tablet devices)
+        if (!isTv) {
+            intentsToTry.add(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            intentsToTry.add(Intent("android.settings.ACCESSIBILITY_SETTINGS"))
+        }
+
+        // 3. Fallback TV OEM Activities
+        if (isTv && sdkVersion >= Build.VERSION_CODES.R) {
+            intentsToTry.add(Intent("android.settings.ACCESSIBILITY_TV_OEM_LINK").setPackage("com.android.tv.settings"))
+            intentsToTry.add(Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.oemlink.AccessibilitySettingsActivity"))
+            intentsToTry.add(Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.oemlink.AccessibilityServiceActivity"))
+        }
+
+        // 4. General Settings Fallbacks (All SDK versions)
+        intentsToTry.add(Intent(android.provider.Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS))
+        intentsToTry.add(Intent().setClassName("com.android.settings", "com.android.settings.AccessibilitySettings"))
+        intentsToTry.add(Intent().setClassName("com.android.settings", "com.android.settings.Settings\$AccessibilitySettingsActivity"))
+        intentsToTry.add(Intent().setClassName("com.android.settings", "com.android.settings.Settings"))
+
+        // 5. Package Manager Launch Intent Fallbacks
+        val settingsPackages = listOf(
             "com.android.tv.settings",
             "com.google.android.tv.settings",
             "com.android.settings",
@@ -1049,7 +1024,7 @@ class MainActivity : FlutterActivity() {
             "com.xiaomi.mitv.settings",
             "com.sony.dtv.settings"
         )
-        for (pkg in tvSettingsPackages) {
+        for (pkg in settingsPackages) {
             try {
                 val launchIntent = pm.getLaunchIntentForPackage(pkg)
                 if (launchIntent != null) {
@@ -1058,13 +1033,13 @@ class MainActivity : FlutterActivity() {
             } catch (_: Exception) {}
         }
 
-        // Try each intent ONLY if resolveActivity != null
+        // Safe execution loop: Try each intent in order of priority
         for (intent in intentsToTry) {
             try {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 if (intent.resolveActivity(pm) != null) {
                     startActivity(intent)
-                    android.util.Log.i("HotelTV", "Successfully launched settings intent: $intent")
+                    android.util.Log.i("HotelTV", "Successfully launched settings intent [SDK $sdkVersion, isTv=$isTv]: $intent")
                     return true
                 }
             } catch (e: Exception) {
@@ -1072,7 +1047,7 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        android.util.Log.e("HotelTV", "No valid settings activity could be resolved on this device.")
+        android.util.Log.e("HotelTV", "No valid settings activity could be resolved on this device [SDK $sdkVersion, isTv=$isTv].")
         return false
     }
 }

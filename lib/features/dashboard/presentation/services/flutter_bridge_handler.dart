@@ -184,7 +184,7 @@ class FlutterBridgeHandler {
 
       case 'identifyDevice':
       case 'getSystemInfo':
-        final info = await DeviceInfoService.getFullDeviceInfo();
+        final info = await DeviceInfoService.getFullDeviceInfo(forceRefresh: true);
         final ip = info['ipAddress']?.toString() ?? '';
         final gateway = info['gateway']?.toString() ?? '';
         final subnet = info['subnet']?.toString() ?? '';

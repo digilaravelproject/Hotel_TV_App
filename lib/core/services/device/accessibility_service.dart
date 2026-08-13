@@ -30,4 +30,13 @@ class AccessibilityService {
       return false;
     }
   }
+
+  static Future<bool> isDefaultLauncher() async {
+    try {
+      final bool result = await _channel.invokeMethod('isDefaultLauncher');
+      return result;
+    } catch (_) {
+      return false;
+    }
+  }
 }

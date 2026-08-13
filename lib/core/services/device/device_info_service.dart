@@ -9,8 +9,16 @@ class DeviceInfoService {
   static const _channel = MethodChannel('com.digiemperor.hotel/device_info');
   static Map<String, dynamic>? _cachedDeviceInfo;
 
+  /// Clears in-memory device info cache
+  static void clearCache() {
+    _cachedDeviceInfo = null;
+  }
+
   /// Fetches and caches the complete device details
-  static Future<Map<String, dynamic>> getFullDeviceInfo() async {
+  static Future<Map<String, dynamic>> getFullDeviceInfo({bool forceRefresh = false}) async {
+    if (forceRefresh) {
+      _cachedDeviceInfo = null;
+    }
     if (_cachedDeviceInfo != null) {
       return _cachedDeviceInfo!;
     }
@@ -91,8 +99,8 @@ class DeviceInfoService {
             serial = nativeSerial;
           }
         } catch (_) {}
-        if (serial.isEmpty) {
-          serial = androidInfo.serialNumber != 'unknown' ? androidInfo.serialNumber : '';
+        if (serial.isEmpty || serial == 'unknown') {
+          serial = deviceId;
         }
 
         model = androidInfo.model;
