@@ -297,13 +297,22 @@ class MainActivity : FlutterActivity() {
     override fun onResume() {
         super.onResume()
         try {
-            val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-            if (dpm.isDeviceOwnerApp(packageName)) {
-                startLockTask()
+            if (!ExternalLaunchTracker.isRecentlyLaunchedExternal()) {
+                val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+                if (dpm.isDeviceOwnerApp(packageName)) {
+                    startLockTask()
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    private fun prepareForExternalLaunch() {
+        ExternalLaunchTracker.notifyExternalLaunch()
+        try {
+            stopLockTask()
+        } catch (_: Exception) {}
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -378,6 +387,12 @@ class MainActivity : FlutterActivity() {
                 }
                 "openSettings" -> {
                     result.success(openSettings())
+                }
+                "openWifiSettings" -> {
+                    result.success(openWifiSettings())
+                }
+                "getWifiSignalStrength" -> {
+                    result.success(getWifiSignalStrength())
                 }
                 "launchCast" -> {
                     result.success(launchCast())
@@ -552,6 +567,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun launchApp(packageName: String): Boolean {
+        prepareForExternalLaunch()
         val intent = packageManager.getLaunchIntentForPackage(packageName)
         return if (intent != null) {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -563,6 +579,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun openSettings(): Boolean {
+        prepareForExternalLaunch()
         return try {
             val intent = Intent(android.provider.Settings.ACTION_SETTINGS).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -574,7 +591,73 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun openWifiSettings(): Boolean {
+        prepareForExternalLaunch()
+        val pm = packageManager
+        val intentsToTry = listOf(
+            Intent(android.provider.Settings.ACTION_WIFI_SETTINGS),
+            Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS),
+            Intent("android.settings.WIFI_SETTINGS"),
+            Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.connectivity.NetworkActivity"),
+            Intent().setClassName("com.google.android.tv.settings", "com.google.android.tv.settings.connectivity.NetworkActivity"),
+            Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.MainSettings"),
+            Intent().setClassName("com.google.android.tv.settings", "com.google.android.tv.settings.MainSettings"),
+            Intent(android.provider.Settings.ACTION_SETTINGS)
+        )
+        for (intent in intentsToTry) {
+            try {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (intent.resolveActivity(pm) != null) {
+                    startActivity(intent)
+                    return true
+                }
+            } catch (_: Exception) {}
+        }
+        return false
+    }
+
+    private fun getWifiSignalStrength(): Map<String, Any> {
+        val resultMap = mutableMapOf<String, Any>()
+        try {
+            val cm = applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            if (cm != null) {
+                val activeNetwork = cm.activeNetwork
+                val capabilities = cm.getNetworkCapabilities(activeNetwork)
+                if (capabilities != null) {
+                    if (capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)) {
+                        resultMap["connected"] = true
+                        resultMap["type"] = "ethernet"
+                        resultMap["level"] = 4
+                        return resultMap
+                    }
+                    if (capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)) {
+                        val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+                        var level = 3
+                        if (wifiManager != null) {
+                            val wifiInfo = wifiManager.connectionInfo
+                            if (wifiInfo != null) {
+                                val rssi = wifiInfo.rssi
+                                level = android.net.wifi.WifiManager.calculateSignalLevel(rssi, 5)
+                            }
+                        }
+                        resultMap["connected"] = true
+                        resultMap["type"] = "wifi"
+                        resultMap["level"] = level
+                        return resultMap
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        resultMap["connected"] = false
+        resultMap["type"] = "none"
+        resultMap["level"] = 0
+        return resultMap
+    }
+
     private fun launchCast(): Boolean {
+        prepareForExternalLaunch()
         return try {
             val intent = Intent("android.settings.CAST_SETTINGS").apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -940,6 +1023,8 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun openAccessibilitySettings(): Boolean {
+        prepareForExternalLaunch()
+        val pm = packageManager
         val intentsToTry = mutableListOf<Intent>(
             Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS),
             Intent("android.settings.ACCESSIBILITY_SETTINGS"),
@@ -947,27 +1032,37 @@ class MainActivity : FlutterActivity() {
             Intent().setClassName("com.google.android.tv.settings", "com.google.android.tv.settings.accessibility.AccessibilityActivity"),
             Intent().setClassName("com.android.settings", "com.android.settings.AccessibilitySettings"),
             Intent().setClassName("com.android.settings", "com.android.settings.Settings\$AccessibilitySettingsActivity"),
+            Intent(android.provider.Settings.ACTION_SETTINGS),
+            Intent("android.settings.SETTINGS"),
+            Intent(android.provider.Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS),
             Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.MainSettings"),
             Intent().setClassName("com.google.android.tv.settings", "com.google.android.tv.settings.MainSettings"),
-            Intent(android.provider.Settings.ACTION_SETTINGS)
+            Intent().setClassName("com.android.settings", "com.android.settings.Settings")
         )
 
         // Try launching via package manager launch intents if specific components aren't found
-        val tvSettingsPackages = listOf("com.android.tv.settings", "com.google.android.tv.settings", "com.android.settings")
+        val tvSettingsPackages = listOf(
+            "com.android.tv.settings",
+            "com.google.android.tv.settings",
+            "com.android.settings",
+            "com.tcl.tv.settings",
+            "com.xiaomi.mitv.settings",
+            "com.sony.dtv.settings"
+        )
         for (pkg in tvSettingsPackages) {
             try {
-                val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
+                val launchIntent = pm.getLaunchIntentForPackage(pkg)
                 if (launchIntent != null) {
                     intentsToTry.add(launchIntent)
                 }
             } catch (_: Exception) {}
         }
 
+        // Try each intent ONLY if resolveActivity != null
         for (intent in intentsToTry) {
             try {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                // Crucial check: verify activity can be resolved before calling startActivity to avoid OS "You don't have an app that can do this" toast
-                if (intent.resolveActivity(packageManager) != null) {
+                if (intent.resolveActivity(pm) != null) {
                     startActivity(intent)
                     android.util.Log.i("HotelTV", "Successfully launched settings intent: $intent")
                     return true
@@ -977,17 +1072,7 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        // Direct fallback: Force launch standard ACTION_SETTINGS if all resolve checks were restricted by OS
-        try {
-            val fallback = Intent(android.provider.Settings.ACTION_SETTINGS).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            startActivity(fallback)
-            return true
-        } catch (e: Exception) {
-            android.util.Log.e("HotelTV", "All accessibility and settings fallback intents failed: ${e.message}")
-        }
-
+        android.util.Log.e("HotelTV", "No valid settings activity could be resolved on this device.")
         return false
     }
 }

@@ -22,6 +22,7 @@ import '../../../dashboard/presentation/pages/tv_webview_screen.dart';
 import 'app_startup_decider.dart';
 import '../widgets/qr_mode_widget.dart';
 import '../widgets/manual_mode_widget.dart';
+import '../../../../core/widget/tv_network_status_header.dart';
 
 class TvLoginScreen extends StatefulWidget {
   const TvLoginScreen({Key? key}) : super(key: key);
@@ -390,6 +391,11 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                 ),
               ),
             ),
+            Positioned(
+              top: 24,
+              right: 32,
+              child: const TvNetworkStatusHeader(),
+            ),
 
             // Main layout
             Row(
@@ -666,45 +672,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
               ],
             ),
 
-            // Top Right: Status Bar
-            Positioned(
-              top: 32,
-              right: 64,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  FutureBuilder<String>(
-                    future: DeviceInfoService.getNetworkType(),
-                    builder: (context, snapshot) {
-                      final netType = snapshot.data ?? '';
-                      IconData iconData;
-                      Color iconColor = Colors.white70;
-                      switch (netType) {
-                        case 'WiFi':
-                          iconData = Icons.wifi;
-                          break;
-                        case 'Ethernet':
-                          iconData = Icons.lan;
-                          break;
-                        case 'Mobile':
-                          iconData = Icons.signal_cellular_alt;
-                          break;
-                        case 'Disconnected':
-                          iconData = Icons.signal_wifi_off;
-                          iconColor = Colors.white70.withOpacity(0.3);
-                          break;
-                        default:
-                          iconData = Icons.wifi;
-                      }
-                      return Icon(iconData, color: iconColor, size: 20);
-                    },
-                  ),
-                  const SizedBox(width: 16),
-                  const LiveDateTimeWidget(),
-                ],
-              ),
-            ),
+
 
             if (_isLoading)
               Positioned.fill(

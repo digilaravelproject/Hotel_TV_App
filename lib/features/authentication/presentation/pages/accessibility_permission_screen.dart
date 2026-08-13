@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/services/device/accessibility_service.dart';
 import '../../../../core/widget/custom_app_text.dart';
 import '../../../../core/widget/tv_focusable.dart';
+import '../../../../core/widget/tv_network_status_header.dart';
 import '../../../../core/utils/ui_spacer.dart';
 import '../../../../core/constants/app_constants.dart';
 
@@ -159,6 +160,11 @@ class _AccessibilityPermissionScreenState
                 ),
               ),
             ),
+            Positioned(
+              top: 24,
+              right: 32,
+              child: const TvNetworkStatusHeader(),
+            ),
 
             Center(
               child: SingleChildScrollView(
@@ -289,48 +295,79 @@ class _AccessibilityPermissionScreenState
                       ),
                       UiSpacer.vSpace(24),
 
-                      // Enable Button matching White Pill Style
-                      SizedBox(
-                        width: 280,
-                        height: 48,
-                        child: TvFocusable(
-                          autofocus: true,
-                          scaleFactor: 1.04,
-                          onTap: _isAgreeChecked && !_isChecking ? _handleEnableClicked : () {},
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            height: 48,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: _isAgreeChecked ? Colors.white : Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(14),
-                              boxShadow: _isAgreeChecked
-                                  ? [
-                                      BoxShadow(
-                                        color: Colors.white.withOpacity(0.25),
-                                        blurRadius: 16,
-                                        spreadRadius: 1,
+                      // Enable Button & Skip Button Row / Column
+                      Column(
+                        children: [
+                          SizedBox(
+                            width: 280,
+                            height: 44,
+                            child: TvFocusable(
+                              autofocus: true,
+                              scaleFactor: 1.04,
+                              onTap: _isAgreeChecked && !_isChecking ? _handleEnableClicked : () {},
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                height: 44,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: _isAgreeChecked ? Colors.white : Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(14),
+                                  boxShadow: _isAgreeChecked
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.white.withOpacity(0.25),
+                                            blurRadius: 16,
+                                            spreadRadius: 1,
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                                child: _isChecking
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.black,
+                                          strokeWidth: 2.5,
+                                        ),
+                                      )
+                                    : CustomAppText(
+                                        'Enable',
+                                        color: _isAgreeChecked ? Colors.black : Colors.white38,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
                                       ),
-                                    ]
-                                  : null,
+                              ),
                             ),
-                            child: _isChecking
-                                ? const SizedBox(
-                                    width: 22,
-                                    height: 22,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.black,
-                                      strokeWidth: 2.5,
-                                    ),
-                                  )
-                                : CustomAppText(
-                                    'Enable',
-                                    color: _isAgreeChecked ? Colors.black : Colors.white38,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
                           ),
-                        ),
+                          UiSpacer.vSpace(12),
+                          SizedBox(
+                            width: 280,
+                            height: 40,
+                            child: TvFocusable(
+                              scaleFactor: 1.04,
+                              onTap: widget.onGranted,
+                              child: Container(
+                                height: 40,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.2),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: const CustomAppText(
+                                  'Skip & Continue',
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
