@@ -8,6 +8,7 @@ import '../../../dashboard/presentation/pages/tv_webview_screen.dart';
 import 'tv_login_screen.dart';
 import '../../../../core/services/device/accessibility_service.dart';
 import 'accessibility_permission_screen.dart';
+import 'default_launcher_permission_screen.dart';
 
 class AppStartupDecider extends StatefulWidget {
   const AppStartupDecider({Key? key}) : super(key: key);
@@ -17,19 +18,20 @@ class AppStartupDecider extends StatefulWidget {
 }
 
 class _AppStartupDeciderState extends State<AppStartupDecider> {
-  String _statusMessage = '';
-  bool _showLoader = false;
+  String _statusMessage = 'Initializing Hotel TV...';
+  bool _showLoader = true;
   bool _needsAccessibilityConsent = false;
+  bool _needsLauncherConsent = false;
 
   @override
   void initState() {
     super.initState();
-    _checkAccessibilityAndProceed();
+    _checkPermissionsAndProceed();
   }
 
-  Future<void> _checkAccessibilityAndProceed() async {
-    final bool isEnabled = await AccessibilityService.isAccessibilityEnabled();
-    if (!isEnabled) {
+  Future<void> _checkPermissionsAndProceed() async {
+    final bool isAccessibilityEnabled = await AccessibilityService.isAccessibilityEnabled();
+    if (!isAccessibilityEnabled) {
       if (mounted) {
         setState(() {
           _needsAccessibilityConsent = true;
@@ -37,6 +39,17 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
       }
       return;
     }
+
+    final bool isLauncherDefault = await AccessibilityService.isDefaultLauncher();
+    if (!isLauncherDefault) {
+      if (mounted) {
+        setState(() {
+          _needsLauncherConsent = true;
+        });
+      }
+      return;
+    }
+
     _decideStartupFlow();
   }
 
@@ -109,6 +122,19 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
             setState(() {
               _needsAccessibilityConsent = false;
             });
+            _checkPermissionsAndProceed();
+          }
+        },
+      );
+    }
+
+    if (_needsLauncherConsent) {
+      return DefaultLauncherPermissionScreen(
+        onProceed: () {
+          if (mounted) {
+            setState(() {
+              _needsLauncherConsent = false;
+            });
             _decideStartupFlow();
           }
         },
@@ -117,12 +143,10 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: _showLoader
-          ? LoadingWidget(
-              type: LoadingType.tvScreen,
-              subtitle: _statusMessage,
-            )
-          : const SizedBox.shrink(),
+      body: LoadingWidget(
+        type: LoadingType.tvScreen,
+        subtitle: _statusMessage,
+      ),
     );
   }
 }

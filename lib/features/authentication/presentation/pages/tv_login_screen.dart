@@ -139,7 +139,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     });
 
     try {
-      final info = await DeviceInfoService.getFullDeviceInfo();
+      final info = await DeviceInfoService.getFullDeviceInfo(forceRefresh: true);
       final Map<String, dynamic> requestData = {
         'deviceId': info['deviceId'] ?? '',
         'macAddress': info['macAddress'] ?? '',
@@ -221,7 +221,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     if (_pairCode.isEmpty) return;
 
     try {
-      final info = await DeviceInfoService.getFullDeviceInfo();
+      final info = await DeviceInfoService.getFullDeviceInfo(forceRefresh: true);
       final Map<String, dynamic> requestData = {
         'pair_code': _pairCode,
         'deviceId': info['deviceId'] ?? '',
@@ -699,7 +699,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     });
 
     try {
-      final info = await DeviceInfoService.getFullDeviceInfo();
+      final info = await DeviceInfoService.getFullDeviceInfo(forceRefresh: true);
       final Map<String, dynamic> requestData = {
         'license_key': licenseKey,
         'room_no': roomNo,

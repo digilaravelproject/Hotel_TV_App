@@ -119,9 +119,9 @@ class TemplateManagerService {
       ));
       final updatedRoot = await _cacheAllUrls(root, cacheDir, dio);
 
-      // Inject native network details (gateway, subnet_mask, dns) and persistent selectedLiveTvPort into device node
+      // Inject native network details (gateway, subnet_mask, dns), real serial, and persistent selectedLiveTvPort into device node
       try {
-        final deviceDetails = await DeviceInfoService.getFullDeviceInfo();
+        final deviceDetails = await DeviceInfoService.getFullDeviceInfo(forceRefresh: true);
         final savedPort = SharedPrefs.getString('selectedLiveTvPort');
 
         if (updatedRoot is Map) {
@@ -140,6 +140,35 @@ class TemplateManagerService {
             devMap['gateway'] = deviceDetails['gateway'] ?? '';
             devMap['subnet_mask'] = deviceDetails['subnet'] ?? '';
             devMap['dns'] = deviceDetails['dns'] ?? '';
+
+            final realSerial = deviceDetails['serial']?.toString() ?? '';
+            final realDeviceId = deviceDetails['deviceId']?.toString() ?? '';
+            final realMac = deviceDetails['macAddress']?.toString() ?? '';
+            final realIp = deviceDetails['ipAddress']?.toString() ?? '';
+
+            if (realSerial.isNotEmpty) {
+              devMap['serial'] = realSerial;
+              devMap['Serial'] = realSerial;
+              devMap['device_id'] = realSerial;
+              devMap['deviceId'] = realSerial;
+            } else if (realDeviceId.isNotEmpty) {
+              devMap['serial'] = realDeviceId;
+              devMap['Serial'] = realDeviceId;
+              devMap['device_id'] = realDeviceId;
+              devMap['deviceId'] = realDeviceId;
+            }
+            if (realMac.isNotEmpty) {
+              devMap['mac_address'] = realMac;
+              devMap['macAddress'] = realMac;
+              devMap['mac'] = realMac;
+              devMap['MAC'] = realMac;
+            }
+            if (realIp.isNotEmpty) {
+              devMap['ip_address'] = realIp;
+              devMap['ipAddress'] = realIp;
+              devMap['ip'] = realIp;
+              devMap['IP'] = realIp;
+            }
 
             // Inject dynamic template version from template object or SharedPreferences
             final templateMap = dataMap['template'] as Map<String, dynamic>?;

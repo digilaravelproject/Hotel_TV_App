@@ -77,7 +77,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
     }
 
     if (deviceId.isEmpty) {
-      final info = await DeviceInfoService.getFullDeviceInfo();
+      final info = await DeviceInfoService.getFullDeviceInfo(forceRefresh: true);
       deviceId = info['deviceId'] ?? '';
     }
 
