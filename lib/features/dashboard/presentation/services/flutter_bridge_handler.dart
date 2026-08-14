@@ -440,9 +440,10 @@ class FlutterBridgeHandler {
 
       case 'getHdmiModels':
       case 'getTvInputs':
+      case 'getLiveTvInputs':
         final dynamic res = await _tvChannel.invokeMethod('getHdmiModels');
         if (res == null) return [];
-        List allList = [];
+        List<Map<String, dynamic>> allList = [];
         if (res is List) {
           allList = res.map((e) => Map<String, dynamic>.from(e as Map)).toList();
         } else if (res is Map) {
@@ -457,29 +458,8 @@ class FlutterBridgeHandler {
           });
         }
 
-        // Filter only physically connected input sources
-        final connectedInputs = allList.where((item) {
-          if (item is Map && item.containsKey('isConnected')) {
-            return item['isConnected']?.toString() == 'true';
-          }
-          return true;
-        }).toList();
-
-        return connectedInputs.isNotEmpty ? connectedInputs : allList;
-
-      case 'getLiveTvInputs':
-        final dynamic res = await _tvChannel.invokeMethod('getHdmiModels');
-        if (res == null || res is! List) return [];
-        // Filter strictly active connected STB/TV tuner ports for Live TV
-        final connectedList = res.where((e) {
-          if (e is Map) {
-            final isConn = e['isConnected']?.toString() == 'true';
-            return isConn;
-          }
-          return false;
-        }).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-
-        return connectedList;
+        // Return all hardware connected TV input ports
+        return allList;
 
       case 'setLanguage':
       case 'changeLanguage':
@@ -523,8 +503,9 @@ class FlutterBridgeHandler {
       case 'getPictureList':
         return [];
 
-      case 'rotateImage':
-        return {'success': false, 'error': 'Not implemented'};
+      case 'syncFlights':
+      case 'syncWeather':
+        return {'success': true};
 
       default:
         throw UnimplementedError('Method $method not implemented');

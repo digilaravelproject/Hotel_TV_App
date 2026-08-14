@@ -843,6 +843,10 @@ class MainActivity : FlutterActivity() {
             val tvInputManager = getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager
             if (tvInputManager != null) {
                 val inputList = tvInputManager.tvInputList
+                var hdmiIndex = 1
+                var avIndex = 1
+                var tunerIndex = 1
+
                 for (input in inputList) {
                     val id = input.id
                     
@@ -860,17 +864,45 @@ class MainActivity : FlutterActivity() {
                         continue
                     }
 
-                    var label = try { input.loadLabel(this)?.toString() } catch(e: Exception) { null }
-                    if (label.isNullOrEmpty() || label.contains("Google Play", ignoreCase = true) || label.contains("Shop", ignoreCase = true)) {
-                        label = when (input.type) {
-                            TvInputInfo.TYPE_HDMI -> "HDMI (${id.substringAfterLast('/')})"
-                            TvInputInfo.TYPE_TUNER -> "Live TV (Tuner)"
-                            TvInputInfo.TYPE_DISPLAY_PORT -> "DisplayPort"
-                            TvInputInfo.TYPE_COMPOSITE -> "AV Input"
+                    var rawLabel = try { input.loadLabel(this)?.toString() } catch(e: Exception) { null }
+                    
+                    // Filter out unwanted virtual package labels
+                    if (rawLabel != null && (rawLabel.contains("Google Play", ignoreCase = true) || rawLabel.contains("Shop", ignoreCase = true))) {
+                        rawLabel = null
+                    }
+
+                    val label = if (!rawLabel.isNullOrEmpty() && !rawLabel.contains("com.") && !rawLabel.contains("/") && !rawLabel.contains("HW")) {
+                        rawLabel
+                    } else {
+                        when (input.type) {
+                            TvInputInfo.TYPE_HDMI -> {
+                                val name = "HDMI $hdmiIndex"
+                                hdmiIndex++
+                                name
+                            }
+                            TvInputInfo.TYPE_TUNER -> {
+                                val name = if (tunerIndex == 1) "Live TV (Tuner)" else "Live TV $tunerIndex"
+                                tunerIndex++
+                                name
+                            }
+                            TvInputInfo.TYPE_COMPOSITE -> {
+                                val name = if (avIndex == 1) "AV Input" else "AV $avIndex"
+                                avIndex++
+                                name
+                            }
                             TvInputInfo.TYPE_COMPONENT -> "Component"
+                            TvInputInfo.TYPE_DISPLAY_PORT -> "DisplayPort"
                             TvInputInfo.TYPE_VGA -> "VGA"
                             TvInputInfo.TYPE_DVI -> "DVI"
-                            else -> if (input.isPassthroughInput) "Passthrough Input" else "Hardware Input"
+                            else -> {
+                                if (input.isPassthroughInput) {
+                                    val name = "HDMI $hdmiIndex"
+                                    hdmiIndex++
+                                    name
+                                } else {
+                                    "TV Port"
+                                }
+                            }
                         }
                     }
 
@@ -888,6 +920,12 @@ class MainActivity : FlutterActivity() {
                         "name" to label,
                         "model" to id,
                         "value" to id,
+                        "type" to when(input.type) {
+                            TvInputInfo.TYPE_HDMI -> "HDMI"
+                            TvInputInfo.TYPE_TUNER -> "TUNER"
+                            TvInputInfo.TYPE_COMPOSITE -> "AV"
+                            else -> "HARDWARE"
+                        },
                         "isConnected" to isConnected.toString()
                     ))
                 }

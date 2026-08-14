@@ -77,6 +77,9 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
         })
         ..setNavigationDelegate(
           NavigationDelegate(
+            onPageStarted: (url) {
+              _injectLoginData(controller);
+            },
             onPageFinished: (url) {
               _injectTvNavigationJs(controller);
               _injectLoginData(controller);
@@ -158,9 +161,15 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
       final raw = SharedPrefs.getString(AppConstants.tvLoginDataKey);
       if (raw == null || raw.isEmpty) return;
       final b64 = base64Encode(utf8.encode(raw));
-      await controller.runJavaScript(
-        "window.tvLoginData = JSON.parse(atob('$b64'));",
-      );
+      await controller.runJavaScript('''
+        (function() {
+          try {
+            window.tvLoginData = JSON.parse(atob('$b64'));
+            var normalized = window.tvLoginData.data || window.tvLoginData;
+            localStorage.setItem('cachedHotelData', JSON.stringify(normalized));
+          } catch(e) {}
+        })();
+      ''');
     } catch (_) {
     }
   }
