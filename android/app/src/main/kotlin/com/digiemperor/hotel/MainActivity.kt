@@ -39,6 +39,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setupDeviceOwnerLock()
     }
 
@@ -148,9 +149,12 @@ class MainActivity : FlutterActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_CODE_SET_DEFAULT_HOME) {
-            if (resultCode == RESULT_OK) {
-                Toast.makeText(this, "Hotel TV App set as default launcher!", Toast.LENGTH_SHORT).show()
-            }
+            try {
+                val bringToFrontIntent = Intent(this, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                startActivity(bringToFrontIntent)
+            } catch (_: Exception) {}
         }
     }
 
@@ -611,21 +615,17 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun drawableToBase64(drawable: Drawable): String {
-        val bitmap = if (drawable is BitmapDrawable) {
-            drawable.bitmap
-        } else {
-            val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 128
-            val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 128
-            val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bmp)
-            drawable.setBounds(0, 0, canvas.width, canvas.height)
-            drawable.draw(canvas)
-            bmp
-        }
+        val targetSize = 64
+        val bmp = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        drawable.setBounds(0, 0, canvas.width, canvas.height)
+        drawable.draw(canvas)
+
         val outputStream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+        bmp.compress(Bitmap.CompressFormat.WEBP, 70, outputStream)
         val byteArray = outputStream.toByteArray()
-        return "data:image/png;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
+        bmp.recycle()
+        return "data:image/webp;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
     }
 
     private fun launchApp(packageName: String): Boolean {

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -38,11 +39,31 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
   double _downloadProgress = 0.0;
   bool _showCenterLoading = false;
 
+  Timer? _inactivityTimer;
+  Timer? _screensaverClockTimer;
+  bool _showScreensaver = false;
+  int _screensaverBgIndex = 0;
+  String _screensaverTimeStr = '';
+  List<File> _dynamicAmenitiesFiles = [];
+  List<String> _dynamicAmenitiesUrls = [];
+  List<String> _dynamicAmenitiesTitles = [];
+  List<String> _dynamicAmenitiesDescriptions = [];
+  String? _localBgFilePath;
+
   @override
   void initState() {
     super.initState();
+    _startInactivityTimer();
+    _startScreensaverClock();
+    _loadLocalBackgroundFile();
+    _loadAmenitiesWallpapers();
+
     _backChannel.setMethodCallHandler((call) async {
       if (call.method == 'onBackPressed') {
+        if (_showScreensaver) {
+          _resetInactivityTimer();
+          return;
+        }
         final ctrl = _controller;
         if (ctrl != null) await _handleBackNavigation(ctrl);
       }
@@ -56,6 +77,54 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
         }
       });
     });
+  }
+
+  void _startInactivityTimer() {
+    _inactivityTimer?.cancel();
+    _inactivityTimer = Timer(const Duration(seconds: 30), () {
+      if (mounted) {
+        setState(() {
+          _showScreensaver = true;
+        });
+      }
+    });
+  }
+
+  void _resetInactivityTimer() {
+    _inactivityTimer?.cancel();
+    if (_showScreensaver && mounted) {
+      setState(() {
+        _showScreensaver = false;
+      });
+    }
+    _startInactivityTimer();
+  }
+
+  void _startScreensaverClock() {
+    _screensaverClockTimer?.cancel();
+    _updateClockStr();
+    _screensaverClockTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      _updateClockStr();
+      if (_showScreensaver) {
+        final totalCount = _dynamicAmenitiesFiles.length + _dynamicAmenitiesUrls.length;
+        final maxLen = totalCount > 0 ? totalCount : 1;
+        setState(() {
+          _screensaverBgIndex = (_screensaverBgIndex + 1) % maxLen;
+        });
+      }
+    });
+  }
+
+  void _updateClockStr() {
+    final now = DateTime.now();
+    final h = now.hour.toString().padLeft(2, '0');
+    final m = now.minute.toString().padLeft(2, '0');
+    if (mounted) {
+      setState(() {
+        _screensaverTimeStr = '$h:$m';
+      });
+    }
   }
 
   Future<void> _initHybridSync() async {
@@ -133,6 +202,8 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
 
   @override
   void dispose() {
+    _inactivityTimer?.cancel();
+    _screensaverClockTimer?.cancel();
     TvSyncManager.dispose();
     _backChannel.setMethodCallHandler(null);
     _webViewFocusNode.dispose();
@@ -272,6 +343,11 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
       autofocus: true,
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent || event is KeyRepeatEvent) {
+          _resetInactivityTimer();
+          if (_showScreensaver) {
+            return KeyEventResult.handled;
+          }
+
           final key = event.logicalKey;
           final physicalKey = event.physicalKey;
           final int keyId = key.keyId;
@@ -486,9 +562,509 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
                 ),
               ),
             ),
+
+          // Inactivity Ambient Lockscreen / Screensaver Overlay (Slide Up Animation)
+          _buildScreensaverOverlay(),
         ],
       ),
     );
+  }
+
+  Widget _buildScreensaverOverlay() {
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOutCubic,
+      top: _showScreensaver ? 0 : -MediaQuery.of(context).size.height - 50,
+      left: 0,
+      right: 0,
+      bottom: _showScreensaver ? 0 : MediaQuery.of(context).size.height + 50,
+      child: GestureDetector(
+        onTap: _resetInactivityTimer,
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          color: Colors.black,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Wallpapers Rotator matching main screen template background
+              AnimatedSwitcher(
+                duration: const Duration(seconds: 1),
+                child: _getScreensaverWallpaperWidget(),
+              ),
+
+              // Ambient Gradient Overlay
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.4),
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.8),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Top-Left Hotel Logo / Dynamic Greeting Overlay
+              Positioned(
+                top: 48,
+                left: 48,
+                child: Row(
+                  children: [
+                    _getScreensaverLogoWidget(),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _getScreensaverHotelName(),
+                          style: const TextStyle(
+                            color: Color(0xFFb38a2d),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                        Text(
+                          _getScreensaverGreeting(),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Center Dynamic Title & Description (Clean white text with drop shadows, NO background container matching reference image)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 48.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _getCurrentAmenityTitle(),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 30,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.0,
+                          shadows: [
+                            Shadow(color: Colors.black87, blurRadius: 12, offset: Offset(0, 3)),
+                            Shadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 6)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _getCurrentAmenityDescription(),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w400,
+                          letterSpacing: 0.5,
+                          shadows: [
+                            Shadow(color: Colors.black87, blurRadius: 10, offset: Offset(0, 2)),
+                            Shadow(color: Colors.black54, blurRadius: 16, offset: Offset(0, 4)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Bottom-Right Clock & Ambient Meta Info matching User Photo 2
+              Positioned(
+                right: 48,
+                bottom: 48,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          '${_getScreensaverTempOnly()} ',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.w300,
+                          ),
+                        ),
+                        const Icon(Icons.water_drop, color: Colors.cyanAccent, size: 24),
+                        const SizedBox(width: 24),
+                        Text(
+                          _screensaverTimeStr,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 72,
+                            fontWeight: FontWeight.w200,
+                            letterSpacing: 2,
+                            shadows: [
+                              Shadow(color: Colors.black54, blurRadius: 12, offset: Offset(0, 4)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.55),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.white.withOpacity(0.25), width: 1),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Select ',
+                            style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+                          ),
+                          Icon(Icons.radio_button_checked, color: Color(0xFFb38a2d), size: 18),
+                          Text(
+                            ' to switch',
+                            style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _getScreensaverLogoWidget() {
+    Widget imageChild;
+    try {
+      final rawData = SharedPrefs.getString(AppConstants.tvLoginDataKey);
+      if (rawData != null && rawData.isNotEmpty) {
+        final decoded = jsonDecode(rawData);
+        final dataMap = decoded['data'] ?? decoded;
+        final logo = dataMap['hotel']?['logo'] ?? dataMap['hotel']?['logo_url'] ?? dataMap['hotel_logo'];
+        if (logo != null && logo.toString().isNotEmpty) {
+          final logoStr = logo.toString();
+          if (logoStr.startsWith('http')) {
+            imageChild = Image.network(
+              logoStr,
+              width: 52,
+              height: 52,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Image.asset('assets/logo.png', width: 52, height: 52, fit: BoxFit.cover),
+            );
+          } else {
+            imageChild = Image.asset('assets/logo.png', width: 52, height: 52, fit: BoxFit.cover);
+          }
+        } else {
+          imageChild = Image.asset('assets/logo.png', width: 52, height: 52, fit: BoxFit.cover);
+        }
+      } else {
+        imageChild = Image.asset('assets/logo.png', width: 52, height: 52, fit: BoxFit.cover);
+      }
+    } catch (_) {
+      imageChild = Image.asset(
+        'assets/logo.png',
+        width: 52,
+        height: 52,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Icon(Icons.hotel_outlined, color: Color(0xFFb38a2d), size: 30),
+      );
+    }
+
+    return Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFb38a2d), width: 2.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.5),
+            blurRadius: 10,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: imageChild,
+      ),
+    );
+  }
+
+  String _getScreensaverRoomNo() {
+    try {
+      final rawData = SharedPrefs.getString(AppConstants.tvLoginDataKey);
+      if (rawData != null && rawData.isNotEmpty) {
+        final decoded = jsonDecode(rawData);
+        final dataMap = decoded['data'] ?? decoded;
+        final room = dataMap['room_no'] ?? dataMap['room_number'] ?? dataMap['device']?['room_no'] ?? dataMap['device']?['room_number'] ?? dataMap['hotel']?['room_no'];
+        if (room != null && room.toString().trim().isNotEmpty) {
+          return 'Room ${room.toString().trim()}';
+        }
+      }
+    } catch (_) {}
+    return 'Room 144';
+  }
+
+  String _getScreensaverWeatherText() {
+    try {
+      final rawData = SharedPrefs.getString(AppConstants.tvLoginDataKey);
+      if (rawData != null && rawData.isNotEmpty) {
+        final decoded = jsonDecode(rawData);
+        final dataMap = decoded['data'] ?? decoded;
+        final weather = dataMap['weather'] ?? dataMap['hotel']?['weather'];
+        if (weather is Map) {
+          final city = weather['city'] ?? weather['location'] ?? 'Mumbai';
+          final tempC = weather['temp_c'] ?? weather['temp'] ?? weather['temperature'] ?? '29';
+          final tempF = weather['temp_f'] ?? '84';
+          return '$city ${tempC}°C / ${tempF}°F';
+        } else if (weather != null && weather.toString().trim().isNotEmpty) {
+          return weather.toString();
+        }
+      }
+    } catch (_) {}
+    return 'Mumbai 29°C / 84°F';
+  }
+
+  String _getScreensaverTempOnly() {
+    try {
+      final rawData = SharedPrefs.getString(AppConstants.tvLoginDataKey);
+      if (rawData != null && rawData.isNotEmpty) {
+        final decoded = jsonDecode(rawData);
+        final dataMap = decoded['data'] ?? decoded;
+        final weather = dataMap['weather'] ?? dataMap['hotel']?['weather'] ?? dataMap['device']?['weather'];
+        if (weather is Map) {
+          final tempC = weather['temp_c'] ?? weather['temp'] ?? weather['temperature'] ?? weather['celsius'];
+          if (tempC != null && tempC.toString().trim().isNotEmpty) {
+            final clean = tempC.toString().replaceAll('°C', '').replaceAll('°', '').trim();
+            return '$clean°';
+          }
+        } else if (weather != null && weather.toString().trim().isNotEmpty) {
+          final match = RegExp(r'(\d+)\s*°?\s*C?').firstMatch(weather.toString());
+          if (match != null) {
+            return '${match.group(1)}°';
+          }
+        }
+      }
+    } catch (_) {}
+    return '29°';
+  }
+
+  Future<void> _loadLocalBackgroundFile() async {
+    try {
+      final dir = await TemplateManagerService.getTemplateDirectory();
+      final candidates = ['bgImage.png', 'bg.jpg', 'bg.png', 'background.jpg', 'background.png', 'assets/bgImage.png', 'assets/bg.jpg'];
+      for (final name in candidates) {
+        final f = File('${dir.path}/$name');
+        if (await f.exists()) {
+          if (mounted) {
+            setState(() {
+              _localBgFilePath = f.path;
+            });
+          }
+          break;
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadAmenitiesWallpapers() async {
+    try {
+      final List<File> files = [];
+      final List<String> urls = [];
+      final List<String> titles = [];
+      final List<String> descs = [];
+
+      final dir = await TemplateManagerService.getTemplateDirectory();
+      final rawData = SharedPrefs.getString(AppConstants.tvLoginDataKey);
+      if (rawData != null && rawData.isNotEmpty) {
+        final decoded = jsonDecode(rawData);
+        final dataMap = decoded['data'] ?? decoded;
+        final amenitiesList = dataMap['amenities'] ?? dataMap['hotel']?['amenities'] ?? dataMap['services'] ?? dataMap['sliders'];
+        if (amenitiesList is List) {
+          for (final item in amenitiesList) {
+            if (item is Map) {
+              final img = item['image'] ?? item['img'] ?? item['banner'] ?? item['url'] ?? item['image_url'];
+              final title = item['title'] ?? item['name'] ?? item['label'] ?? item['amenity_name'] ?? item['heading'] ?? '';
+              final desc = item['description'] ?? item['desc'] ?? item['sub_title'] ?? item['subtitle'] ?? item['details'] ?? 'We wish you a pleasant stay';
+              if (img != null && img.toString().isNotEmpty) {
+                final imgStr = img.toString();
+                final titleStr = title.toString().trim();
+                final descStr = desc.toString().trim();
+                if (imgStr.startsWith('http')) {
+                  urls.add(imgStr);
+                  titles.add(titleStr);
+                  descs.add(descStr);
+                } else if (imgStr.startsWith('cached_media/')) {
+                  final localF = File('${dir.path}/$imgStr');
+                  if (localF.existsSync()) {
+                    files.add(localF);
+                    titles.add(titleStr);
+                    descs.add(descStr);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      final cacheDir = Directory('${dir.path}/cached_media');
+      if (await cacheDir.exists()) {
+        final list = await cacheDir.list().toList();
+        for (final entity in list) {
+          if (entity is File) {
+            final name = entity.path.toLowerCase();
+            if ((name.contains('amenity') || name.contains('banner') || name.contains('slider') || name.endsWith('.webp') || name.endsWith('.jpg') || name.endsWith('.png')) && !files.any((f) => f.path == entity.path)) {
+              files.add(entity);
+              titles.add('');
+              descs.add('We wish you a pleasant stay');
+            }
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _dynamicAmenitiesFiles = files;
+          _dynamicAmenitiesUrls = urls;
+          _dynamicAmenitiesTitles = titles;
+          _dynamicAmenitiesDescriptions = descs;
+        });
+      }
+    } catch (e) {
+      Logger.w('[TvWebviewScreen] Failed to load amenities wallpapers: $e');
+    }
+  }
+
+  String _getCurrentAmenityTitle() {
+    if (_dynamicAmenitiesTitles.isNotEmpty) {
+      final idx = _screensaverBgIndex % _dynamicAmenitiesTitles.length;
+      final title = _dynamicAmenitiesTitles[idx];
+      if (title.trim().isNotEmpty) {
+        return title.trim();
+      }
+    }
+    return 'Welcome Guest!';
+  }
+
+  String _getCurrentAmenityDescription() {
+    if (_dynamicAmenitiesDescriptions.isNotEmpty) {
+      final idx = _screensaverBgIndex % _dynamicAmenitiesDescriptions.length;
+      final desc = _dynamicAmenitiesDescriptions[idx];
+      if (desc.trim().isNotEmpty) {
+        return desc.trim();
+      }
+    }
+    return 'We wish you a pleasant stay';
+  }
+
+  Widget _getScreensaverWallpaperWidget() {
+    // 1. Dynamic downloaded hotel amenities files (e.g. amenity_*.webp)
+    if (_dynamicAmenitiesFiles.isNotEmpty) {
+      final file = _dynamicAmenitiesFiles[_screensaverBgIndex % _dynamicAmenitiesFiles.length];
+      return Image.file(
+        file,
+        key: ValueKey(file.path + '$_screensaverBgIndex'),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (_, __, ___) => Container(color: const Color(0xFF0F172A)),
+      );
+    }
+
+    // 2. Dynamic hotel amenities URLs from API
+    if (_dynamicAmenitiesUrls.isNotEmpty) {
+      final url = _dynamicAmenitiesUrls[_screensaverBgIndex % _dynamicAmenitiesUrls.length];
+      return Image.network(
+        url,
+        key: ValueKey(url + '$_screensaverBgIndex'),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (_, __, ___) => Container(color: const Color(0xFF0F172A)),
+      );
+    }
+
+    // 3. Fallback to main template background image (bgImage.png)
+    if (_localBgFilePath != null && File(_localBgFilePath!).existsSync()) {
+      return Image.file(
+        File(_localBgFilePath!),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      );
+    }
+
+    // 4. Default Dark Gradient (NO static stock images!)
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF020617)],
+        ),
+      ),
+    );
+  }
+
+  String _getScreensaverHotelName() {
+    try {
+      final rawData = SharedPrefs.getString(AppConstants.tvLoginDataKey);
+      if (rawData != null && rawData.isNotEmpty) {
+        final decoded = jsonDecode(rawData);
+        final dataMap = decoded['data'] ?? decoded;
+        final name = dataMap['hotel']?['name'] ?? dataMap['hotel_name'] ?? dataMap['device']?['hotel_name'] ?? dataMap['hotel']?['hotel_name'];
+        if (name != null && name.toString().trim().isNotEmpty) {
+          return name.toString().toUpperCase();
+        }
+      }
+    } catch (_) {}
+    return 'PAX HOSPITALITY';
+  }
+
+  String _getScreensaverGreeting() {
+    final hour = DateTime.now().hour;
+    String timeOfDay = 'Good Afternoon';
+    if (hour >= 5 && hour < 12) {
+      timeOfDay = 'Good Morning';
+    } else if (hour >= 12 && hour < 17) {
+      timeOfDay = 'Good Afternoon';
+    } else if (hour >= 17 && hour < 22) {
+      timeOfDay = 'Good Evening';
+    } else {
+      timeOfDay = 'Good Night';
+    }
+
+    try {
+      final rawData = SharedPrefs.getString(AppConstants.tvLoginDataKey);
+      if (rawData != null && rawData.isNotEmpty) {
+        final decoded = jsonDecode(rawData);
+        final dataMap = decoded['data'] ?? decoded;
+        final guest = dataMap['guest_name'] ?? dataMap['guest']?['name'] ?? 'Guest';
+        return '$timeOfDay, $guest';
+      }
+    } catch (_) {}
+    return '$timeOfDay, Guest';
   }
 
   Widget _buildDownloading(String message) {

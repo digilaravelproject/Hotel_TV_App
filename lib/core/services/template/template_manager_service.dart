@@ -100,6 +100,11 @@ class TemplateManagerService {
     return node;
   }
 
+  static final Dio _sharedDio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 8),
+    receiveTimeout: const Duration(seconds: 15),
+  ));
+
   static Future<String?> _cacheOfflineMediaAndGetJson() async {
     try {
       final loginDataStr = SharedPrefs.getString(AppConstants.tvLoginDataKey);
@@ -113,11 +118,7 @@ class TemplateManagerService {
         await cacheDir.create(recursive: true);
       }
 
-      final dio = Dio(BaseOptions(
-        connectTimeout: const Duration(seconds: 5),
-        receiveTimeout: const Duration(seconds: 5),
-      ));
-      final updatedRoot = await _cacheAllUrls(root, cacheDir, dio);
+      final updatedRoot = await _cacheAllUrls(root, cacheDir, _sharedDio);
 
       // Inject native network details (gateway, subnet_mask, dns), real serial, and persistent selectedLiveTvPort into device node
       try {
@@ -304,8 +305,7 @@ class TemplateManagerService {
       final tempExtractPath = p.join(docDir.path, 'temp_extract');
       
       Logger.i('[TemplateManager] Downloading zip from: $url');
-      final dio = Dio();
-      await dio.download(
+      await _sharedDio.download(
         url,
         tempZipPath,
         onReceiveProgress: (received, total) {

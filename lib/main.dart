@@ -15,10 +15,15 @@ final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Cap image cache to 15MB max to prevent memory thrashing on 1GB RAM Android TVs
+  PaintingBinding.instance.imageCache.maximumSize = 15;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 15 * 1024 * 1024;
+
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
-    );
+    ).timeout(const Duration(seconds: 3));
     
     // Pass all uncaught asynchronous errors that aren't handled by the Flutter framework to Crashlytics
     PlatformDispatcher.instance.onError = (error, stack) {

@@ -100,17 +100,16 @@ class ApiChecker {
     if (error is DioException) {
       switch (error.type) {
         case DioExceptionType.connectionTimeout:
-          CustomSnackbar.showError(
-            message: 'Connection timeout. Please check your internet and try again.',
-          );
+          // Silent fallback for connection timeout on TV - DO NOT show red snackbar popup
+          Logger.w('[ApiChecker] Connection timeout occurred (Silent fallback)');
           break;
         case DioExceptionType.sendTimeout:
-          CustomSnackbar.showError(message: 'Request timeout. Please try again.');
+          // Silent fallback for send timeout on TV - DO NOT show red snackbar popup
+          Logger.w('[ApiChecker] Send timeout occurred (Silent fallback)');
           break;
         case DioExceptionType.receiveTimeout:
-          CustomSnackbar.showError(
-            message: 'Server is taking too long to respond. Please try again.',
-          );
+          // Silent fallback for receive timeout on TV - DO NOT show red snackbar popup
+          Logger.w('[ApiChecker] Receive timeout occurred (Silent fallback)');
           break;
         case DioExceptionType.badCertificate:
           CustomSnackbar.showError(

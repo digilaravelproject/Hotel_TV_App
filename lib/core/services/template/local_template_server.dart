@@ -17,22 +17,37 @@ class LocalTemplateServer {
 
   static Future<void> start() async {
     _refCount++;
-    if (_server != null) return;
+    if (_server != null) {
+      try {
+        await _server!.close(force: true);
+      } catch (_) {}
+      _server = null;
+      _port = null;
+    }
 
     try {
       final dir = await TemplateManagerService.getTemplateDirectory();
       final dirPath = dir.path;
 
       try {
-        _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 40441);
-      } catch (_) {
-        _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        _server = await HttpServer.bind(
+          InternetAddress.loopbackIPv4,
+          40441,
+          shared: true,
+        );
+      } catch (e) {
+        Logger.w('[LocalServer] Port 40441 busy, binding to dynamic port: $e');
+        _server = await HttpServer.bind(
+          InternetAddress.loopbackIPv4,
+          0,
+          shared: true,
+        );
       }
       _port = _server!.port;
 
       Logger.i('[LocalServer] Started on http://127.0.0.1:$_port');
 
-      _server!.listen((HttpRequest request) {
+      _server!.listen((HttpRequest request) async {
         var filePath = request.uri.path;
         if (filePath.isEmpty || filePath == '/') {
           filePath = 'index.html';
@@ -51,22 +66,24 @@ class LocalTemplateServer {
         var file = File(fullPath);
         if (!file.existsSync()) {
           final rootDir = Directory(dirPath);
-          if (rootDir.existsSync()) {
+          if (await rootDir.exists()) {
             // 1. Check if unzipped into single child root directory
-            final list = rootDir.listSync();
-            if (list.length == 1 && list.first is Directory) {
-              final altPath = p.join(list.first.path, filePath);
-              if (File(altPath).existsSync()) {
-                file = File(altPath);
+            try {
+              final list = await rootDir.list(recursive: false).toList();
+              if (list.length == 1 && list.first is Directory) {
+                final altPath = p.join(list.first.path, filePath);
+                final altFile = File(altPath);
+                if (await altFile.exists()) {
+                  file = altFile;
+                }
               }
-            }
+            } catch (_) {}
 
             // 2. Recursive Search Fallback if direct path still doesn't exist
-            if (!file.existsSync()) {
+            if (!await file.exists()) {
               final fileName = p.basename(filePath);
               try {
-                final entities = rootDir.listSync(recursive: true, followLinks: false);
-                for (final entity in entities) {
+                await for (final entity in rootDir.list(recursive: true, followLinks: false)) {
                   if (entity is File && p.basename(entity.path) == fileName) {
                     file = entity;
                     break;
@@ -77,10 +94,10 @@ class LocalTemplateServer {
           }
         }
 
-        if (!file.existsSync()) {
+        if (!await file.exists()) {
           Logger.w('[LocalServer] File 404 Not Found: $filePath (searched root: $dirPath)');
           request.response.statusCode = 404;
-          request.response.close();
+          await request.response.close();
           return;
         }
 
@@ -94,11 +111,11 @@ class LocalTemplateServer {
           request.response.headers.add('Pragma', 'no-cache');
           request.response.headers.add('Expires', '0');
           request.response.statusCode = 200;
-          request.response.add(file.readAsBytesSync());
+          await file.openRead().pipe(request.response);
         } catch (e) {
           request.response.statusCode = 500;
+          await request.response.close();
         }
-        request.response.close();
       });
     } catch (e) {
       Logger.e('[LocalServer] Failed to start: $e');

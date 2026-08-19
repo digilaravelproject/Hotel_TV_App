@@ -30,24 +30,30 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
   }
 
   Future<void> _checkPermissionsAndProceed() async {
-    final bool isAccessibilityEnabled = await AccessibilityService.isAccessibilityEnabled();
-    if (!isAccessibilityEnabled) {
-      if (mounted) {
-        setState(() {
-          _needsAccessibilityConsent = true;
-        });
+    final bool isAccSkipped = SharedPrefs.getBool('accessibility_skipped') ?? false;
+    if (!isAccSkipped) {
+      final bool isAccessibilityEnabled = await AccessibilityService.isAccessibilityEnabled();
+      if (!isAccessibilityEnabled) {
+        if (mounted) {
+          setState(() {
+            _needsAccessibilityConsent = true;
+          });
+        }
+        return;
       }
-      return;
     }
 
-    final bool isLauncherDefault = await AccessibilityService.isDefaultLauncher();
-    if (!isLauncherDefault) {
-      if (mounted) {
-        setState(() {
-          _needsLauncherConsent = true;
-        });
+    final bool isLauncherSkipped = SharedPrefs.getBool('launcher_skipped') ?? false;
+    if (!isLauncherSkipped) {
+      final bool isLauncherDefault = await AccessibilityService.isDefaultLauncher();
+      if (!isLauncherDefault) {
+        if (mounted) {
+          setState(() {
+            _needsLauncherConsent = true;
+          });
+        }
+        return;
       }
-      return;
     }
 
     _decideStartupFlow();
@@ -117,7 +123,8 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
   Widget build(BuildContext context) {
     if (_needsAccessibilityConsent) {
       return AccessibilityPermissionScreen(
-        onGranted: () {
+        onGranted: () async {
+          await SharedPrefs.setBool('accessibility_skipped', true);
           if (mounted) {
             setState(() {
               _needsAccessibilityConsent = false;
@@ -130,7 +137,8 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
 
     if (_needsLauncherConsent) {
       return DefaultLauncherPermissionScreen(
-        onProceed: () {
+        onProceed: () async {
+          await SharedPrefs.setBool('launcher_skipped', true);
           if (mounted) {
             setState(() {
               _needsLauncherConsent = false;

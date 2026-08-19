@@ -87,11 +87,20 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
                 onPageFinished!();
               }
             },
-            onWebResourceError: (error) {
+            onWebResourceError: (error) async {
               if (error.isForMainFrame == true && !isClosed) {
-                emit(WebViewError(
-                  message: 'Failed to load asset: ${error.description}',
-                ));
+                Logger.w('[WebViewBloc] Main frame load glitch (${error.description}). Retrying server bind...');
+                try {
+                  await LocalTemplateServer.start();
+                  final p = await LocalTemplateServer.port;
+                  await controller.loadRequest(Uri.parse('http://127.0.0.1:$p/index.html'));
+                } catch (_) {
+                  if (!isClosed) {
+                    emit(WebViewError(
+                      message: 'Failed to load asset: ${error.description}',
+                    ));
+                  }
+                }
               }
             },
           ),
@@ -108,6 +117,7 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
         } catch (_) {}
       }
 
+      await Future.delayed(const Duration(milliseconds: 250));
       final port = await LocalTemplateServer.port;
       final serverUrl = 'http://127.0.0.1:$port/index.html';
       Logger.i('[WebViewBloc] Loading template from LocalTemplateServer: $serverUrl');
