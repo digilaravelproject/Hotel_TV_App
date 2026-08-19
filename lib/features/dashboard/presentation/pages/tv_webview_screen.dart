@@ -81,7 +81,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
 
   void _startInactivityTimer() {
     _inactivityTimer?.cancel();
-    _inactivityTimer = Timer(const Duration(seconds: 30), () {
+    _inactivityTimer = Timer(const Duration(minutes: 2), () {
       if (mounted) {
         setState(() {
           _showScreensaver = true;
