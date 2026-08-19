@@ -104,6 +104,7 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
           await androidController.setMediaPlaybackRequiresUserGesture(false);
           await androidController.setAllowFileAccess(true);
           await androidController.setAllowContentAccess(true);
+          await androidController.setTextZoom(100);
         } catch (_) {}
       }
 
