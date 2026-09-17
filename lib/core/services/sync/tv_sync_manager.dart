@@ -23,6 +23,7 @@ class TvSyncManager {
     required String deviceId,
     required OnSyncDataUpdated onDataUpdated,
     required OnUnauthenticated onUnauthenticated,
+  }) async {
     bool hasFirebase = false;
     try {
       if (Firebase.apps.isNotEmpty) {

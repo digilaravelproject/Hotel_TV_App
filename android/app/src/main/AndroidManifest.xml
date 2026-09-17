@@ -36,7 +36,7 @@
 
     
     <application
-        android:label="PAX TV Hospitality"
+        android:label="pax tv"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:logo="@mipmap/ic_launcher"
