@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:responsive_sizer/responsive_sizer.dart';
@@ -21,22 +22,24 @@ void main() async {
   PaintingBinding.instance.imageCache.maximumSizeBytes = 15 * 1024 * 1024;
 
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    ).timeout(const Duration(seconds: 3));
-    
-    // Pass all uncaught asynchronous errors that aren't handled by the Flutter framework to Crashlytics
-    PlatformDispatcher.instance.onError = (error, stack) {
-      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-      return true;
-    };
-    
-    // Pass all uncaught errors from the framework to Crashlytics
-    FlutterError.onError = (FlutterErrorDetails details) {
-      FirebaseCrashlytics.instance.recordFlutterError(details);
-    };
+    if (Platform.isAndroid || Platform.isIOS || Platform.isMacOS || Platform.isWindows) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      ).timeout(const Duration(seconds: 3));
+      
+      // Pass all uncaught asynchronous errors that aren't handled by the Flutter framework to Crashlytics
+      PlatformDispatcher.instance.onError = (error, stack) {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+        return true;
+      };
+      
+      // Pass all uncaught errors from the framework to Crashlytics
+      FlutterError.onError = (FlutterErrorDetails details) {
+        FirebaseCrashlytics.instance.recordFlutterError(details);
+      };
+    }
   } catch (e) {
-    debugPrint('Firebase initialization failed: \$e');
+    debugPrint('Firebase initialization skipped or failed: $e');
   }
   await SharedPrefs.init();
 

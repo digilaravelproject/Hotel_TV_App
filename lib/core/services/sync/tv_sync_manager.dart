@@ -23,16 +23,28 @@ class TvSyncManager {
     required String deviceId,
     required OnSyncDataUpdated onDataUpdated,
     required OnUnauthenticated onUnauthenticated,
-  }) async {
+    bool hasFirebase = false;
     try {
-      await Firebase.initializeApp();
-    } catch (e) {
-      Logger.e('[TvSyncManager] Firebase initialization error: $e');
+      if (Firebase.apps.isNotEmpty) {
+        hasFirebase = true;
+      }
+    } catch (_) {}
+
+    if (hasFirebase) {
+      try {
+        _listenToFirestoreStream(
+          hotelId: hotelId,
+          deviceId: deviceId,
+          onDataUpdated: onDataUpdated,
+          onUnauthenticated: onUnauthenticated,
+        );
+        return;
+      } catch (e) {
+        Logger.e('[TvSyncManager] Firestore stream start failed: $e');
+      }
     }
 
-    _listenToFirestoreStream(
-      hotelId: hotelId,
-      deviceId: deviceId,
+    _startHttpFallback(
       onDataUpdated: onDataUpdated,
       onUnauthenticated: onUnauthenticated,
     );

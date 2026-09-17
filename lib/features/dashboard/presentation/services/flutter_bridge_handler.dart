@@ -57,7 +57,10 @@ class FlutterBridgeHandler {
       case 'getInstalledApps':
       case 'getApps':
       case 'getAppList':
-        final installedAppsRaw = await _tvChannel.invokeMethod<List>('getInstalledApps') ?? [];
+        List installedAppsRaw = [];
+        try {
+          installedAppsRaw = await _tvChannel.invokeMethod<List>('getInstalledApps') ?? [];
+        } catch (_) {}
         final List<Map<String, dynamic>> installedApps = installedAppsRaw
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();
@@ -131,14 +134,18 @@ class FlutterBridgeHandler {
         return resultApps;
 
       case 'launchApp':
-        final package = args[0] as String?;
-        if (package == null) throw ArgumentError('package is required');
-        await _tvChannel.invokeMethod('launchApp', {'package': package});
+        final package = args.isNotEmpty ? args[0] as String? : null;
+        if (package == null) return {'success': false, 'message': 'package is required'};
+        try {
+          await _tvChannel.invokeMethod('launchApp', {'package': package});
+        } catch (_) {}
         return {'success': true};
 
       case 'openSettings':
       case 'openAndroidSettings':
-        await _tvChannel.invokeMethod('openSettings');
+        try {
+          await _tvChannel.invokeMethod('openSettings');
+        } catch (_) {}
         return {'success': true};
 
       case 'refreshApp':
@@ -278,13 +285,15 @@ class FlutterBridgeHandler {
         if (saved != null && saved.isNotEmpty && saved != 'null') {
           return {'selectedPort': saved, 'port': saved};
         }
-        final dynamic inputsRes = await _tvChannel.invokeMethod('getLiveTvInputs');
-        if (inputsRes is List && inputsRes.isNotEmpty) {
-          final firstMap = Map<String, dynamic>.from(inputsRes.first as Map);
-          final firstPort = firstMap['id']?.toString() ?? firstMap['model']?.toString() ?? firstMap['label']?.toString() ?? '';
-          return {'selectedPort': firstPort, 'port': firstPort};
-        }
-        return {'selectedPort': '', 'port': ''};
+        try {
+          final dynamic inputsRes = await _tvChannel.invokeMethod('getLiveTvInputs');
+          if (inputsRes is List && inputsRes.isNotEmpty) {
+            final firstMap = Map<String, dynamic>.from(inputsRes.first as Map);
+            final firstPort = firstMap['id']?.toString() ?? firstMap['model']?.toString() ?? firstMap['label']?.toString() ?? '';
+            return {'selectedPort': firstPort, 'port': firstPort};
+          }
+        } catch (_) {}
+        return {'selectedPort': 'HDMI 1', 'port': 'HDMI 1'};
 
       case 'launchLiveTv':
       case 'openLiveTv':
@@ -329,19 +338,21 @@ class FlutterBridgeHandler {
         }
 
         if (model == null || model.isEmpty || model == 'null') {
-          final dynamic inputsRes = await _tvChannel.invokeMethod('getLiveTvInputs');
-          checkedSource = 'getLiveTvInputs';
-          if (inputsRes is List && inputsRes.isNotEmpty) {
-            final firstMap = Map<String, dynamic>.from(inputsRes.first as Map);
-            model = firstMap['id']?.toString() ?? firstMap['model']?.toString();
-          } else {
-            checkedSource = 'getHdmiModels';
-            final dynamic allInputs = await _tvChannel.invokeMethod('getHdmiModels');
-            if (allInputs is List && allInputs.isNotEmpty) {
-              final firstMap = Map<String, dynamic>.from(allInputs.first as Map);
+          try {
+            final dynamic inputsRes = await _tvChannel.invokeMethod('getLiveTvInputs');
+            checkedSource = 'getLiveTvInputs';
+            if (inputsRes is List && inputsRes.isNotEmpty) {
+              final firstMap = Map<String, dynamic>.from(inputsRes.first as Map);
               model = firstMap['id']?.toString() ?? firstMap['model']?.toString();
+            } else {
+              checkedSource = 'getHdmiModels';
+              final dynamic allInputs = await _tvChannel.invokeMethod('getHdmiModels');
+              if (allInputs is List && allInputs.isNotEmpty) {
+                final firstMap = Map<String, dynamic>.from(allInputs.first as Map);
+                model = firstMap['id']?.toString() ?? firstMap['model']?.toString();
+              }
             }
-          }
+          } catch (_) {}
         }
 
         if (model == null || model.isEmpty || model == 'null') {
@@ -349,7 +360,9 @@ class FlutterBridgeHandler {
           checkedSource = 'default_hdmi1_fallback';
         }
         print('[FlutterBridge] Launching Live TV input port: $model (source: $checkedSource)');
-        await _tvChannel.invokeMethod('launchHdmi', {'model': model});
+        try {
+          await _tvChannel.invokeMethod('launchHdmi', {'model': model});
+        } catch (_) {}
         return {
           'success': true,
           'port': model,
@@ -441,25 +454,31 @@ class FlutterBridgeHandler {
       case 'getHdmiModels':
       case 'getTvInputs':
       case 'getLiveTvInputs':
-        final dynamic res = await _tvChannel.invokeMethod('getHdmiModels');
-        if (res == null) return [];
-        List<Map<String, dynamic>> allList = [];
-        if (res is List) {
-          allList = res.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-        } else if (res is Map) {
-          res.forEach((key, val) {
-            allList.add({
-              'name': key.toString(),
-              'label': key.toString(),
-              'id': val.toString(),
-              'value': val.toString(),
-              'model': val.toString(),
-            });
-          });
-        }
+        try {
+          final dynamic res = await _tvChannel.invokeMethod('getHdmiModels');
+          if (res != null) {
+            List<Map<String, dynamic>> allList = [];
+            if (res is List) {
+              allList = res.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+            } else if (res is Map) {
+              res.forEach((key, val) {
+                allList.add({
+                  'name': key.toString(),
+                  'label': key.toString(),
+                  'id': val.toString(),
+                  'value': val.toString(),
+                  'model': val.toString(),
+                });
+              });
+            }
+            if (allList.isNotEmpty) return allList;
+          }
+        } catch (_) {}
 
-        // Return all hardware connected TV input ports
-        return allList;
+        return [
+          {'name': 'HDMI 1', 'label': 'HDMI 1', 'id': 'HDMI 1', 'model': 'HDMI 1'},
+          {'name': 'HDMI 2', 'label': 'HDMI 2', 'id': 'HDMI 2', 'model': 'HDMI 2'},
+        ];
 
       case 'setLanguage':
       case 'changeLanguage':
@@ -495,9 +514,11 @@ class FlutterBridgeHandler {
         ];
 
       case 'launchIptv':
-        final package = args[0] as String?;
-        if (package == null) throw ArgumentError('package is required');
-        await _tvChannel.invokeMethod('launchApp', {'package': package});
+        final package = args.isNotEmpty ? args[0] as String? : null;
+        if (package == null) return {'success': false, 'message': 'package is required'};
+        try {
+          await _tvChannel.invokeMethod('launchApp', {'package': package});
+        } catch (_) {}
         return {'success': true};
 
       case 'getPictureList':
@@ -505,10 +526,12 @@ class FlutterBridgeHandler {
 
       case 'syncFlights':
       case 'syncWeather':
-        return {'success': true};
+      case 'getFlightData':
+      case 'getFlights':
+        return [];
 
       default:
-        throw UnimplementedError('Method $method not implemented');
+        return {'status': false, 'message': 'Method $method not implemented'};
     }
   }
 

@@ -50,6 +50,14 @@ dependencies:
   qr_flutter: ^4.1.0
   webview_flutter: ^4.14.0
   webview_flutter_android: ^4.12.0
+  webview_flutter_tizen: any
+  shared_preferences_tizen: any
+  permission_handler_tizen: any
+  path_provider_tizen: any
+  flutter_secure_storage_tizen: any
+  sqflite_tizen: any
+  device_info_plus_tizen: any
+  connectivity_plus_tizen: any
   archive: ^4.0.9
   firebase_core: ^4.11.0
   cloud_firestore: ^6.8.0

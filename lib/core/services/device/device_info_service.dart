@@ -121,6 +121,33 @@ class DeviceInfoService {
       }
     } catch (_) {}
 
+    // Fallback for Tizen, Linux, or any platform without native hardware deviceId
+    if (deviceId.isEmpty) {
+      final storedId = SharedPrefs.getString('device_unique_id');
+      if (storedId != null && storedId.isNotEmpty) {
+        deviceId = storedId;
+      } else {
+        final random = Random();
+        final randPart = List.generate(8, (_) => random.nextInt(16).toRadixString(16)).join().toUpperCase();
+        deviceId = 'TIZEN-$randPart';
+        await SharedPrefs.setString('device_unique_id', deviceId);
+      }
+    }
+
+    if (serial.isEmpty || serial == 'unknown') {
+      serial = deviceId;
+    }
+
+    if (model.isEmpty) {
+      model = 'Samsung Tizen TV';
+    }
+    if (brand.isEmpty) {
+      brand = 'Samsung';
+    }
+    if (osVersion.isEmpty) {
+      osVersion = 'Tizen 10.0';
+    }
+
     String gateway = '';
     String subnet = '';
     String dns = '';
