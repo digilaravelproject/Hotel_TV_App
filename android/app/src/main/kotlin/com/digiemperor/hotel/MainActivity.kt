@@ -368,7 +368,7 @@ class MainActivity : FlutterActivity() {
                     result.success(getInstalledApps())
                 }
                 "launchApp" -> {
-                    val packageName = call.argument<String>("package")
+                    val packageName = call.argument<String>("package") ?: call.argument<String>("packageName")
                     if (packageName != null) {
                         result.success(launchApp(packageName))
                     } else {
