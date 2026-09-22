@@ -163,6 +163,16 @@ class DeviceInfoService {
       }
     } catch (_) {}
 
+    List<String> tvInputs = [];
+    try {
+      if (Platform.isAndroid) {
+        final List? inputs = await _channel.invokeMethod<List>('getTvInputs');
+        if (inputs != null) {
+          tvInputs = inputs.map((e) => e.toString()).toList();
+        }
+      }
+    } catch (_) {}
+
     _cachedDeviceInfo = {
       'deviceId': deviceId,
       'serial': serial,
@@ -174,9 +184,22 @@ class DeviceInfoService {
       'model': model,
       'brand': brand,
       'osVersion': osVersion,
+      'tv_inputs': tvInputs,
     };
 
     return _cachedDeviceInfo!;
+  }
+
+  /// Sets the Android device's display name (shown on mobile during casting / Screen Mirroring)
+  /// Format should be "TV Name (Room No)" — e.g. "Taj TV (Room 106)"
+  static Future<bool> setDeviceName(String name) async {
+    try {
+      if (Platform.isAndroid) {
+        final result = await _channel.invokeMethod<bool>('setDeviceName', {'name': name});
+        return result ?? false;
+      }
+    } catch (_) {}
+    return false;
   }
 
   /// Helper to get just the unique device ID

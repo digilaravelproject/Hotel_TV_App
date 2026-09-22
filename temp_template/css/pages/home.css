@@ -1,0 +1,622 @@
+/* ============================================================
+   1. GLOBAL & HEADER
+   ============================================================ */
+:root {
+    --house-gold: #b38a2d;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+#bg-slider {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    overflow: hidden;
+    background-color: #000;
+}
+
+.slide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0;
+    transition: opacity 1000ms ease-in-out;
+}
+
+.slide.active {
+    opacity: 1;
+}
+
+/* Generic RTL support trigger */
+.rtl-mode {
+    direction: rtl !important;
+}
+
+/* ============================================================
+   2. HEADER ELEMENTS (Positioning & RTL Fixes)
+   ============================================================ */
+#header-left,
+#header-right,
+#greeting {
+    position: absolute;
+    z-index: 100;
+    color: white;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85);
+}
+
+/* LTR DEFAULT POSITIONS */
+#header-left {
+    top: 40px;
+    left: 80px;
+    right: auto;
+    text-align: left;
+    font-weight: 500;
+}
+
+#header-right {
+    top: 40px;
+    right: 80px;
+    left: auto;
+    text-align: right;
+    font-weight: 500;
+}
+
+/* RTL HEADER SWAP LOGIC */
+body.rtl-mode #header-left {
+    left: auto !important;
+    right: 80px !important;
+    text-align: right !important;
+}
+
+body.rtl-mode #header-right {
+    right: auto !important;
+    left: 80px !important;
+    text-align: left !important;
+}
+
+/* Ensure data inside headers stays readable LTR */
+#time,
+#date,
+#temp,
+#room {
+    direction: ltr !important;
+    unicode-bidi: isolate;
+    display: inline-block;
+}
+
+#time {
+    font-size: 68px;
+    font-weight: 800;
+    display: block;
+    line-height: 1.05;
+    letter-spacing: 2px;
+    color: #ffffff;
+    text-shadow: 0 4px 16px rgba(0, 0, 0, 0.95);
+}
+
+#date {
+    font-size: 28px;
+    margin-top: 6px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    letter-spacing: 0.5px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+#room {
+    font-size: 38px;
+    font-weight: 700;
+    display: block;
+    color: #ffffff;
+    letter-spacing: 0.5px;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
+}
+
+#temp {
+    font-size: 28px;
+    margin-top: 6px;
+    font-weight: 500;
+    color: #ffd700;
+    letter-spacing: 0.5px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+#greeting {
+    top: 220px;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    font-size: 36px;
+    font-weight: 600;
+    color: #ffffff;
+    letter-spacing: 1px;
+    direction: ltr;
+    text-shadow: 0 4px 14px rgba(0, 0, 0, 0.95);
+}
+
+body.rtl-mode #greeting {
+    direction: rtl !important;
+}
+
+/* Fix for Room/Temp stacking in RTL */
+body.rtl-mode #temp {
+    display: block;
+}
+
+/* ============================================================
+   3. CAROUSEL & CONTAINER
+   ============================================================ */
+#mainUI {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: auto;
+}
+
+.menu-container {
+    position: absolute;
+    bottom: 35px;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 380px;
+    overflow: hidden;
+    z-index: 50;
+    padding-top: 25px;
+    box-sizing: border-box;
+    /* Smooth Mask for LTR */
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%);
+}
+
+/* Flip the mask for RTL mode to ensure correct edge fading */
+body.rtl-mode .menu-container {
+    -webkit-mask-image: linear-gradient(to left, transparent 0%, black 8%, black 92%, transparent 100%);
+    mask-image: linear-gradient(to left, transparent 0%, black 8%, black 92%, transparent 100%);
+}
+
+#menuTrack {
+    display: flex;
+    flex-direction: row !important;
+    align-items: center;
+    height: 100%;
+    position: relative;
+    left: 0;
+    transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.icon-item {
+    width: 220.8px;
+    margin: 0 26.69px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    outline: none;
+    opacity: 0.55;
+    transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.icon-item.active-focus {
+    opacity: 1.0;
+    transform: scale(1.22);
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.icon-item.active-focus .icon-img {
+    border: 4px solid #ffd700;
+    box-shadow: 0 0 35px rgba(255, 215, 0, 0.9), 0 0 15px rgba(179, 138, 45, 0.7);
+    transform: translateY(-8px);
+    border-radius: 50% !important;
+}
+
+.icon-img {
+    width: 100%;
+    height: auto;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.6));
+    transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.icon-label {
+    margin-top: 14px;
+    font-size: 26px;
+    font-weight: 600;
+    color: #e2e8f0;
+    text-align: center;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+    transition: all 0.3s ease;
+}
+
+.icon-item.active-focus .icon-label {
+    color: #ffd700;
+    font-weight: 800;
+    font-size: 28px;
+    text-shadow: 0 0 12px rgba(255, 215, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.9);
+}
+
+/* ============================================================
+   4. BOUNCE ANIMATION
+   ============================================================ */
+.icon-item.active-focus .icon-img,
+.icon-img.bounce {
+    animation: macBounce 0.45s ease;
+}
+
+@keyframes macBounce {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-20px);
+    }
+}
+
+
+/* ============================================================
+   5. OVERLAYS & EXTRAS (From original inline HTML styles)
+   ============================================================ */
+
+#subPageOverlay {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: black;
+    z-index: 9999;
+}
+
+#subFrame {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+#appsOverlay {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.92);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    z-index: 9998;
+    flex-direction: column;
+    padding: 45px 80px;
+    box-sizing: border-box;
+    overflow-y: auto;
+}
+
+#appsOverlay.show {
+    display: flex;
+}
+
+/* Hide Hotel Logo, Greeting & Header when Applications or Any Overlay is Open */
+body.overlay-active .hotel-logo-container,
+body.overlay-active #header-left,
+body.overlay-active #header-right,
+body.overlay-active #greeting,
+body:has(#appsOverlay.show) .hotel-logo-container,
+body:has(#appsOverlay.show) #header-left,
+body:has(#appsOverlay.show) #header-right,
+body:has(#appsOverlay.show) #greeting {
+    display: none !important;
+}
+
+#appsOverlay .apps-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32.4px;
+}
+
+#appsOverlay .apps-title {
+    color: #b38a2d;
+    font-size: 42.24px;
+    font-weight: 600;
+}
+
+#appsOverlay .close-btn {
+    color: #fff;
+    font-size: 48.0px;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 9.6px 28.8px;
+    opacity: 0.7;
+}
+
+#appsOverlay .close-btn:focus,
+#appsOverlay .close-btn.active-focus {
+    opacity: 1;
+}
+
+#apps-container {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 28.8px;
+    margin-bottom: 32.4px;
+}
+
+.app-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+    margin: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.app-card:focus,
+.app-card.active-focus {
+    background: rgba(179, 138, 45, 0.25) !important;
+    border: 3px solid #b38a2d !important;
+    outline: none !important;
+    box-shadow: 0 0 25px rgba(179, 138, 45, 0.8), inset 0 0 10px rgba(179, 138, 45, 0.3);
+    transform: scale(1.06);
+}
+
+.app-card img {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+    margin-bottom: 12px;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+}
+
+.app-card .app-name {
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: bold;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.tv-section-title {
+    color: #b38a2d;
+    font-size: 30.72px;
+    font-weight: 600;
+    margin-bottom: 16.2px;
+}
+
+#tv-inputs-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 19.2px;
+}
+
+/* ============================================================
+   MODALS & OVERLAYS (TV Input Sources & Screen Cast)
+   ============================================================ */
+.overlay-fullscreen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 9999;
+    box-sizing: border-box;
+}
+
+.overlay-glass {
+    background: rgba(8, 11, 18, 0.94) !important;
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+}
+
+.tv-modal-card {
+    background: rgba(14, 18, 28, 0.96) !important;
+    border: 2.5px solid rgba(179, 138, 45, 0.6) !important;
+    padding: 42px 50px !important;
+    border-radius: 24px !important;
+    width: 780px !important;
+    max-width: 90% !important;
+    text-align: center !important;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.95), 0 0 35px rgba(179, 138, 45, 0.2) !important;
+    box-sizing: border-box !important;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+.tv-modal-title {
+    color: #ffd700 !important;
+    font-size: 34px !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 2px !important;
+    margin-bottom: 30px !important;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9) !important;
+}
+
+#direct-tv-inputs-container {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 20px !important;
+    justify-content: center !important;
+    margin-bottom: 36px !important;
+}
+
+.tv-input-btn {
+    min-width: 230px !important;
+    padding: 16px 28px !important;
+    background: rgba(255, 255, 255, 0.07) !important;
+    color: #ffffff !important;
+    border: 2px solid rgba(179, 138, 45, 0.4) !important;
+    border-radius: 14px !important;
+    font-size: 20px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.5px !important;
+    cursor: pointer !important;
+    outline: none !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5) !important;
+    transition: all 0.25s cubic-bezier(0.25, 1, 0.5, 1) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+}
+
+.tv-input-btn:focus,
+.tv-input-btn.active-focus {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.35) 0%, rgba(179, 138, 45, 0.2) 100%) !important;
+    border: 3px solid #ffd700 !important;
+    color: #ffffff !important;
+    transform: scale(1.08) translateY(-4px) !important;
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.6), 0 12px 24px rgba(0, 0, 0, 0.8) !important;
+}
+
+.close-btn-standalone {
+    padding: 14px 45px !important;
+    background: linear-gradient(135deg, #d4af37 0%, #b38a2d 100%) !important;
+    color: #000000 !important;
+    border: 2px solid #ffd700 !important;
+    border-radius: 14px !important;
+    font-size: 20px !important;
+    font-weight: 800 !important;
+    letter-spacing: 1.5px !important;
+    text-transform: uppercase !important;
+    cursor: pointer !important;
+    outline: none !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6) !important;
+    transition: all 0.25s ease !important;
+}
+
+.close-btn-standalone:focus,
+.close-btn-standalone.active-focus {
+    background: #ffd700 !important;
+    color: #000000 !important;
+    border-color: #ffffff !important;
+    transform: scale(1.1) translateY(-3px) !important;
+    box-shadow: 0 0 35px rgba(255, 215, 0, 0.85), 0 12px 25px rgba(0, 0, 0, 0.9) !important;
+}
+
+/* ================= WEATHER & CITY SELECTOR STYLES ================= */
+#temp[tabindex="0"] {
+    cursor: pointer;
+    border-radius: 8px;
+    padding: 2px 8px;
+    transition: all 0.2s ease;
+    border: 2px solid transparent;
+}
+
+#temp[tabindex="0"]:focus,
+#temp[tabindex="0"].active-focus {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border-color: #fff !important;
+    outline: none !important;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.6) !important;
+    transform: scale(1.05);
+}
+
+.city-btn {
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 15px;
+    font-size: 1.3rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.city-btn:focus,
+.city-btn.active-focus {
+    background: rgba(0, 176, 80, 0.2) !important;
+    border-color: #00b050 !important;
+    box-shadow: 0 0 20px rgba(0, 176, 80, 0.7) !important;
+    transform: scale(1.05);
+    outline: none !important;
+}
+
+.city-action-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    padding: 12px 24px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.city-action-btn:focus,
+.city-action-btn.active-focus {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border-color: #fff !important;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.5) !important;
+    transform: scale(1.05);
+    outline: none !important;
+}
+
+#custom-city-input:focus {
+    border-color: #00b050 !important;
+    background: rgba(0, 0, 0, 0.5) !important;
+    outline: none !important;
+    box-shadow: 0 0 10px rgba(0, 176, 80, 0.5) !important;
+}
+
+/* Disable pointer interactions and clicks on background when overlay is active */
+body.overlay-active .top-header,
+body.overlay-active #mainUI {
+    pointer-events: none !important;
+    user-select: none !important;
+}
+
+/* Dynamic City Suggestion Dropdown Styles */
+.suggestion-item {
+    padding: 10px 15px;
+    font-size: 1.1rem;
+    color: #fff;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.2s ease;
+    border: 2px solid transparent;
+}
+
+.suggestion-item:focus,
+.suggestion-item.active-focus {
+    background: rgba(179, 138, 45, 0.2) !important;
+    border-color: #b38a2d !important;
+    outline: none !important;
+}
+
+/* appsCloseBtn display: none removed to allow visual close action */

@@ -1,0 +1,778 @@
+/**
+ * Smart TV Spatial Navigation Engine & Key Handling (Refactored & Modularized)
+ * 
+ * Handles ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Enter/OK, Back/Return, and Numeric inputs.
+ * Fully compatible with standard browsers, Android TV, Tizen, webOS, and external keyboards.
+ */
+(function () {
+    'use strict';
+
+    // Focusable selector for actionable elements
+    var FOCUSABLE_SELECTOR = '.focusable, [tabindex="0"], button, a, input, select, textarea, .lang-item, .icon-item, .num-btn, .list-item, .package-item, .key-btn, .side-btn, .btn-act, .hdmi-list-row, .model-name-text, .test-btn-inline, .app-card, .tv-input-btn, .close-btn, .close-btn-standalone, .submenu-card, .back-btn';
+
+    /**
+     * 1. KeycodeManager: Encapsulates remote control and keyboard mappings
+     */
+    var KeycodeManager = {
+        Keys: {
+            UP: [38, 19, 29460, 65362],
+            DOWN: [40, 20, 29461, 65364],
+            LEFT: [37, 21, 29462, 65361],
+            RIGHT: [39, 22, 29463, 65363],
+            ENTER: [13, 23, 66, 29443, 160, 108],
+            BACK: [8, 27, 461, 10009, 4, 10182, 220]
+        },
+
+        matchesKey: function (keyCode, keyName, eventKey, eventCode) {
+            var list = this.Keys[keyName] || [];
+            if (list.indexOf(keyCode) !== -1) return true;
+            if (eventKey) {
+                var ek = String(eventKey).toLowerCase();
+                if (keyName === 'UP' && (ek === 'arrowup' || ek === 'up')) return true;
+                if (keyName === 'DOWN' && (ek === 'arrowdown' || ek === 'down')) return true;
+                if (keyName === 'LEFT' && (ek === 'arrowleft' || ek === 'left')) return true;
+                if (keyName === 'RIGHT' && (ek === 'arrowright' || ek === 'right')) return true;
+                if (keyName === 'ENTER' && (ek === 'enter' || ek === 'ok' || ek === 'select' || ek === 'accept')) return true;
+                if (keyName === 'BACK' && (ek === 'backspace' || ek === 'escape' || ek === 'back' || ek === 'browserback' || ek === 'goback' || ek === 'xf86back')) return true;
+            }
+            if (eventCode) {
+                var ec = String(eventCode).toLowerCase();
+                if (keyName === 'UP' && ec === 'arrowup') return true;
+                if (keyName === 'DOWN' && ec === 'arrowdown') return true;
+                if (keyName === 'LEFT' && ec === 'arrowleft') return true;
+                if (keyName === 'RIGHT' && ec === 'arrowright') return true;
+                if (keyName === 'ENTER' && (ec === 'enter' || ec === 'select' || ec === 'space')) return true;
+                if (keyName === 'BACK' && (ec === 'escape' || ec === 'backspace')) return true;
+            }
+            return false;
+        },
+
+        getDigit: function (keyCode, eventKey) {
+            // Guard: prevent standard control keys on keyboard from conflicting with native Android TV keycodes
+            if (eventKey === 'Tab' || eventKey === 'Backspace' || eventKey === 'Enter') return null;
+
+            if (keyCode >= 48 && keyCode <= 57) return String(keyCode - 48);
+            if (keyCode >= 96 && keyCode <= 105) return String(keyCode - 96);
+            if (keyCode >= 7 && keyCode <= 16) return String(keyCode - 7);
+            if (eventKey && /^\d$/.test(eventKey)) return eventKey;
+            return null;
+        }
+    };
+
+    /**
+     * 2. CacheManager: Manages cache of focusable elements and bounding rects
+     */
+    var CacheManager = {
+        cache: { dirty: true, elements: [], rects: [] },
+
+        markDirty: function () {
+            this.cache.dirty = true;
+        },
+
+        init: function () {
+            var self = this;
+            var markDirtyBound = self.markDirty.bind(self);
+
+            window.addEventListener('scroll', markDirtyBound, { passive: true });
+            window.addEventListener('resize', markDirtyBound, { passive: true });
+
+            if (typeof MutationObserver !== 'undefined') {
+                var obs = new MutationObserver(function (mutations) {
+                    for (var i = 0; i < mutations.length; i++) {
+                        var m = mutations[i];
+                        if (m.type === 'childList') {
+                            self.markDirty();
+                            break;
+                        }
+                        // Focus toggles change 'class' attribute. Ignore to prevent layout thrashing
+                        if (m.type === 'attributes' && m.attributeName !== 'class') {
+                            self.markDirty();
+                            break;
+                        }
+                    }
+                });
+                obs.observe(document.documentElement, {
+                    childList: true,
+                    subtree: true,
+                    attributes: true,
+                    attributeFilter: ['style', 'disabled', 'tabindex', 'hidden']
+                });
+            }
+        },
+
+        isVisible: function (el) {
+            var style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+
+            var parentOverlay = el.closest('.overlay-fullscreen, .overlay-container, #appsOverlay, #inputOverlay, #castOverlay, #citySelectorOverlay, #planExpiredOverlay');
+            if (parentOverlay) {
+                var os = window.getComputedStyle(parentOverlay);
+                if (os.display === 'none' || os.visibility === 'hidden') return false;
+            }
+
+            // Focus trapping: If there is an active (visible) overlay, only allow elements inside it to be focusable
+            var overlays = document.querySelectorAll('.overlay-fullscreen, .overlay-container, #appsOverlay, #inputOverlay, #castOverlay, #citySelectorOverlay, #planExpiredOverlay');
+            var openOverlay = null;
+            for (var i = 0; i < overlays.length; i++) {
+                var ov = overlays[i];
+                var ovStyle = window.getComputedStyle(ov);
+                if (ovStyle.display !== 'none' && ovStyle.visibility !== 'hidden' && ovStyle.opacity !== '0') {
+                    if (ov.id === 'appsOverlay') {
+                        if (ov.classList.contains('show')) {
+                            openOverlay = ov;
+                            break;
+                        }
+                    } else {
+                        openOverlay = ov;
+                        break;
+                    }
+                }
+            }
+
+            if (openOverlay && !openOverlay.contains(el)) {
+                return false;
+            }
+
+            var rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+        },
+
+        getFocusableElements: function () {
+            if (!this.cache.dirty) return this.cache.elements;
+
+            var elements = document.querySelectorAll(FOCUSABLE_SELECTOR);
+            var focusables = [];
+            var rects = [];
+
+            for (var i = 0; i < elements.length; i++) {
+                var el = elements[i];
+                if (el.disabled || el.tabIndex === -1) continue;
+                if (!this.isVisible(el)) continue;
+                focusables.push(el);
+                rects.push(el.getBoundingClientRect());
+            }
+
+            this.cache.elements = focusables;
+            this.cache.rects = rects;
+            this.cache.dirty = false;
+            return focusables;
+        },
+
+        getRects: function () {
+            if (this.cache.dirty) {
+                this.getFocusableElements();
+            }
+            return this.cache.rects;
+        }
+    };
+
+    /**
+     * 3. FocusEngine: Bounding calculations & spatial movement operations
+     */
+    var FocusEngine = {
+        getCenter: function (rect) {
+            return {
+                x: rect.left + rect.width / 2,
+                y: rect.top + rect.height / 2
+            };
+        },
+
+        goBack: function () {
+            // Iframe prevention: notify parent page to close the subframe overlay instead of nesting
+            if (window.parent && window.parent !== window && typeof window.parent.closeSubPage === 'function') {
+                window.parent.closeSubPage();
+                return;
+            }
+
+            var isIndex = window.location.pathname.indexOf('index.html') !== -1 || window.location.pathname.split('/').pop() === '';
+            if (!isIndex) {
+                var path = window.location.pathname;
+
+                // Sub-items of Hotel Info -> Go back to hotel_info_menu.html
+                if (path.indexOf('hotel_info.html') !== -1 || path.indexOf('room_info.html') !== -1 || path.indexOf('amenities.html') !== -1) {
+                    if (path.indexOf('/amenities/') !== -1) {
+                        sessionStorage.setItem('hotelMenuLastIndex', '2');
+                        window.location.href = "../hotel_info/hotel_info_menu.html";
+                    } else if (path.indexOf('/room_info/') !== -1) {
+                        sessionStorage.setItem('hotelMenuLastIndex', '1');
+                        window.location.href = "../hotel_info/hotel_info_menu.html";
+                    } else {
+                        sessionStorage.setItem('hotelMenuLastIndex', '0');
+                        window.location.href = "hotel_info_menu.html";
+                    }
+                    return;
+                }
+
+                // Subfolder pages -> Go back to root index.html
+                var isSubfolder = path.indexOf('/travel/') !== -1 ||
+                    path.indexOf('/amenities/') !== -1 ||
+                    path.indexOf('/city/') !== -1 ||
+                    path.indexOf('/hotel_info/') !== -1 ||
+                    path.indexOf('/weather/') !== -1 ||
+                    path.indexOf('/flights/') !== -1 ||
+                    path.indexOf('/room_info/') !== -1;
+
+                if (isSubfolder) {
+                    window.location.href = "../index.html";
+                } else {
+                    window.location.href = "index.html";
+                }
+            }
+        },
+
+        navigate: function (direction) {
+            var active = document.activeElement;
+            var focusables = CacheManager.getFocusableElements();
+            if (!focusables.length) return;
+
+            // Default focus if nothing is focused
+            if (!active || active === document.body || focusables.indexOf(active) === -1) {
+                var isIndex = window.location.pathname.indexOf('index.html') !== -1 || window.location.pathname.split('/').pop() === '';
+                if (isIndex) {
+                    var allIcons = document.querySelectorAll('.icon-item');
+                    if (allIcons.length > 3) {
+                        allIcons[3].focus();
+                        return;
+                    }
+                }
+                focusables[0].focus();
+                return;
+            }
+
+            // D-pad override attribute mapping
+            var overrideId = active.getAttribute('data-nav-' + direction);
+            if (overrideId) {
+                var overrideTarget = document.getElementById(overrideId);
+                if (overrideTarget) {
+                    var prevActive = document.querySelector('.active-focus');
+                    if (prevActive) prevActive.classList.remove('active-focus');
+                    overrideTarget.focus();
+                    overrideTarget.classList.add('active-focus');
+                    overrideTarget.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' });
+                    return;
+                }
+            }
+
+            // Custom navigate override
+            if (typeof window.onTVNavigate === 'function') {
+                if (window.onTVNavigate(direction, active)) {
+                    return;
+                }
+            }
+
+            var activeRect = active.getBoundingClientRect();
+            var activeCenter = this.getCenter(activeRect);
+            var rects = CacheManager.getRects();
+
+            var bestCandidate = null;
+            var minDistance = Infinity;
+
+            for (var i = 0; i < focusables.length; i++) {
+                var candidate = focusables[i];
+                if (candidate === active) continue;
+
+                var rect = rects[i];
+                var center = this.getCenter(rect);
+
+                var dStraight = 0;
+                var dOrthogonal = 0;
+                var isValid = false;
+
+                switch (direction) {
+                    case 'left':
+                        isValid = center.x < activeCenter.x;
+                        dStraight = activeCenter.x - center.x;
+                        dOrthogonal = Math.abs(activeCenter.y - center.y);
+                        break;
+                    case 'right':
+                        isValid = center.x > activeCenter.x;
+                        dStraight = center.x - activeCenter.x;
+                        dOrthogonal = Math.abs(activeCenter.y - center.y);
+                        break;
+                    case 'up':
+                        isValid = center.y < activeCenter.y;
+                        dStraight = activeCenter.y - center.y;
+                        dOrthogonal = Math.abs(activeCenter.x - center.x);
+                        break;
+                    case 'down':
+                        isValid = center.y > activeCenter.y;
+                        dStraight = center.y - activeCenter.y;
+                        dOrthogonal = Math.abs(activeCenter.x - center.x);
+                        break;
+                }
+
+                if (isValid) {
+                    // Straight movement weighted higher than orthogonal dev
+                    var distance = dStraight + (dOrthogonal * 3);
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        bestCandidate = candidate;
+                    }
+                }
+            }
+
+            if (bestCandidate) {
+                bestCandidate.focus();
+
+                var prevActive = document.querySelector('.active-focus');
+                if (prevActive) prevActive.classList.remove('active-focus');
+                bestCandidate.classList.add('active-focus');
+
+                bestCandidate.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' });
+            }
+        },
+
+        handleInitialFocus: function () {
+            var retries = [150, 500, 1000, 2000];
+            var attempt = 0;
+
+            function tryFocus() {
+                var active = document.activeElement;
+                var focusables = CacheManager.getFocusableElements();
+                if (active && active !== document.body && focusables.indexOf(active) !== -1) {
+                    return; // Already successfully focused, do not retry
+                }
+
+                var firstFocusable = document.querySelector('.focusable, [tabindex="0"]');
+                if (firstFocusable && CacheManager.isVisible(firstFocusable)) {
+                    firstFocusable.focus();
+                    firstFocusable.classList.add('active-focus');
+                    return;
+                }
+
+                if (focusables.length) {
+                    var isIndex = window.location.pathname.indexOf('index.html') !== -1 || window.location.pathname.split('/').pop() === '';
+                    var target = null;
+                    if (isIndex) {
+                        var allIcons = document.querySelectorAll('.icon-item');
+                        if (allIcons.length > 3) {
+                            target = allIcons[3];
+                        } else if (allIcons.length > 0) {
+                            target = allIcons[0];
+                        }
+                    }
+                    if (!target) {
+                        target = focusables[0];
+                    }
+                    if (target) {
+                        target.focus();
+                        target.classList.add('active-focus');
+                    }
+                }
+
+                if (attempt < retries.length - 1) {
+                    attempt++;
+                    setTimeout(tryFocus, retries[attempt]);
+                }
+            }
+
+            tryFocus();
+        }
+    };
+
+    function injectVisualBackButtons() {
+        var isIndex = window.location.pathname.indexOf('index.html') !== -1 || window.location.pathname.split('/').pop() === '';
+
+        // Inject Stylesheet
+        var style = document.createElement('style');
+        style.type = 'text/css';
+        style.innerHTML = '\
+            .tv-floating-back-btn {\
+                position: fixed;\
+                top: 25px;\
+                left: 25px;\
+                padding: 10px 20px;\
+                background: rgba(0, 0, 0, 0.75);\
+                border: 2px solid #b38a2d;\
+                border-radius: 30px;\
+                color: #fff;\
+                font-family: sans-serif;\
+                font-size: 14px;\
+                font-weight: bold;\
+                text-transform: uppercase;\
+                letter-spacing: 1px;\
+                cursor: pointer;\
+                z-index: 999999;\
+                box-shadow: 0 4px 15px rgba(0,0,0,0.5);\
+                display: flex;\
+                align-items: center;\
+                gap: 8px;\
+                outline: none;\
+                transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);\
+            }\
+            .tv-floating-back-btn:focus, .tv-floating-back-btn.active-focus {\
+                background: #b38a2d;\
+                color: #000 !important;\
+                box-shadow: 0 0 20px rgba(179, 138, 45, 0.9);\
+                transform: scale(1.08);\
+            }\
+            /* Overlay close overrides for index page */\
+            #appsOverlay .close-btn-premium {\
+                position: absolute;\
+                top: 25px;\
+                right: 25px;\
+                padding: 10px 20px;\
+                background: rgba(0, 0, 0, 0.75);\
+                border: 2px solid #b38a2d;\
+                border-radius: 30px;\
+                color: #fff;\
+                font-family: sans-serif;\
+                font-size: 14px;\
+                font-weight: bold;\
+                text-transform: uppercase;\
+                letter-spacing: 1px;\
+                cursor: pointer;\
+                z-index: 999999;\
+                box-shadow: 0 4px 15px rgba(0,0,0,0.5);\
+                outline: none;\
+                transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);\
+            }\
+            #appsOverlay .close-btn-premium:focus, #appsOverlay .close-btn-premium.active-focus {\
+                background: #b38a2d;\
+                color: #000 !important;\
+                box-shadow: 0 0 20px rgba(179, 138, 45, 0.9);\
+                transform: scale(1.08);\
+            }\
+            .cs-close-btn {\
+                margin-top: 25px;\
+                padding: 10px 25px;\
+                background: rgba(0, 0, 0, 0.6);\
+                border: 2px solid #b38a2d;\
+                border-radius: 30px;\
+                color: #fff;\
+                font-family: sans-serif;\
+                font-size: 14px;\
+                font-weight: bold;\
+                text-transform: uppercase;\
+                letter-spacing: 1px;\
+                cursor: pointer;\
+                outline: none;\
+                box-shadow: 0 4px 15px rgba(0,0,0,0.5);\
+                transition: all 0.2s ease;\
+            }\
+            .cs-close-btn:focus, .cs-close-btn.active-focus {\
+                background: #b38a2d;\
+                color: #000 !important;\
+                box-shadow: 0 0 20px rgba(179, 138, 45, 0.9);\
+                transform: scale(1.08);\
+            }\
+        ';
+        document.head.appendChild(style);
+
+        if (!isIndex && !document.getElementById('backBtn') && !document.querySelector('.back-btn-pill') && !document.querySelector('.back-btn')) {
+            var existingBtn = document.querySelector('.tv-floating-back-btn');
+            if (!existingBtn) {
+                var btn = document.createElement('button');
+                btn.className = 'tv-floating-back-btn';
+                btn.id = 'tvFloatingBackBtn';
+                btn.innerHTML = '<span>&#8592;</span> BACK';
+                btn.setAttribute('tabindex', '0');
+                btn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    FocusEngine.goBack();
+                });
+                document.body.appendChild(btn);
+            }
+        } else {
+            // For index page, let's enhance the close button in #appsOverlay and #comingSoonOverlay
+            var appsClose = document.getElementById('appsCloseBtn');
+            if (appsClose) {
+                appsClose.className = 'close-btn-premium';
+                appsClose.innerHTML = 'CLOSE';
+            }
+
+            var comingSoon = document.getElementById('comingSoonOverlay');
+            if (comingSoon) {
+                var csClose = document.createElement('button');
+                csClose.className = 'cs-close-btn';
+                csClose.innerHTML = 'CLOSE';
+                csClose.setAttribute('tabindex', '0');
+                csClose.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    comingSoon.style.display = 'none';
+                    // Restore focus to home page carousel item
+                    var items = document.querySelectorAll('.icon-item');
+                    if (items[3]) items[3].focus();
+                });
+                comingSoon.appendChild(csClose);
+            }
+        }
+    }
+
+    /**
+     * 4. NavigationController: Handlers, event throttle and event listeners
+     */
+    var NavigationController = {
+        lastDirectionTime: 0,
+        lastKeyPressTime: 0,
+
+        init: function () {
+            var self = this;
+
+            // // Temporary on-screen debug key logger for physical TV testing
+            // (function() {
+            //     var box = document.createElement('div');
+            //     box.id = 'tv-debug-logger';
+            //     box.style.cssText = 'position:fixed;top:10px;left:10px;background:rgba(0,0,0,0.85);color:#00ff00;font-size:14px;padding:8px 12px;border:1px solid #00ff00;border-radius:4px;z-index:999999;font-family:monospace;pointer-events:none;';
+            //     box.textContent = 'Key Logger: Press any remote button...';
+            //     document.body.appendChild(box);
+            //     window.addEventListener('keydown', function(e) {
+            //         box.textContent = 'keyCode: ' + (e.keyCode || e.which) + ' | key: ' + e.key;
+            //     }, true);
+            // })();
+
+            // Central event key listeners
+            window.addEventListener('keydown', function (e) {
+                var keyCode = e.keyCode || e.which;
+
+                // Only throttle navigation and action keys (UP, DOWN, LEFT, RIGHT, ENTER, BACK)
+                var isNavKey = KeycodeManager.matchesKey(keyCode, 'UP', e.key, e.code) ||
+                    KeycodeManager.matchesKey(keyCode, 'DOWN', e.key, e.code) ||
+                    KeycodeManager.matchesKey(keyCode, 'LEFT', e.key, e.code) ||
+                    KeycodeManager.matchesKey(keyCode, 'RIGHT', e.key, e.code) ||
+                    KeycodeManager.matchesKey(keyCode, 'ENTER', e.key, e.code) ||
+                    KeycodeManager.matchesKey(keyCode, 'BACK', e.key, e.code);
+
+                if (isNavKey) {
+                    var nowTime = Date.now();
+                    if (nowTime - self.lastKeyPressTime < 220) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                        return;
+                    }
+                    self.lastKeyPressTime = nowTime;
+                }
+
+                var active = document.activeElement;
+                var expiredOverlay = document.getElementById('planExpiredOverlay');
+                if (expiredOverlay && expiredOverlay.style.display === 'flex') {
+                    e.preventDefault();
+                    return;
+                }
+
+                if (typeof window.onTVKeyDown === 'function') {
+                    if (window.onTVKeyDown(e)) return;
+                }
+
+                var isIndex = window.location.pathname.indexOf('index.html') !== -1 || window.location.pathname.split('/').pop() === '';
+
+                // Back Action
+                if (KeycodeManager.matchesKey(keyCode, 'BACK', e.key, e.code)) {
+                    var handled = false;
+                    if (typeof window.onTVBack === 'function') {
+                        if (window.onTVBack()) {
+                            handled = true;
+                        }
+                    }
+                    if (!handled && !isIndex) {
+                        FocusEngine.goBack();
+                        handled = true;
+                    }
+                    if (handled) {
+                        e.preventDefault();
+
+                        // Visual feedback: highlight the DEL button if present (e.g. settings numpad)
+                        var delBtn = document.querySelector('.num-btn[data-val="DEL"]');
+                        if (delBtn) {
+                            delBtn.focus();
+                        }
+                    }
+                    return;
+                }
+
+                var direction = null;
+                if (KeycodeManager.matchesKey(keyCode, 'LEFT', e.key, e.code)) direction = 'left';
+                else if (KeycodeManager.matchesKey(keyCode, 'RIGHT', e.key, e.code)) direction = 'right';
+                else if (KeycodeManager.matchesKey(keyCode, 'UP', e.key, e.code)) direction = 'up';
+                else if (KeycodeManager.matchesKey(keyCode, 'DOWN', e.key, e.code)) direction = 'down';
+                else if (KeycodeManager.matchesKey(keyCode, 'ENTER', e.key, e.code)) direction = 'enter';
+
+                if (direction) {
+                    // Accidental repeat/double-click throttle
+                    if (direction !== 'enter') {
+                        var nowDir = Date.now();
+                        if (nowDir - self.lastDirectionTime < 50) {
+                            e.preventDefault();
+                            return;
+                        }
+                        self.lastDirectionTime = nowDir;
+                    }
+
+                    if (direction === 'enter') {
+                        if (active && active !== document.body) {
+                            e.preventDefault();
+                            active.click();
+                        }
+                    } else {
+                        CacheManager.markDirty();
+                        if (typeof window.onTVNavigate === 'function') {
+                            if (window.onTVNavigate(direction, active)) {
+                                e.preventDefault();
+                                return;
+                            }
+                        }
+                        e.preventDefault();
+                        FocusEngine.navigate(direction);
+                    }
+                }
+
+                // Number Inputs (TV Remote numeric keys 0-9 & Numpad)
+                var digit = KeycodeManager.getDigit(keyCode, e.key);
+                if (digit !== null) {
+                    var btn = document.querySelector('.num-btn[data-val="' + digit + '"]');
+                    if (btn) {
+                        btn.focus();
+                    }
+                    if (typeof window.onTVNumberKey === 'function') {
+                        if (!e.defaultPrevented) {
+                            e.preventDefault();
+                            window.onTVNumberKey(digit);
+                        }
+                    }
+                }
+            });
+
+            // Focus and Blur active style class synchronization
+            document.addEventListener('focus', function (e) {
+                // Focus trap for active overlays
+                var overlays = document.querySelectorAll('.overlay-fullscreen, .overlay-container, #appsOverlay, #inputOverlay, #castOverlay, #citySelectorOverlay, #planExpiredOverlay');
+                var openOverlay = null;
+                for (var i = 0; i < overlays.length; i++) {
+                    var ov = overlays[i];
+                    var ovStyle = window.getComputedStyle(ov);
+                    if (ovStyle.display !== 'none' && ovStyle.visibility !== 'hidden' && ovStyle.opacity !== '0') {
+                        if (ov.id === 'appsOverlay') {
+                            if (ov.classList.contains('show')) {
+                                openOverlay = ov;
+                                break;
+                            }
+                        } else {
+                            openOverlay = ov;
+                            break;
+                        }
+                    }
+                }
+
+                if (openOverlay && !openOverlay.contains(e.target)) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    var focusables = openOverlay.querySelectorAll('button, a, input, select, textarea, [tabindex="0"], .app-card, .tv-input-btn, .city-btn, .city-action-btn');
+                    if (focusables.length > 0) {
+                        // Find the first visible/focusable element inside the overlay
+                        for (var j = 0; j < focusables.length; j++) {
+                            var fEl = focusables[j];
+                            if (fEl.tabIndex !== -1 && window.getComputedStyle(fEl).display !== 'none') {
+                                fEl.focus();
+                                return;
+                            }
+                        }
+                        focusables[0].focus();
+                    } else {
+                        openOverlay.focus();
+                    }
+                    return;
+                }
+
+                var activeItems = document.querySelectorAll('.active-focus');
+                for (var k = 0; k < activeItems.length; k++) {
+                    if (openOverlay) {
+                        activeItems[k].classList.remove('active-focus');
+                    } else if (e.target && e.target.classList && e.target.classList.contains('icon-item')) {
+                        // handled by syncFocus
+                    } else {
+                        activeItems[k].classList.remove('active-focus');
+                    }
+                }
+                if (e.target && e.target.classList && !e.target.classList.contains('icon-item')) {
+                    e.target.classList.add('active-focus');
+                }
+            }, true);
+
+            document.addEventListener('blur', function (e) {
+                e.target.classList.remove('active-focus');
+            }, true);
+
+            // Sync mouse hover with TV focus (Disabled mouseover focus hijack so D-pad arrow keys work reliably)
+            document.addEventListener('click', function (e) {
+                var el = e.target.closest(FOCUSABLE_SELECTOR);
+                if (el && document.activeElement !== el) {
+                    el.focus();
+                }
+            });
+
+            // Auto-focus and Back Button triggers
+            function initPageElements() {
+                injectVisualBackButtons();
+                setTimeout(FocusEngine.handleInitialFocus, 150);
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initPageElements);
+            } else {
+                initPageElements();
+            }
+        }
+    };
+
+    // Initialize systems
+    try {
+        if (window.tizen && window.tizen.tvinputdevice && window.tizen.tvinputdevice.registerKey) {
+            window.tizen.tvinputdevice.registerKey("Return");
+        }
+    } catch (e) {
+        console.warn("Failed to register Tizen Return key:", e);
+    }
+    CacheManager.init();
+    NavigationController.init();
+
+    // Auto focusin & focusout handlers to sync active-focus class everywhere
+    window.addEventListener('focusin', function (e) {
+        if (e.target && e.target !== document.body) {
+            var prev = document.querySelectorAll('.active-focus');
+            for (var i = 0; i < prev.length; i++) {
+                if (prev[i] !== e.target) prev[i].classList.remove('active-focus');
+            }
+            e.target.classList.add('active-focus');
+        }
+    }, true);
+
+    window.addEventListener('focusout', function (e) {
+        if (e.target && e.target !== document.body) {
+            e.target.classList.remove('active-focus');
+        }
+    }, true);
+
+    // Expose standard API for backward compatibility
+    window.TVNavigation = {
+        getFocusableElements: CacheManager.getFocusableElements.bind(CacheManager),
+        getRects: CacheManager.getRects.bind(CacheManager),
+        getCenter: FocusEngine.getCenter.bind(FocusEngine),
+        goBack: FocusEngine.goBack.bind(FocusEngine),
+        navigate: FocusEngine.navigate.bind(FocusEngine),
+        handleInitialFocus: FocusEngine.handleInitialFocus.bind(FocusEngine),
+        markDirty: CacheManager.markDirty.bind(CacheManager)
+    };
+
+    // Global hooks for native bridge wrapper
+    window.triggerTVBack = function () {
+        var handled = false;
+        if (typeof window.onTVBack === 'function') {
+            if (window.onTVBack()) {
+                handled = true;
+            }
+        }
+        var isIndex = window.location.pathname.indexOf('index.html') !== -1 || window.location.pathname.split('/').pop() === '';
+        if (!handled && !isIndex) {
+            FocusEngine.goBack();
+            handled = true;
+        }
+        return handled;
+    };
+
+    window.triggerTVKey = function (keyCode, keyName) {
+        if (window.TVKeyInjector && typeof window.TVKeyInjector.triggerKey === 'function') {
+            window.TVKeyInjector.triggerKey(keyCode, keyName);
+        }
+    };
+})();

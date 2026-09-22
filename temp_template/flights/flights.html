@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CSMIA Mumbai Live Flight Board</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #app-canvas {
+            width: 1920px;
+            height: 1080px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transform-origin: center center;
+            overflow: hidden;
+            background-color: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="../css/global.css">
+    <link rel="stylesheet" href="css/flights.css">
+    <script src="../js/bridge.js" defer></script>
+    <script src="../js/core/tv-core.js" defer></script>
+    <script src="../js/core/tv-navigation.js" defer></script>
+    <script src="js/flightdata.js" defer></script>
+</head>
+<body>
+  <div id="app-canvas">
+    <div id="bg-slider">
+        <div class="slide active"></div>
+        <div class="slide"></div>
+    </div>
+    <div class="flights-bg-overlay"></div>
+    
+    <button id="backBtn" class="back-btn-pill" tabindex="0" data-nav-down="depBtn" data-nav-right="depBtn" data-nav-left="refreshBtn" onclick="window.location.href='../index.html'">
+        <i class="fa-solid fa-arrow-left"></i> BACK
+    </button>
+    
+    <!-- Top Header Bar -->
+    <header class="flight-header">
+        <div class="airport-badge"><i class="fa-solid fa-plane"></i> CSMIA MUMBAI</div>
+        <h1 id="airportTitle">CHHATRAPATI SHIVAJI MAHARAJ INTERNATIONAL AIRPORT</h1>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flight-board-wrapper">
+        <div class="tabs-container">
+            <button id="depBtn" class="flight-tab active" tabindex="0" data-nav-left="backBtn" data-nav-right="arrBtn" data-nav-up="backBtn" data-nav-down="prevBtn">
+                <i class="fa-solid fa-plane-departure"></i> DEPARTURES
+            </button>
+            <button id="arrBtn" class="flight-tab" tabindex="0" data-nav-left="depBtn" data-nav-right="refreshBtn" data-nav-up="backBtn" data-nav-down="nextBtn">
+                <i class="fa-solid fa-plane-arrival"></i> ARRIVALS
+            </button>
+        </div>
+
+        <div class="table-container" id="mainBox">
+            <div id="videoOverlay">
+                <div class="sync-content">
+                    <video id="syncVideo" 
+                           width="200" 
+                           height="200" 
+                           loop 
+                           muted 
+                           playsinline 
+                           poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                        <source src="images/updating.mp4" type="video/mp4">
+                    </video>
+                    <div class="sync-text" id="sync-text">Updating Flights Data...</div>
+                </div>
+            </div>
+
+            <table id="flightTable">
+                <thead>
+                    <tr>
+                        <th id="th-time"><i class="fa-regular fa-clock"></i> TIME</th>
+                        <th id="th-flight"><i class="fa-solid fa-plane-up"></i> FLIGHT</th>
+                        <th id="th-terminal"><i class="fa-solid fa-building"></i> TERMINAL</th> 
+                        <th id="th-airline"><i class="fa-solid fa-passport"></i> AIRLINE</th>
+                        <th id="headerLabel"><i class="fa-solid fa-location-dot"></i> DESTINATION</th>
+                        <th id="th-status"><i class="fa-solid fa-circle-info"></i> STATUS</th>
+                    </tr>
+                </thead>
+                <tbody id="flightBody"></tbody>
+            </table>
+        </div>
+    </main>
+
+    <!-- Footer Controls -->
+    <footer class="footer-info">
+        <div class="footer-left">
+            <div id="lastUpdated" class="last-updated-badge">
+                <i class="fa-solid fa-rotate-right"></i> Last Refreshed: --:--
+            </div>
+        </div>
+        <div class="center-controls">
+            <button id="prevBtn" class="flight-btn-sec" tabindex="0" data-nav-left="depBtn" data-nav-right="nextBtn" data-nav-up="depBtn" data-nav-down="depBtn">
+                <i class="fa-solid fa-chevron-left"></i> PREV
+            </button>
+            <button id="nextBtn" class="flight-btn-sec" tabindex="0" data-nav-left="prevBtn" data-nav-right="refreshBtn" data-nav-up="arrBtn" data-nav-down="arrBtn">
+                NEXT <i class="fa-solid fa-chevron-right"></i>
+            </button>
+        </div>
+        <div class="footer-right">
+            <button id="refreshBtn" class="flight-btn-action" tabindex="0" data-nav-left="nextBtn" data-nav-right="backBtn" data-nav-up="arrBtn" data-nav-down="arrBtn">
+                <i class="fa-solid fa-arrows-rotate"></i> REFRESH
+            </button>
+        </div>
+    </footer>
+  </div>
+
+  <script>
+        function fitScreen() {
+      const canvas = document.getElementById('app-canvas');
+      if (!canvas) return;
+      const targetWidth = 1920;
+      const targetHeight = 1080;
+
+      const currentWidth = window.innerWidth;
+      const currentHeight = window.innerHeight;
+
+      const scaleX = currentWidth / targetWidth;
+      const scaleY = currentHeight / targetHeight;
+      const scale = Math.min(scaleX, scaleY);
+
+      canvas.style.transform = `translate(-50%, -50%) scale(${scale})`;
+    }
+
+    window.addEventListener('resize', fitScreen);
+    window.addEventListener('DOMContentLoaded', fitScreen);
+    fitScreen();
+  </script>
+</body>
+</html>

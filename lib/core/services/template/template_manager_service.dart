@@ -184,6 +184,37 @@ class TemplateManagerService {
               devMap['liveTvPort'] = savedPort;
               devMap['selectedLiveTvPort'] = savedPort;
             }
+
+            // Inject TV display name = "Device Name (Room No)"
+            // Real device brand + model directly use karo — static maps nahi
+            final roomNo = devMap['room_no']?.toString() ?? '';
+            if (roomNo.isNotEmpty) {
+              // Real device details: brand aur model directly from deviceDetails (Android hardware)
+              final realBrand = deviceDetails['brand']?.toString() ?? devMap['brand']?.toString() ?? '';
+              final realModel = deviceDetails['model']?.toString() ?? devMap['model']?.toString() ?? '';
+
+              // Clean: underscores/hyphens hatao, capitalize karo
+              final cleanBrand = _cleanDeviceWord(realBrand);
+              final cleanModel = _cleanDeviceWord(realModel);
+
+              // Agar brand aur model alag hain to combine karo, warna sirf ek use karo
+              final deviceLabel = (cleanBrand.isNotEmpty && cleanModel.isNotEmpty &&
+                      !cleanModel.toLowerCase().contains(cleanBrand.toLowerCase()))
+                  ? '$cleanBrand $cleanModel'
+                  : (cleanBrand.isNotEmpty ? cleanBrand : cleanModel);
+
+              final tvDisplayName = deviceLabel.isNotEmpty
+                  ? '$deviceLabel (Room $roomNo)'
+                  : 'Room $roomNo';
+
+              devMap['tv_display_name'] = tvDisplayName;
+              devMap['tvDisplayName'] = tvDisplayName;
+              devMap['tv_name'] = tvDisplayName;
+              // Persist for native Android device name + JS injection
+              await SharedPrefs.setString('tv_display_name', tvDisplayName);
+              Logger.i('[TemplateManager] tv_display_name → $tvDisplayName (brand=$realBrand, model=$realModel)');
+            }
+
             dataMap['device'] = devMap;
           }
         }
@@ -263,19 +294,41 @@ class TemplateManagerService {
           return dataChanged ? 1 : 0;
         }
 
-        final currentVersion = SharedPrefs.getString(AppConstants.templateVersionKey) ?? '0.0';
+        final currentVersion = SharedPrefs.getString(AppConstants.templateVersionKey) ?? '';
+        final currentTemplateId = SharedPrefs.getString('template_id') ?? '';
+        final String? latestTemplateId = templateData?['template_id']?.toString();
+
+        Logger.i('[TemplateManager] Current templateId: $currentTemplateId, Latest templateId: $latestTemplateId');
         Logger.i('[TemplateManager] Current version: $currentVersion, Latest version: $latestVersion');
 
-        // Parse versions to compare
-        double currentVal = double.tryParse(currentVersion) ?? 0.0;
-        double latestVal = double.tryParse(latestVersion) ?? 0.0;
+        // Step 1: Template ID changed → download karo
+        final bool templateIdChanged = latestTemplateId != null &&
+            latestTemplateId.isNotEmpty &&
+            latestTemplateId != currentTemplateId;
 
-        if (latestVal > currentVal || !await isTemplateDownloaded()) {
-          Logger.i('[TemplateManager] New version available ($latestVersion). Starting background download...');
+        // Step 2: Template ID same → version string compare karo
+        final bool versionChanged = !templateIdChanged &&
+            latestVersion.isNotEmpty &&
+            latestVersion != currentVersion;
+
+        // Step 3: Template file missing
+        final bool isMissing = !await isTemplateDownloaded();
+
+        if (templateIdChanged || versionChanged || isMissing) {
+          final reason = templateIdChanged
+              ? 'Template ID changed ($currentTemplateId → $latestTemplateId)'
+              : versionChanged
+                  ? 'Version changed ($currentVersion → $latestVersion)'
+                  : 'Template files missing';
+          Logger.i('[TemplateManager] Download triggered: $reason');
+          // Save template_id BEFORE download to prevent parallel re-trigger
+          if (latestTemplateId != null && latestTemplateId.isNotEmpty) {
+            await SharedPrefs.setString('template_id', latestTemplateId);
+          }
           await _downloadAndExtractTemplate(downloadUrl, latestVersion, onProgress: onProgress);
           return 2; // Return 2 because template updated
         } else {
-          Logger.i('[TemplateManager] Template is already up to date (Version $currentVersion).');
+          Logger.i('[TemplateManager] Template is already up to date (ID: $currentTemplateId, Version: $currentVersion). Skipping download.');
           return dataChanged ? 1 : 0; // Return 1 if JSON data changed, otherwise 0
         }
       } else {
@@ -399,6 +452,24 @@ class TemplateManagerService {
       }
     }
   }
+
+  /// Real device word clean karta hai — underscores/hyphens hatata hai, capitalize karta hai
+  /// Koi static map nahi — jo real device ka naam hai wahi use hota hai
+  /// Example: "sdk_google_atv64_arm64" → "Sdk Google Atv64 Arm64"
+  ///          "mi_box_4k"              → "Mi Box 4k"
+  ///          "SHIELD"                 → "Shield"
+  static String _cleanDeviceWord(String raw) {
+    if (raw.trim().isEmpty) return '';
+    return raw
+        .replaceAll('_', ' ')
+        .replaceAll('-', ' ')
+        .split(' ')
+        .where((w) => w.isNotEmpty)
+        .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
+        .join(' ')
+        .trim();
+  }
+
 
   /// Downloads and extracts the template using details saved in local storage (e.g. after login)
   static Future<void> downloadTemplateFromSavedData({Function(double)? onProgress}) async {

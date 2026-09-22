@@ -1,0 +1,409 @@
+/*
+ * ============================================================
+ *  info-panel.css  —  Shared TV Info Panel Component
+ *  Used by: hotel_info.html, room_info.html, amenities.html
+ *
+ *  To change font sizes / colors across ALL three pages at once:
+ *  Just update the CSS variables in :root below. That's it!
+ * ============================================================
+ */
+
+/* ── Design Tokens ──────────────────────────────────────────── */
+:root {
+    /* Gold palette */
+    --ip-gold:           #b38a2d;
+    --ip-gold-bright:    #ffd700;
+    --ip-gold-text:      #d4af37;
+    --ip-gold-border:    rgba(179, 138, 45, 0.7);
+    --ip-gold-border-sm: rgba(179, 138, 45, 0.4);
+    --ip-gold-gradient:  linear-gradient(135deg, #d4af37, #996515);
+
+    /* Card backgrounds */
+    --ip-card-bg:    linear-gradient(145deg, rgba(18, 18, 18, 0.92), rgba(8, 8, 8, 0.96));
+    --ip-title-bg:   linear-gradient(135deg, rgba(20, 20, 20, 0.85), rgba(5, 5, 5, 0.95));
+    --ip-box-bg:     rgba(0, 0, 0, 0.50);
+
+    /* ---- Typography — change these to update ALL pages at once ---- */
+    --ip-font-page-header:  36px;    /* HOTEL INFORMATION / ROOM INFORMATION */
+    --ip-font-section:      1.55rem; /* ABOUT HOTEL / FEATURE DETAILS */
+    --ip-font-title:        1.65rem; /* Taj Mahal Palace / Luxury Bathroom name */
+    --ip-font-badge:        1.1rem;  /* 01 badge */
+    --ip-font-body:         1.3rem;  /* Description text paragraphs */
+    --ip-font-label:        0.92rem; /* ROOM NUMBER / FRONT DESK labels */
+    --ip-font-value:        1.25rem; /* spec / contact values */
+    --ip-font-counter:      1.05rem; /* 1 / 5 counter */
+
+    /* Layout */
+    --ip-container-w:  1632px;
+    --ip-container-h:  756px;
+    --ip-gap:          25px;
+    --ip-radius:       14px;
+    --ip-card-padding: 22px 24px;
+}
+
+/* ── Background Slider ─────────────────────────────────────── */
+#bg-slider {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: -1;
+    overflow: hidden;
+    background-color: #000;
+}
+
+.slide {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0;
+    transition: opacity 1000ms ease-in-out;
+}
+
+.slide.active { opacity: 1; }
+
+/* ── Back Button ───────────────────────────────────────────── */
+.back-btn {
+    position: absolute;
+    top: 40px; left: 50px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 2px solid #ffffff;
+    color: #ffffff;
+    padding: 8px 22px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 1px;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+    transition: all 0.2s ease;
+}
+
+.back-btn:focus,
+.back-btn:hover {
+    background: var(--ip-gold);
+    border-color: var(--ip-gold);
+    color: #000;
+    box-shadow: 0 0 10px rgba(179, 138, 45, 0.8);
+}
+
+/* ── Hotel Logo on Info Panels ──────────────────────────────── */
+.hotel-logo-container {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 180px;
+    height: 60px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 99;
+    pointer-events: none;
+}
+
+.hotel-logo-container img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.8));
+}
+
+/* ── Page Title ────────────────────────────────────────────── */
+#headerTitle {
+    color: var(--ip-gold-bright);
+    font-size: 30px;
+    font-weight: 800;
+    text-transform: uppercase;
+    margin-top: 88px;
+    margin-bottom: 18px;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
+    letter-spacing: 2px;
+    text-align: center;
+    position: relative;
+    z-index: 10;
+}
+
+/* ── Main 2-Column Container ───────────────────────────────── */
+.amenities-container {
+    display: flex;
+    width: var(--ip-container-w);
+    height: var(--ip-container-h);
+    gap: var(--ip-gap);
+    box-sizing: border-box;
+}
+
+.main-column {
+    flex: 2.8;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    height: 100%;
+}
+
+/* ── Title Card ─────────────────────────────────────────────── */
+.title-card {
+    border: 2px solid var(--ip-gold-border);
+    background: var(--ip-title-bg);
+    border-radius: var(--ip-radius);
+    padding: 12px 24px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.7), inset 0 0 15px rgba(179, 138, 45, 0.15);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.title-badge {
+    background: var(--ip-gold-gradient);
+    color: #000;
+    font-weight: 800;
+    font-size: var(--ip-font-badge);
+    padding: 5px 13px;
+    border-radius: 6px;
+    letter-spacing: 1px;
+    box-shadow: 0 2px 8px rgba(212, 175, 55, 0.4);
+    flex-shrink: 0;
+}
+
+.title-card h2 {
+    color: #ffffff;
+    margin: 0;
+    font-size: var(--ip-font-title);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* ── Image / Slider Card ───────────────────────────────────── */
+.image-card {
+    flex: 1;
+    position: relative;
+    width: 100%;
+    border: 2px solid var(--ip-gold-border);
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: var(--ip-radius);
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 20px rgba(179, 138, 45, 0.1);
+}
+
+#amenitiesSlider {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    outline: none;
+}
+
+.slide-img {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    transition: opacity 600ms ease-in-out;
+    opacity: 0;
+}
+
+.slide-img.active { opacity: 1; }
+
+/* Dot indicators */
+.slide-dots {
+    position: absolute;
+    bottom: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 100 !important;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 6px 14px;
+    border-radius: 20px;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.slide-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transition: all 0.3s ease;
+}
+
+.slide-dot.active {
+    background: var(--ip-gold-bright);
+    width: 26px;
+    border-radius: 10px;
+    box-shadow: 0 0 8px rgba(179, 138, 45, 0.8);
+}
+
+/* Navigation arrows */
+.nav-icon {
+    position: absolute;
+    width: 45px; height: 45px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 100 !important;
+    opacity: 0.85;
+    cursor: pointer;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.8));
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.nav-icon:hover,
+.nav-icon:focus {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.15);
+}
+
+.prev { left: 15px; }
+.next { right: 15px; }
+
+/* ── Description / Info Card (Right panel) ──────────────────── */
+.description-card::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+}
+
+.description-card {
+    flex: 1.2;
+    border: 2px solid var(--ip-gold-border);
+    background: var(--ip-card-bg);
+    border-radius: var(--ip-radius);
+    padding: var(--ip-card-padding);
+    box-sizing: border-box;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(179, 138, 45, 0.15);
+    backdrop-filter: blur(10px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden !important;
+    height: 100%;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+}
+
+.desc-header {
+    color: var(--ip-gold-bright);
+    font-size: var(--ip-font-section);
+    font-weight: 800;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+    border-bottom: 2px solid var(--ip-gold-border-sm);
+    padding-bottom: 8px;
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.count-indicator {
+    font-size: var(--ip-font-counter);
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(179, 138, 45, 0.25);
+    padding: 3px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(179, 138, 45, 0.5);
+    letter-spacing: 1px;
+    flex-shrink: 0;
+}
+
+.description-card p {
+    color: #f1f5f9;
+    font-size: var(--ip-font-body);
+    line-height: 1.55;
+    font-weight: 500;
+    margin: 0;
+    word-wrap: break-word;
+    letter-spacing: 0.3px;
+}
+
+/* ── Location Bar (hotel_info) ──────────────────────────────── */
+.location-bar {
+    color: var(--ip-gold-text);
+    font-size: 1.0rem;
+    font-weight: 600;
+    margin-top: 4px;
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+/* ── Shared Info Grid (specs + contacts) ────────────────────── */
+
+/* Section title e.g. "🔑 ROOM SPECIFICATIONS" / "🚨 DESK & EMERGENCY" */
+.info-section-title {
+    color: var(--ip-gold-bright);
+    font-size: 1.3rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 20px;
+    margin-bottom: 12px;
+    border-bottom: 1px dashed var(--ip-gold-border-sm);
+    padding-bottom: 6px;
+    flex-shrink: 0;
+}
+
+/* 2-column grid */
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+/* Individual box */
+.info-box {
+    background: var(--ip-box-bg);
+    border: 1px solid rgba(179, 138, 45, 0.4);
+    border-radius: 10px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.info-box-lbl {
+    font-size: var(--ip-font-label);
+    color: var(--ip-gold);
+    text-transform: uppercase;
+    font-weight: 800;
+    margin-bottom: 3px;
+    letter-spacing: 1px;
+}
+
+.info-box-val {
+    font-size: var(--ip-font-value);
+    color: #ffffff;
+    font-weight: 700;
+    line-height: 1.3;
+    word-break: break-word;
+}
+
+/* ── Amenity Slide (amenities.html only) ────────────────────── */
+.amenity-slide {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0;
+    transition: opacity 800ms cubic-bezier(0.25, 1, 0.5, 1);
+    will-change: opacity;
+}
+
+.amenity-slide.active { opacity: 1; }
+
+/* ── Shake animation ────────────────────────────────────────── */
+@keyframes shake {
+    0%, 100% { transform: translateY(-50%) translateX(0); }
+    25%       { transform: translateY(-50%) translateX(-10px); }
+    75%       { transform: translateY(-50%) translateX(10px); }
+}
+
+.vibrate { animation: shake 0.2s 2; }

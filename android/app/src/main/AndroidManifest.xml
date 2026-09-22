@@ -2,6 +2,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Wi-Fi Direct: Mobile cast list mein TV naam dikhane ke liye (Miracast discovery) -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <!-- Android 13+ ke liye Wi-Fi Direct device name change karne ke liye -->
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED_DIRECT_BOOT" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />

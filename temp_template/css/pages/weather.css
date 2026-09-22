@@ -1,0 +1,302 @@
+:root {
+    --weather-gold: #ffd700;
+    --weather-gold-dim: #b38a2d;
+    --weather-border: rgba(179, 138, 45, 0.45);
+    --weather-card-bg: rgba(14, 18, 28, 0.88);
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    color: #ffffff;
+    font-family: 'Poppins', sans-serif;
+    background: transparent;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+body.rtl-mode {
+    direction: rtl;
+}
+
+/* ── Layout Container ──────────────────────────────────────── */
+#app-canvas {
+    width: 1920px;
+    height: 1080px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    transform-origin: center center;
+    overflow: hidden;
+    background-color: #000;
+}
+
+/* ── Top Center Hotel Logo ─────────────────────────────────── */
+.hotel-logo-container {
+    position: absolute;
+    top: 25px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 220px;
+    height: 70px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 99;
+    pointer-events: none;
+}
+
+.hotel-logo-container img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.95));
+}
+
+/* ── Top Layout Row (Branding Left + Metrics Right) ────────── */
+.top-row {
+    position: absolute;
+    top: 155px;
+    left: 80px;
+    right: 80px;
+    width: 1760px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    box-sizing: border-box;
+    z-index: 10;
+}
+
+/* ── Left Branding ─────────────────────────────────────────── */
+.left-branding {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    width: 540px;
+}
+
+.city {
+    font-size: 58px;
+    color: var(--weather-gold);
+    font-weight: 900;
+    margin: 0;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-shadow: 0 4px 16px rgba(0, 0, 0, 0.95), 0 0 20px rgba(255, 215, 0, 0.35);
+    line-height: 1.1;
+}
+
+.time-date {
+    font-size: 24px;
+    font-weight: 700;
+    color: #e2e8f0;
+    margin-top: 6px;
+    letter-spacing: 0.5px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+}
+
+.figure-large {
+    font-size: 96px;
+    font-weight: 200;
+    line-height: 1;
+    margin: 8px 0;
+    color: #ffffff;
+    text-shadow: 0 4px 25px rgba(0, 0, 0, 0.95);
+    letter-spacing: -1px;
+}
+
+/* ── AQI Badge ─────────────────────────────────────────────── */
+.aqi-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 20px;
+    border-radius: 24px;
+    background: rgba(10, 14, 24, 0.88);
+    border: 1.5px solid var(--weather-border);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(12px);
+    margin-top: 4px;
+}
+
+.aqi-label {
+    font-size: 20px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.aqi-number {
+    font-size: 26px;
+    font-weight: 900;
+    line-height: 1;
+}
+
+/* ── Right Metrics Hero Card ───────────────────────────────── */
+.hero-rect {
+    background-color: var(--weather-card-bg);
+    border: 2px solid var(--weather-border);
+    border-radius: 22px;
+    padding: 26px 36px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    width: 660px;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px 36px;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.9), inset 0 0 15px rgba(179, 138, 45, 0.08);
+}
+
+.item {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.param-name {
+    font-size: 16px;
+    color: #94a3b8;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+
+.param-value {
+    font-size: 30px;
+    font-weight: 800;
+    color: #ffffff;
+    margin-top: 3px;
+    letter-spacing: 0.5px;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
+}
+
+.spacer {
+    display: none;
+}
+
+/* ── 7-Day Forecast Grid ───────────────────────────────────── */
+.forecast-row {
+    position: absolute;
+    bottom: 40px;
+    left: 80px;
+    right: 80px;
+    width: 1760px;
+    height: 250px;
+    display: flex;
+    gap: 16px;
+    align-items: stretch;
+    justify-content: space-between;
+    box-sizing: border-box;
+    z-index: 10;
+}
+
+.day-card {
+    flex: 1;
+    height: 100%;
+    background-color: var(--weather-card-bg);
+    border: 1.5px solid var(--weather-border);
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 10px;
+    box-sizing: border-box;
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), inset 0 0 10px rgba(179, 138, 45, 0.06);
+    transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.day-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--weather-gold);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+}
+
+.day-img {
+    width: 72px;
+    height: 72px;
+    object-fit: contain;
+    filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.6));
+    margin: 4px 0;
+}
+
+.day-temp {
+    font-size: 26px;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: 0.5px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+}
+
+/* Offline banner styles */
+#offline-banner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: #ff9900;
+    color: #000;
+    text-align: center;
+    padding: 8px;
+    font-weight: bold;
+    z-index: 9999;
+    font-size: 14px;
+}
+
+/* Spinner & Loader Animations */
+.spinner {
+    border: 6px solid rgba(255, 255, 255, 0.1);
+    border-top: 6px solid #ffd700;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* TV focus style for Retry button */
+.btn-act {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 14px 36px;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    outline: none;
+}
+
+.btn-act:focus,
+.btn-act.active-focus {
+    background: #ffd700 !important;
+    color: #000 !important;
+    border-color: #ffffff !important;
+    box-shadow: 0 0 25px rgba(255, 215, 0, 0.8) !important;
+    transform: scale(1.06);
+}

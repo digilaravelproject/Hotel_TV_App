@@ -359,16 +359,26 @@ class FlutterBridgeHandler {
           model = 'HDMI 1';
           checkedSource = 'default_hdmi1_fallback';
         }
-        print('[FlutterBridge] Launching Live TV input port: $model (source: $checkedSource)');
         try {
-          await _tvChannel.invokeMethod('launchHdmi', {'model': model});
-        } catch (_) {}
+          if (model.toUpperCase() == 'IPTV') {
+            print('[FlutterBridge] Launching IPTV (source: $checkedSource)');
+            await _tvChannel.invokeMethod('launchIptv');
+          } else if (model.contains('.')) {
+            print('[FlutterBridge] Launching TV APP: $model (source: $checkedSource)');
+            await _tvChannel.invokeMethod('launchApp', {'packageName': model});
+          } else {
+            print('[FlutterBridge] Launching Live TV input port: $model (source: $checkedSource)');
+            await _tvChannel.invokeMethod('launchHdmi', {'model': model});
+          }
+        } catch (e) {
+          print('[FlutterBridge] Error launching Live TV port / app: $e');
+        }
         return {
           'success': true,
           'port': model,
           'checkedPort': model,
           'source': checkedSource,
-          'message': 'Checked and launched Live TV port: $model'
+          'message': 'Checked and launched Live TV: $model'
         };
 
       case 'checkInternet':
@@ -468,12 +478,15 @@ class FlutterBridgeHandler {
                   'id': val.toString(),
                   'value': val.toString(),
                   'model': val.toString(),
+                  'type': key.toString().toUpperCase().contains('AV') ? 'AV' : 'HDMI',
                 });
               });
             }
             if (allList.isNotEmpty) return allList;
           }
-        } catch (_) {}
+        } catch (e) {
+          print('[FlutterBridge] Error fetching HDMI models: $e');
+        }
 
         return [
           {'name': 'HDMI 1', 'label': 'HDMI 1', 'id': 'HDMI 1', 'model': 'HDMI 1'},

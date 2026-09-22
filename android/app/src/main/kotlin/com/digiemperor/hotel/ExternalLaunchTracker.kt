@@ -11,8 +11,9 @@ object ExternalLaunchTracker {
     }
 
     fun isRecentlyLaunchedExternal(): Boolean {
-        // If an external activity (Settings, Cast, HDMI, App launch) was triggered within 20 seconds,
-        // do NOT auto-relaunch Hotel TV app.
-        return (SystemClock.elapsedRealtime() - lastExternalLaunchTime) < 20000
+        // Reduced timeout to 3 seconds.
+        // If an external activity was triggered within 3 seconds, do NOT auto-relaunch Hotel TV app.
+        // This ensures the kiosk mode recovers quickly if the user presses HOME.
+        return (SystemClock.elapsedRealtime() - lastExternalLaunchTime) < 3000
     }
 }
