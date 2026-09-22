@@ -98,7 +98,7 @@ class MyApp extends StatelessWidget {
           theme: ThemeData(
             useMaterial3: true,
             brightness: Brightness.dark,
-            primaryColor: Colors.amber,
+            primaryColor: Colors.amber, 
             textTheme: GoogleFonts.poppinsTextTheme(
               ThemeData.dark().textTheme,
             ),

@@ -190,22 +190,34 @@ class TvSyncManager {
       final String? downloadUrl = templateMap?['download_url']?.toString();
 
       if (latestVersion != null && downloadUrl != null && downloadUrl.isNotEmpty) {
-        final currentVersion = SharedPrefs.getString(AppConstants.templateVersionKey) ?? '0.0';
+        final currentVersion = SharedPrefs.getString(AppConstants.templateVersionKey) ?? '';
         final currentTemplateId = SharedPrefs.getString('template_id') ?? '';
 
-        double currentVal = double.tryParse(currentVersion) ?? 0.0;
-        double latestVal = double.tryParse(latestVersion) ?? 0.0;
+        // Step 1: Template ID changed → download karo
+        final bool templateIdChanged = templateId != null &&
+            templateId.isNotEmpty &&
+            templateId != currentTemplateId;
 
-        bool templateIdChanged = templateId != null && templateId != currentTemplateId;
-        bool versionChanged = latestVal > currentVal;
-        bool isMissing = !await TemplateManagerService.isTemplateDownloaded();
+        // Step 2: Template ID same → version string compare karo
+        final bool versionChanged = !templateIdChanged &&
+            latestVersion.isNotEmpty &&
+            latestVersion != currentVersion;
+
+        // Step 3: Template file missing
+        final bool isMissing = !await TemplateManagerService.isTemplateDownloaded();
 
         if (templateIdChanged || versionChanged || isMissing) {
-          Logger.i('[TvSyncManager] Template Update Triggered (IdChanged: $templateIdChanged, VersionChanged: $versionChanged, Missing: $isMissing). Downloading ZIP...');
-          await TemplateManagerService.downloadTemplateFromUrl(downloadUrl, latestVersion);
-          if (templateId != null) {
+          final reason = templateIdChanged
+              ? 'Template ID changed ($currentTemplateId → $templateId)'
+              : versionChanged
+                  ? 'Version changed ($currentVersion → $latestVersion)'
+                  : 'Template files missing';
+          Logger.i('[TvSyncManager] Download triggered: $reason');
+          // Save template_id BEFORE download to prevent parallel re-trigger
+          if (templateId != null && templateId.isNotEmpty) {
             await SharedPrefs.setString('template_id', templateId);
           }
+          await TemplateManagerService.downloadTemplateFromUrl(downloadUrl, latestVersion);
           return 2; // Template Updated
         }
       }

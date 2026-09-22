@@ -348,14 +348,23 @@ class FlutterBridgeHandler {
           model = 'HDMI 1';
           checkedSource = 'default_hdmi1_fallback';
         }
-        print('[FlutterBridge] Launching Live TV input port: $model (source: $checkedSource)');
-        await _tvChannel.invokeMethod('launchHdmi', {'model': model});
+        if (model.toUpperCase() == 'IPTV') {
+          print('[FlutterBridge] Launching IPTV (source: $checkedSource)');
+          await _tvChannel.invokeMethod('launchIptv');
+        } else if (model.contains('.')) {
+          print('[FlutterBridge] Launching TV APP: $model (source: $checkedSource)');
+          await _tvChannel.invokeMethod('launchApp', {'packageName': model});
+        } else {
+          print('[FlutterBridge] Launching Live TV input port: $model (source: $checkedSource)');
+          await _tvChannel.invokeMethod('launchHdmi', {'model': model});
+        }
+        
         return {
           'success': true,
           'port': model,
           'checkedPort': model,
           'source': checkedSource,
-          'message': 'Checked and launched Live TV port: $model'
+          'message': 'Checked and launched Live TV: $model'
         };
 
       case 'checkInternet':
@@ -442,8 +451,9 @@ class FlutterBridgeHandler {
       case 'getTvInputs':
       case 'getLiveTvInputs':
         final dynamic res = await _tvChannel.invokeMethod('getHdmiModels');
-        if (res == null) return [];
         List<Map<String, dynamic>> allList = [];
+        
+        // Return ONLY Physical Hardware Ports (HDMI, AV, TUNER) from the TV
         if (res is List) {
           allList = res.map((e) => Map<String, dynamic>.from(e as Map)).toList();
         } else if (res is Map) {
@@ -454,11 +464,11 @@ class FlutterBridgeHandler {
               'id': val.toString(),
               'value': val.toString(),
               'model': val.toString(),
+              'type': key.toString().toUpperCase().contains('AV') ? 'AV' : 'HDMI'
             });
           });
         }
 
-        // Return all hardware connected TV input ports
         return allList;
 
       case 'setLanguage':

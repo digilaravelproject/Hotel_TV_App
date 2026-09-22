@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Room Info</title>
+    <style>
+                        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #app-canvas {
+            width: 1920px;
+            height: 1080px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transform-origin: center center;
+            overflow: hidden;
+            background-color: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+    <link rel="stylesheet" href="../css/global.css">
+    <link rel="stylesheet" href="../css/pages/info-panel.css">
+    <script src="../js/bridge.js" defer></script>
+    <script src="../js/core/tv-core.js" defer></script>
+    <script src="../js/core/tv-navigation.js" defer></script>
+    <script src="../js/pages/room_info.js" defer></script>
+</head>
+
+<body>
+  <div id="app-canvas">
+    <div id="bg-slider">
+        <div class="slide active"></div>
+        <div class="slide"></div>
+    </div>
+
+    <div id="headerTitle">ROOM INFORMATION</div>
+
+    <div class="amenities-container">
+        <div class="main-column">
+            <div class="title-card">
+                <div class="title-badge" id="amenityBadge">01</div>
+                <h2 id="roomTitleName">Loading...</h2>
+            </div>
+            <div class="image-card" style="position: relative;">
+                <div id="amenitiesSlider" class="focusable" tabindex="0">
+                    <img id="slideCurrent" class="slide-img active" style="width:100%; height:100%; object-fit:cover; position:absolute;">
+                    <img id="slideNext" class="slide-img" style="width:100%; height:100%; object-fit:cover; position:absolute;">
+                </div>
+                <img src="../images/icons/prev.png" class="nav-icon prev" id="btnPrev" onclick="changeSlide(-1)" style="z-index: 50; display: block;">
+                <img src="../images/icons/next.png" class="nav-icon next" id="btnNext" onclick="changeSlide(1)" style="z-index: 50; display: block;">
+                <div class="slide-dots" id="slideDots" style="z-index: 50;"></div>
+            </div>
+        </div>
+        <div class="description-card">
+            <div class="desc-header">
+                <span>FEATURE DETAILS</span>
+                <span class="count-indicator" id="countIndicator">1 / 1</span>
+            </div>
+
+            <p id="roomFeatureDescription" style="margin-bottom: 12px;">Loading details...</p>
+
+            <div class="info-section-title">🔑 Room Specifications</div>
+            <div class="info-grid">
+                <div class="info-box">
+                    <div class="info-box-lbl">Room Number</div>
+                    <div class="info-box-val" id="roomNoVal">--</div>
+                </div>
+                <div class="info-box">
+                    <div class="info-box-lbl">Wi-Fi Network</div>
+                    <div class="info-box-val" id="wifiNameVal">--</div>
+                </div>
+                <div class="info-box">
+                    <div class="info-box-lbl">Wi-Fi Password</div>
+                    <div class="info-box-val" id="wifiPassVal">--</div>
+                </div>
+                <div class="info-box">
+                    <div class="info-box-lbl">Checkout Time</div>
+                    <div class="info-box-val" id="checkoutTimeVal">--</div>
+                </div>
+            </div>
+        </div>
+    </div>
+  </div>
+
+  <script>
+        function fitScreen() {
+      const canvas = document.getElementById('app-canvas');
+      if (!canvas) return;
+      const targetWidth = 1920;
+      const targetHeight = 1080;
+
+      const currentWidth = window.innerWidth;
+      const currentHeight = window.innerHeight;
+
+      const scaleX = currentWidth / targetWidth;
+      const scaleY = currentHeight / targetHeight;
+      const scale = Math.min(scaleX, scaleY);
+
+      canvas.style.transform = `translate(-50%, -50%) scale(${scale})`;
+    }
+
+    window.addEventListener('resize', fitScreen);
+    window.addEventListener('DOMContentLoaded', fitScreen);
+    fitScreen();
+  </script>
+</body>
+
+</html>

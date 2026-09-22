@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>City Guide</title>
+    <style>
+                        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #app-canvas {
+            width: 1920px;
+            height: 1080px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transform-origin: center center;
+            overflow: hidden;
+            background-color: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+    <link rel="stylesheet" href="../css/global.css">
+    <link rel="stylesheet" href="../css/pages/city.css">
+    <script src="../js/bridge.js" defer></script>
+    <script src="../js/core/tv-core.js" defer></script>
+    <script src="../js/core/tv-navigation.js" defer></script>
+    <script src="../js/pages/city.js" defer></script>
+    
+</head>
+<body>
+  <div id="app-canvas">
+    <div id="headerTitle">Our City</div>
+
+    <div class="content-box">
+        <img src="" id="displayImage" class="slide-img" tabindex="0">
+        
+        <img src="../images/icons/prev.png" class="nav-icon prev" id="btnPrev" onclick="changeSlide(-1)">
+        <img src="../images/icons/next.png" class="nav-icon next" id="btnNext" onclick="changeSlide(1)">
+    </div>
+  </div>
+
+  <script>
+        function fitScreen() {
+      const canvas = document.getElementById('app-canvas');
+      if (!canvas) return;
+      const targetWidth = 1920;
+      const targetHeight = 1080;
+
+      const currentWidth = window.innerWidth;
+      const currentHeight = window.innerHeight;
+
+      const scaleX = currentWidth / targetWidth;
+      const scaleY = currentHeight / targetHeight;
+      const scale = Math.min(scaleX, scaleY);
+
+      canvas.style.transform = `translate(-50%, -50%) scale(${scale})`;
+    }
+
+    window.addEventListener('resize', fitScreen);
+    window.addEventListener('DOMContentLoaded', fitScreen);
+    fitScreen();
+  </script>
+</body>
+</html>

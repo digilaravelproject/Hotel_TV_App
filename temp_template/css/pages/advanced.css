@@ -1,0 +1,361 @@
+/* ============================================================
+   PREMIUM LUXURY ADVANCED CONFIGURATION STYLES (TV 1080p)
+   ============================================================ */
+:root {
+    --gold-primary: #b38a2d;
+    --gold-bright: #ffd700;
+    --gold-glow: rgba(255, 215, 0, 0.45);
+    --gold-gradient: linear-gradient(135deg, #fce074 0%, #ffd700 50%, #c49626 100%);
+    --dark-glass: rgba(14, 18, 28, 0.94);
+    --border-glass: rgba(179, 138, 45, 0.5);
+}
+
+.page-centered {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #000;
+}
+
+/* ── Back Button ───────────────────────────────────────────── */
+.back-btn-pill {
+    position: absolute;
+    top: 35px;
+    left: 60px;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.6);
+    color: #ffffff;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    padding: 10px 26px;
+    border-radius: 30px;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    backdrop-filter: blur(8px);
+    transition: all 0.25s ease;
+    outline: none;
+}
+
+.back-btn-pill svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+
+.back-btn-pill:focus svg,
+.back-btn-pill:hover svg {
+    transform: translateX(-3px);
+}
+
+.back-btn-pill:focus,
+.back-btn-pill:hover {
+    background: var(--gold-gradient);
+    color: #000000;
+    border-color: #ffd700;
+    transform: scale(1.06);
+    box-shadow: 0 0 25px rgba(255, 215, 0, 0.7);
+}
+
+/* ── Large Configuration Card ──────────────────────────────── */
+.config-card { 
+    background: var(--dark-glass);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    padding: 36px 44px 32px 44px; 
+    border: 2.5px solid var(--border-glass); 
+    border-radius: 28px; 
+    width: 1120px; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 20px;
+    box-shadow: 0 35px 90px rgba(0, 0, 0, 0.95), 0 0 40px rgba(179, 138, 45, 0.15);
+    box-sizing: border-box;
+    animation: modalFadeIn 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+    position: relative;
+    z-index: 10;
+}
+
+@keyframes modalFadeIn {
+    from { opacity: 0; transform: scale(0.96) translateY(20px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.header-title { 
+    color: var(--gold-bright); 
+    text-align: center; 
+    font-weight: 900; 
+    font-size: 26px; 
+    text-transform: uppercase; 
+    letter-spacing: 3px;
+    margin-bottom: 2px; 
+    text-shadow: 0 3px 10px rgba(0, 0, 0, 0.9);
+}
+
+.main-layout { 
+    display: flex; 
+    gap: 36px; 
+    justify-content: space-between; 
+    align-items: stretch; 
+}
+
+.left-col { 
+    flex: 1.35; 
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.right-col { 
+    flex: 0.8; 
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.field-box { margin-bottom: 14px; }
+.field-box:last-child { margin-bottom: 0; }
+
+.field-box label { 
+    color: var(--gold-bright); 
+    font-size: 14px; 
+    font-weight: 800; 
+    letter-spacing: 1.5px;
+    margin-bottom: 6px; 
+    display: block; 
+}
+
+.input-styled, .themed-list, .hw-info { 
+    width: 100%; 
+    box-sizing: border-box; 
+    border: 1.8px solid var(--border-glass); 
+    background: rgba(0, 0, 0, 0.7); 
+    border-radius: 14px; 
+}
+
+.input-styled { 
+    color: var(--gold-bright); 
+    padding: 0 16px; 
+    font-size: 24px; 
+    font-weight: 800;
+    text-align: center; 
+    height: 54px; 
+    letter-spacing: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    outline: none;
+}
+
+.list-item, .package-item { 
+    padding: 0 20px; 
+    height: 54px;
+    text-align: left; 
+    outline: none; 
+    cursor: pointer; 
+    font-size: 18px; 
+    font-weight: 700;
+    color: #ffffff; 
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 14px;
+    transition: all 0.2s ease;
+}
+
+.tick { display: none; color: var(--gold-bright); font-weight: 900; font-size: 20px; }
+.list-item.selected .tick, .package-item.selected .tick { display: inline-block; }
+
+.list-item:hover, .list-item:focus, .package-item:hover, .package-item:focus, 
+.key-btn:hover, .key-btn:focus, .side-btn:hover, .side-btn:focus, 
+.btn-act:hover, .btn-act:focus, 
+.list-item.active-focus, .package-item.active-focus, 
+.key-btn.active-focus, .side-btn.active-focus, .btn-act.active-focus { 
+    background: var(--gold-gradient) !important;
+    color: #000000 !important;
+    font-weight: 900 !important;
+    border: 3px solid #ffffff !important;
+    outline: none !important;
+    box-shadow: 0 0 28px var(--gold-glow), 0 8px 20px rgba(0,0,0,0.8) !important;
+    transform: scale(1.04) !important;
+    z-index: 20;
+}
+
+.package-item.active-focus .tick, .list-item.active-focus .tick {
+    color: #000000 !important;
+}
+
+.num-grid { 
+    display: grid; 
+    grid-template-columns: repeat(3, 1fr); 
+    gap: 10px; 
+}
+
+.key-btn { 
+    background: rgba(255, 255, 255, 0.08); 
+    border: 1.5px solid rgba(255, 255, 255, 0.18); 
+    color: #ffffff; 
+    height: 54px; 
+    border-radius: 14px; 
+    font-size: 22px; 
+    font-weight: 800;
+    outline: none; 
+    cursor: pointer; 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.hw-info { 
+    padding: 16px 20px; 
+    display: flex; 
+    gap: 24px; 
+    background: rgba(0, 0, 0, 0.75);
+}
+
+.hw-sub-col { 
+    flex: 1; 
+    min-width: 0;
+}
+
+.hw-row { 
+    display: flex; 
+    align-items: center;
+    gap: 10px;
+    padding: 4px 0; 
+    white-space: nowrap; 
+    font-size: 14.5px;
+}
+
+.label-hw { 
+    color: var(--gold-bright); 
+    font-weight: 800; 
+    min-width: 95px; 
+    flex-shrink: 0;
+    text-align: left;
+}
+
+.hw-row span:not(.label-hw) {
+    color: #ffffff;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.side-btn-stack { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 10px; 
+    margin-top: 10px; 
+}
+
+.side-btn { 
+    width: 100%; 
+    height: 52px; 
+    background: rgba(255, 255, 255, 0.08); 
+    border: 1.5px solid var(--border-glass); 
+    color: #ffffff; 
+    border-radius: 14px; 
+    font-size: 15px; 
+    font-weight: 800; 
+    text-transform: uppercase; 
+    letter-spacing: 0.8px;
+    cursor: pointer; 
+    transition: all 0.2s ease;
+    outline: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.action-row { 
+    width: 100%; 
+    margin-top: 8px; 
+    display: flex; 
+    gap: 18px; 
+}
+
+.btn-act { 
+    flex: 1; 
+    height: 56px; 
+    background: rgba(179, 138, 45, 0.2); 
+    border: 2px solid var(--gold-primary); 
+    color: var(--gold-bright); 
+    font-weight: 900; 
+    font-size: 16px;
+    letter-spacing: 1.2px;
+    border-radius: 16px; 
+    text-transform: uppercase; 
+    cursor: pointer; 
+    transition: all 0.2s ease;
+    outline: none;
+}
+
+/* OVERLAY MODALS */
+.package-box { 
+    background: var(--dark-glass); 
+    backdrop-filter: blur(25px);
+    border: 2.5px solid var(--gold-primary); 
+    width: 440px; 
+    border-radius: 20px; 
+    box-shadow: 0 25px 60px rgba(0,0,0,0.95);
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.hdmi-box { 
+    width: 600px !important; 
+    height: 500px; 
+    display: flex; 
+    flex-direction: column; 
+    overflow: hidden; 
+}
+
+#hdmiBox { overflow-y: auto; flex: 1; margin-top: 12px; }
+#hdmiBox::-webkit-scrollbar { width: 8px; }
+#hdmiBox::-webkit-scrollbar-thumb { background: var(--gold-primary); border-radius: 4px; }
+
+/* HDMI Row Layout */
+.hdmi-list-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    outline: none;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: all 0.2s ease;
+}
+.hdmi-list-row:focus, .hdmi-list-row.active-focus { background: rgba(179, 138, 45, 0.3); }
+.model-name-text { font-size: 18px; color: #ffffff; flex-grow: 1; text-align: left; font-weight: 600; }
+
+.test-btn-inline {
+    background: var(--gold-primary);
+    color: black;
+    border: none;
+    padding: 8px 16px;
+    font-weight: bold;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-left: 12px;
+}
+.test-btn-inline:focus, .test-btn-inline.active-focus { 
+    background: var(--gold-bright) !important; 
+    color: black !important; 
+    outline: 2px solid white; 
+    box-shadow: 0 0 12px var(--gold-glow);
+}

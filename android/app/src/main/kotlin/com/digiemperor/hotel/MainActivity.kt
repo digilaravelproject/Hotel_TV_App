@@ -348,6 +348,13 @@ class MainActivity : FlutterActivity() {
                 "getNetworkDetails" -> {
                     result.success(getNetworkDetails())
                 }
+                "getTvInputs" -> {
+                    result.success(getTvInputs())
+                }
+                "setDeviceName" -> {
+                    val name = call.argument<String>("name") ?: ""
+                    result.success(setDeviceDisplayName(name))
+                }
                 else -> {
                     result.notImplemented()
                 }
@@ -393,6 +400,9 @@ class MainActivity : FlutterActivity() {
                 }
                 "getLiveTvInputs" -> {
                     result.success(getHdmiModels())
+                }
+                "launchIptv" -> {
+                    result.success(launchIptv())
                 }
                 "clearConfig" -> {
                     result.success(true)
@@ -491,6 +501,83 @@ class MainActivity : FlutterActivity() {
         return ""
     }
 
+    /**
+     * Sets the Android device's display name — this is the name that appears on
+     * mobile phones when they scan for cast/screen mirroring targets (Miracast, AirPlay, Chromecast).
+     * Format: "TV Name (Room No)" — e.g. "Taj TV (Room 106)"
+     */
+    private fun setDeviceDisplayName(name: String): Boolean {
+        if (name.isBlank()) return false
+        var success = false
+
+        // 1. Wi-Fi Direct (P2P) name — PRIORITY
+        // Mobile phone ke Cast/Screen Mirror list mein yahi naam dikhta hai (Miracast discovery)
+        // setDeviceName is @SystemApi — reflection se call karo
+        try {
+            val wifiP2pManager = applicationContext.getSystemService(Context.WIFI_P2P_SERVICE)
+                    as? android.net.wifi.p2p.WifiP2pManager
+            if (wifiP2pManager != null) {
+                val channel = wifiP2pManager.initialize(applicationContext, mainLooper, null)
+                val method = wifiP2pManager.javaClass.getMethod(
+                    "setDeviceName",
+                    android.net.wifi.p2p.WifiP2pManager.Channel::class.java,
+                    String::class.java,
+                    android.net.wifi.p2p.WifiP2pManager.ActionListener::class.java
+                )
+                method.invoke(
+                    wifiP2pManager,
+                    channel,
+                    name,
+                    object : android.net.wifi.p2p.WifiP2pManager.ActionListener {
+                        override fun onSuccess() {
+                            android.util.Log.i("HotelTV", "✅ Wi-Fi Direct name set to: $name")
+                        }
+                        override fun onFailure(reason: Int) {
+                            android.util.Log.w("HotelTV", "⚠️ Wi-Fi Direct name failed, reason: $reason")
+                        }
+                    }
+                )
+                success = true
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("HotelTV", "⚠️ Wi-Fi Direct setDeviceName error: ${e.message}")
+        }
+
+        // 2. Settings.System device_name — works on some devices without special permission
+        try {
+            android.provider.Settings.System.putString(contentResolver, "device_name", name)
+            android.util.Log.i("HotelTV", "✅ Settings.System device_name set to: $name")
+            success = true
+        } catch (e: Exception) {
+            android.util.Log.w("HotelTV", "⚠️ Settings.System: ${e.message}")
+        }
+
+        // 3. Settings.Global device_name (Miracast/WiFi Display fallback — needs WRITE_SECURE_SETTINGS)
+        try {
+            android.provider.Settings.Global.putString(contentResolver, "device_name", name)
+            success = true
+            android.util.Log.i("HotelTV", "✅ Settings.Global device_name set to: $name")
+        } catch (e: Exception) {
+            android.util.Log.w("HotelTV", "⚠️ Could not set device_name via Settings.Global: ${e.message}")
+        }
+
+        // 4. Bluetooth device name
+        try {
+            val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
+            val adapter = bluetoothManager?.adapter
+            if (adapter != null) {
+                adapter.name = name
+                android.util.Log.i("HotelTV", "✅ Bluetooth name set to: $name")
+                success = true
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("HotelTV", "⚠️ Could not set Bluetooth name: ${e.message}")
+        }
+
+        return success
+    }
+
+
     private fun getAndroidId(): String {
         return try {
             android.provider.Settings.Secure.getString(
@@ -546,20 +633,127 @@ class MainActivity : FlutterActivity() {
 
         return ""
     }
-
-    private fun getNetworkDetails(): Map<String, String> {
-        val resultMap = mutableMapOf<String, String>()
+    private fun getTvInputs(): List<String> {
+        val inputs = mutableListOf<String>()
         try {
-            val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
-            val dhcpInfo = wifiManager?.dhcpInfo
-            if (dhcpInfo != null) {
-                resultMap["gateway"] = formatIpAddress(dhcpInfo.gateway)
-                resultMap["subnet"] = formatIpAddress(dhcpInfo.netmask)
-                resultMap["dns"] = formatIpAddress(dhcpInfo.dns1)
+            val tvInputManager = applicationContext.getSystemService(Context.TV_INPUT_SERVICE) as? android.media.tv.TvInputManager
+            if (tvInputManager != null) {
+                for (input in tvInputManager.tvInputList) {
+                    // Filter for physical inputs (HDMI, Composite, Component, DisplayPort, Tuner)
+                    if (input.type == android.media.tv.TvInputInfo.TYPE_HDMI || 
+                        input.type == android.media.tv.TvInputInfo.TYPE_COMPOSITE ||
+                        input.type == android.media.tv.TvInputInfo.TYPE_TUNER ||
+                        input.type == android.media.tv.TvInputInfo.TYPE_COMPONENT ||
+                        input.type == android.media.tv.TvInputInfo.TYPE_DISPLAY_PORT) {
+                        
+                        val label = input.loadLabel(applicationContext)?.toString()
+                        if (!label.isNullOrBlank()) {
+                            inputs.add(label)
+                        } else {
+                            // Fallback generic name if no label
+                            if (input.type == android.media.tv.TvInputInfo.TYPE_HDMI) inputs.add("HDMI")
+                            else if (input.type == android.media.tv.TvInputInfo.TYPE_TUNER) inputs.add("TV")
+                            else inputs.add("AV")
+                        }
+                    }
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
+        
+        // Remove duplicates and sort (e.g. HDMI 1, HDMI 2)
+        var distinctInputs = inputs.distinct().toMutableList()
+        if (distinctInputs.isEmpty()) {
+            distinctInputs.add("HDMI 1")
+            distinctInputs.add("HDMI 2")
+        }
+        return distinctInputs
+    }
+
+    private fun getNetworkDetails(): Map<String, String> {
+        val resultMap = mutableMapOf<String, String>()
+        
+        // 1. Primary Method: ConnectivityManager (Works for Wi-Fi AND Ethernet/Emulator)
+        try {
+            val cm = applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            if (cm != null) {
+                val activeNetwork = cm.activeNetwork
+                if (activeNetwork != null) {
+                    val linkProps = cm.getLinkProperties(activeNetwork)
+                    if (linkProps != null) {
+                        // Gateway
+                        for (route in linkProps.routes) {
+                            if (route.isDefaultRoute && route.gateway != null) {
+                                resultMap["gateway"] = route.gateway!!.hostAddress ?: ""
+                            }
+                        }
+                        // DNS
+                        if (linkProps.dnsServers.isNotEmpty()) {
+                            resultMap["dns"] = linkProps.dnsServers.first().hostAddress ?: ""
+                        }
+                        // Subnet Mask
+                        for (linkAddress in linkProps.linkAddresses) {
+                            val addr = linkAddress.address
+                            if (addr is java.net.Inet4Address && !addr.isLoopbackAddress) {
+                                val prefix = linkAddress.prefixLength
+                                val mask = -1 shl (32 - prefix)
+                                val sn = String.format("%d.%d.%d.%d", 
+                                    mask ushr 24 and 0xff, 
+                                    mask ushr 16 and 0xff, 
+                                    mask ushr 8 and 0xff, 
+                                    mask and 0xff)
+                                resultMap["subnet"] = sn
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // 2. Fallback Method: WifiManager (If ConnectivityManager fails)
+        if (!resultMap.containsKey("gateway") || resultMap["gateway"].isNullOrBlank()) {
+            try {
+                val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+                val dhcpInfo = wifiManager?.dhcpInfo
+                if (dhcpInfo != null) {
+                    val gw = formatIpAddress(dhcpInfo.gateway)
+                    val sn = formatIpAddress(dhcpInfo.netmask)
+                    val dn = formatIpAddress(dhcpInfo.dns1)
+                    
+                    if (gw != "0.0.0.0") resultMap["gateway"] = gw
+                    if (sn != "0.0.0.0") resultMap["subnet"] = sn
+                    if (dn != "0.0.0.0") resultMap["dns"] = dn
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // 3. Fallback Method: NetworkInterface (Best for Subnet Mask on Ethernet/Emulator)
+        if (!resultMap.containsKey("subnet") || resultMap["subnet"].isNullOrBlank()) {
+            try {
+                val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
+                for (intf in interfaces) {
+                    for (addr in intf.interfaceAddresses) {
+                        val ip = addr.address
+                        if (!ip.isLoopbackAddress && ip is java.net.Inet4Address) {
+                            val prefix = addr.networkPrefixLength
+                            val mask = -1 shl (32 - prefix)
+                            val sn = String.format("%d.%d.%d.%d", 
+                                mask ushr 24 and 0xff, 
+                                mask ushr 16 and 0xff, 
+                                mask ushr 8 and 0xff, 
+                                mask and 0xff)
+                            resultMap["subnet"] = sn
+                        }
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+        
         return resultMap
     }
 
@@ -632,7 +826,9 @@ class MainActivity : FlutterActivity() {
         prepareForExternalLaunch()
         val intent = packageManager.getLaunchIntentForPackage(packageName)
         return if (intent != null) {
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            // Remove FLAG_ACTIVITY_NEW_TASK so the app launches in OUR task stack.
+            // This ensures pressing the BACK button returns to our app, not the TV Home Screen.
+            intent.flags = intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK.inv()
             startActivity(intent)
             true
         } else {
@@ -651,6 +847,20 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             false
         }
+    }
+
+    private fun launchIptv(): Boolean {
+        try {
+            // Placeholder: When user selects IPTV, this is triggered.
+            // Currently returns true safely. Can be extended to launch an explicit IPTV player app intent.
+            // val intent = packageManager.getLaunchIntentForPackage("com.example.iptv")
+            // startActivity(intent)
+            println("IPTV Launched from Native Android")
+            return true
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return false
     }
 
     private fun openWifiSettings(): Boolean {

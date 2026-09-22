@@ -21,6 +21,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../authentication/presentation/pages/tv_login_screen.dart';
 
 import '../../../../core/services/device/accessibility_service.dart';
+import '../../../../core/widget/custom_image_widget.dart';
 
 class TvWebviewScreen extends StatefulWidget {
   final bool clearCache;
@@ -30,7 +31,7 @@ class TvWebviewScreen extends StatefulWidget {
   State<TvWebviewScreen> createState() => _TvWebviewScreenState();
 }
 
-class _TvWebviewScreenState extends State<TvWebviewScreen> {
+class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingObserver {
   WebViewController? _controller;
   final FocusNode _webViewFocusNode = FocusNode();
   final _backChannel = const MethodChannel('com.digiemperor.hotel/back_navigation');
@@ -53,6 +54,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _startInactivityTimer();
     _startScreensaverClock();
     _loadLocalBackgroundFile();
@@ -77,6 +79,36 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
         }
       });
     });
+  }
+
+  /// Jab YouTube / Settings se wapas Hotel app pe aate hain tab WebView ko focus milna chahiye
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      Logger.i('[TvWebviewScreen] App resumed from external app. Restoring WebView focus...');
+      // Screensaver dismiss karo agar show ho raha tha
+      if (_showScreensaver && mounted) {
+        _resetInactivityTimer();
+      }
+      // WebView ko focus do taaki back button aur D-pad kaam kare
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          _webViewFocusNode.requestFocus();
+          // Back channel handler re-register karo (defensive)
+          _backChannel.setMethodCallHandler((call) async {
+            if (call.method == 'onBackPressed') {
+              if (_showScreensaver) {
+                _resetInactivityTimer();
+                return;
+              }
+              final ctrl = _controller;
+              if (ctrl != null) await _handleBackNavigation(ctrl);
+            }
+          });
+        }
+      });
+    }
   }
 
   void _startInactivityTimer() {
@@ -202,6 +234,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _inactivityTimer?.cancel();
     _screensaverClockTimer?.cancel();
     TvSyncManager.dispose();
@@ -759,32 +792,34 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
       if (rawData != null && rawData.isNotEmpty) {
         final decoded = jsonDecode(rawData);
         final dataMap = decoded['data'] ?? decoded;
-        final logo = dataMap['hotel']?['logo'] ?? dataMap['hotel']?['logo_url'] ?? dataMap['hotel_logo'];
+        final hotelMap = dataMap['hotel'] is Map ? dataMap['hotel'] as Map : null;
+        final mediaMap = hotelMap?['media'] is Map ? hotelMap!['media'] as Map : null;
+        final logo = mediaMap?['logo_image'] ?? hotelMap?['logo'] ?? hotelMap?['logo_url'] ?? dataMap['hotel_logo'];
         if (logo != null && logo.toString().isNotEmpty) {
           final logoStr = logo.toString();
           if (logoStr.startsWith('http')) {
-            imageChild = Image.network(
-              logoStr,
+            imageChild = CustomImageWidget(
+              imagePath: logoStr,
               width: 52,
               height: 52,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Image.asset('assets/logo.png', width: 52, height: 52, fit: BoxFit.cover),
+              fit: BoxFit.contain,
+              placeHolder: 'assets/logo.png',
             );
           } else {
-            imageChild = Image.asset('assets/logo.png', width: 52, height: 52, fit: BoxFit.cover);
+            imageChild = Image.asset('assets/logo.png', width: 52, height: 52, fit: BoxFit.contain);
           }
         } else {
-          imageChild = Image.asset('assets/logo.png', width: 52, height: 52, fit: BoxFit.cover);
+          imageChild = Image.asset('assets/logo.png', width: 52, height: 52, fit: BoxFit.contain);
         }
       } else {
-        imageChild = Image.asset('assets/logo.png', width: 52, height: 52, fit: BoxFit.cover);
+        imageChild = Image.asset('assets/logo.png', width: 52, height: 52, fit: BoxFit.contain);
       }
     } catch (_) {
       imageChild = Image.asset(
         'assets/logo.png',
         width: 52,
         height: 52,
-        fit: BoxFit.cover,
+        fit: BoxFit.contain,
         errorBuilder: (_, __, ___) => const Icon(Icons.hotel_outlined, color: Color(0xFFb38a2d), size: 30),
       );
     }
@@ -805,7 +840,10 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> {
         ],
       ),
       child: ClipOval(
-        child: imageChild,
+        child: Padding(
+          padding: const EdgeInsets.all(3.0),
+          child: imageChild,
+        ),
       ),
     );
   }

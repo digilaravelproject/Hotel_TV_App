@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hotel Information Submenu</title>
+    <style>
+                        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #app-canvas {
+            width: 1920px;
+            height: 1080px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transform-origin: center center;
+            overflow: hidden;
+            background-color: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+    <link rel="stylesheet" href="../css/global.css">
+    <link rel="stylesheet" href="../css/pages/hotel_info.css">
+    <script src="../js/bridge.js" defer></script>
+    <script src="../js/core/tv-core.js" defer></script>
+    <script src="../js/core/tv-navigation.js" defer></script>
+    <script src="../js/pages/hotel_info.js" defer></script>
+    <style>
+        #headerTitle {
+            position: absolute;
+            top: 135px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ffd700;
+            font-size: 36px;
+            font-weight: 800;
+            text-transform: uppercase;
+            text-shadow: 0 4px 16px rgba(0, 0, 0, 0.95);
+            letter-spacing: 2.5px;
+            text-align: center;
+            z-index: 10;
+            white-space: nowrap;
+        }
+
+        .submenu-container {
+            position: absolute;
+            top: 270px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            gap: 48px;
+            width: 1700px;
+            height: 520px;
+            z-index: 5;
+        }
+
+        .submenu-card {
+            width: 360px;
+            height: 430px;
+            background: rgba(14, 18, 28, 0.88);
+            border: 2px solid rgba(179, 138, 45, 0.4);
+            border-radius: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 36px 28px;
+            cursor: pointer;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.85);
+            transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+            outline: none;
+            text-decoration: none;
+            box-sizing: border-box;
+        }
+
+        .submenu-card:focus,
+        .submenu-card.active-focus {
+            border: 3.5px solid #ffd700;
+            background: linear-gradient(180deg, rgba(179, 138, 45, 0.35) 0%, rgba(14, 18, 28, 0.95) 100%);
+            transform: scale(1.08) translateY(-14px);
+            box-shadow: 0 0 40px rgba(255, 215, 0, 0.65), 0 25px 50px rgba(0, 0, 0, 0.95);
+        }
+
+        .submenu-icon-wrapper {
+            width: 140px;
+            height: 140px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.02) 70%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 28px;
+            border: 2px solid rgba(179, 138, 45, 0.4);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(179, 138, 45, 0.15);
+            transition: all 0.35s ease;
+        }
+
+        .submenu-card:focus .submenu-icon-wrapper,
+        .submenu-card.active-focus .submenu-icon-wrapper {
+            background: radial-gradient(circle, rgba(255, 215, 0, 0.3) 0%, rgba(179, 138, 45, 0.1) 70%);
+            border-color: #ffd700;
+            transform: scale(1.1);
+            box-shadow: 0 0 25px rgba(255, 215, 0, 0.5), inset 0 0 20px rgba(255, 215, 0, 0.3);
+        }
+
+        .submenu-icon {
+            width: 78px;
+            height: 78px;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6));
+        }
+
+        .submenu-title {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            text-align: center;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
+            transition: color 0.3s ease;
+        }
+
+        .submenu-card:focus .submenu-title,
+        .submenu-card.active-focus .submenu-title {
+            color: #ffd700;
+            text-shadow: 0 0 12px rgba(255, 215, 0, 0.7), 0 2px 8px rgba(0, 0, 0, 0.9);
+        }
+
+        .submenu-desc {
+            color: #cbd5e1;
+            font-size: 17px;
+            font-weight: 500;
+            margin-top: 14px;
+            text-align: center;
+            line-height: 1.4;
+            letter-spacing: 0.3px;
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+            transition: color 0.3s ease;
+        }
+
+        .submenu-card:focus .submenu-desc,
+        .submenu-card.active-focus .submenu-desc {
+            color: #ffffff;
+        }
+    </style>
+</head>
+
+<body>
+  <div id="app-canvas">
+    <div id="bg-slider">
+        <div class="slide active"></div>
+        <div class="slide"></div>
+    </div>
+
+    <div id="headerTitle">HOTEL INFORMATION</div>
+
+    <div class="submenu-container">
+        <!-- 1. Hotel Info -->
+        <div class="submenu-card focusable" tabindex="0" onclick="window.location.href='hotel_info.html'">
+            <div class="submenu-icon-wrapper">
+                <img src="../images/icons/hotelinfo.png" class="submenu-icon" alt="Hotel Info" onerror="this.src='../images/icons/settings.png'">
+            </div>
+            <div class="submenu-title">Hotel Info</div>
+            <div class="submenu-desc">Overview, location & emergency contacts</div>
+        </div>
+
+        <!-- 2. Room Info -->
+        <div class="submenu-card focusable" tabindex="0" onclick="window.location.href='../room_info/room_info.html'">
+            <div class="submenu-icon-wrapper">
+                <img src="../images/icons/roomservice.png" class="submenu-icon" alt="Room Info" onerror="this.src='../images/icons/settings.png'">
+            </div>
+            <div class="submenu-title">Room Info</div>
+            <div class="submenu-desc">Room details, features & guidelines</div>
+        </div>
+
+        <!-- 3. Amenities -->
+        <div class="submenu-card focusable" tabindex="0" onclick="window.location.href='../amenities/amenities.html'">
+            <div class="submenu-icon-wrapper">
+                <img src="../images/icons/amenities.png" class="submenu-icon" alt="Amenities" onerror="this.src='../images/icons/settings.png'">
+            </div>
+            <div class="submenu-title">Amenities</div>
+            <div class="submenu-desc">Hotel facilities, pool, spa & services</div>
+        </div>
+    </div>
+  </div>
+
+  <script>
+    /* ── fitScreen ─────────────────────────────────────────── */
+    function fitScreen() {
+      var canvas = document.getElementById('app-canvas');
+      if (!canvas) return;
+      var scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+      canvas.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
+    }
+    window.addEventListener('resize', fitScreen);
+    fitScreen();
+
+    /* ── Menu Navigation ───────────────────────────────────── */
+    document.addEventListener('DOMContentLoaded', function () {
+
+      var cards = Array.from(document.querySelectorAll('.submenu-card'));
+      var currentIndex = 0;
+
+      /* ── Restore last focused card from sessionStorage ───── */
+      var savedIndex = parseInt(sessionStorage.getItem('hotelMenuLastIndex') || '0', 10);
+      if (!isNaN(savedIndex) && savedIndex >= 0 && savedIndex < cards.length) {
+        currentIndex = savedIndex;
+      }
+
+      /* ── Focus helper ─────────────────────────────────────── */
+      function focusCard(idx) {
+        cards.forEach(function (c, i) {
+          c.classList.remove('active-focus');
+          c.setAttribute('tabindex', i === idx ? '0' : '-1');
+        });
+        currentIndex = idx;
+        cards[idx].classList.add('active-focus');
+        cards[idx].focus({ preventScroll: true });
+        sessionStorage.setItem('hotelMenuLastIndex', idx);
+      }
+
+      /* Save index on click too */
+      cards.forEach(function (card, idx) {
+        card.setAttribute('tabindex', idx === currentIndex ? '0' : '-1');
+        card.addEventListener('click', function () {
+          sessionStorage.setItem('hotelMenuLastIndex', idx);
+        });
+      });
+
+      /* Initial focus */
+      focusCard(currentIndex);
+
+      /* ── Hook into tv-navigation.js ──────────────────────── */
+
+      /* Arrow key navigation handled via tv-navigation.js hook */
+      window.onTVNavigate = function (direction) {
+        if (direction === 'left' || direction === 'up') {
+          var prev = (currentIndex - 1 + cards.length) % cards.length;
+          focusCard(prev);
+          return true; // tell tv-navigation: we handled it
+        }
+        if (direction === 'right' || direction === 'down') {
+          var next = (currentIndex + 1) % cards.length;
+          focusCard(next);
+          return true;
+        }
+        return false;
+      };
+
+      /* Back key handled via tv-navigation.js hook */
+      window.onTVBack = function () {
+        sessionStorage.removeItem('hotelMenuLastIndex');
+        window.location.href = '../index.html';
+        return true;
+      };
+
+      /* ── Background slider init ─────────────────────────── */
+      var cachedConfig = (window.parent && window.parent.getFastConfig)
+        ? window.parent.getFastConfig() : null;
+      if (typeof initBackgroundSlider === 'function') {
+        initBackgroundSlider(cachedConfig);
+        if (typeof fetchHotelConfig === 'function') {
+          fetchHotelConfig().then(function (config) {
+            if (config) initBackgroundSlider(config);
+          }).catch(function () {});
+        }
+      }
+    });
+  </script>
+</body>
+
+</html>

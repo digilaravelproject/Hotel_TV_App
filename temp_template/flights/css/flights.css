@@ -1,0 +1,472 @@
+/* Premium Modern Dark Glassmorphism CSS for Flight Board (TV 1080p Fixed Canvas) */
+:root {
+    --primary-gold: #ffd700;
+    --gold-glow: rgba(255, 215, 0, 0.5);
+    --gold-gradient: linear-gradient(135deg, #fce074 0%, #ffd700 50%, #c49626 100%);
+    --bg-dark-glass: rgba(14, 18, 28, 0.88);
+    --border-glass: rgba(179, 138, 45, 0.4);
+    --text-bright: #ffffff;
+    --text-muted: #cbd5e1;
+    --status-ontime: #10b981;
+    --status-delayed: #f59e0b;
+    --status-cancelled: #ef4444;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: transparent;
+    color: var(--text-bright);
+    font-family: 'Poppins', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+#app-canvas {
+    width: 1920px;
+    height: 1080px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    transform-origin: center center;
+    overflow: hidden;
+    background-color: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding-top: 0;
+    box-sizing: border-box;
+}
+
+.flights-bg-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at center, rgba(10, 15, 26, 0.15) 0%, rgba(5, 8, 15, 0.4) 100%);
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* ── Top Center Hotel Logo ─────────────────────────────────── */
+.hotel-logo-container {
+    position: absolute !important;
+    top: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 180px !important;
+    height: 60px !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    z-index: 99 !important;
+    pointer-events: none !important;
+}
+
+.hotel-logo-container img {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    object-fit: contain !important;
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.95)) !important;
+}
+
+/* ── Back Button ───────────────────────────────────────────── */
+.back-btn-pill {
+    position: absolute;
+    top: 30px;
+    left: 60px;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.6);
+    color: #ffffff;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    padding: 10px 24px;
+    border-radius: 30px;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    backdrop-filter: blur(8px);
+    transition: all 0.25s ease;
+    outline: none;
+}
+
+.back-btn-pill i {
+    font-family: "Font Awesome 6 Free" !important;
+    font-weight: 900 !important;
+    font-size: 16px;
+}
+
+.back-btn-pill:focus,
+.back-btn-pill:hover {
+    background: var(--gold-gradient);
+    color: #000000;
+    border-color: #ffd700;
+    transform: scale(1.06);
+    box-shadow: 0 0 25px rgba(255, 215, 0, 0.7);
+}
+.flight-header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 155px;
+    margin-bottom: 12px;
+    text-align: center;
+    background: none;
+    border: none;
+    box-shadow: none;
+}
+
+.header-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.airport-badge {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: var(--primary-gold);
+    background: rgba(255, 215, 0, 0.12);
+    padding: 5px 22px;
+    border-radius: 20px;
+    border: 1.5px solid rgba(255, 215, 0, 0.35);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    text-transform: uppercase;
+}
+
+#airportTitle {
+    color: #ffffff;
+    font-size: 26px;
+    font-weight: 800;
+    margin-top: 4px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-shadow: 0 3px 12px rgba(0, 0, 0, 0.95);
+}
+
+/* ── Main Container ────────────────────────────────────────── */
+.flight-board-wrapper {
+    position: relative;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 1720px;
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+
+/* ── Tabs ──────────────────────────────────────────────────── */
+.tabs-container {
+    display: flex;
+    gap: 18px;
+    background: rgba(14, 18, 28, 0.88);
+    padding: 7px 10px;
+    border-radius: 40px;
+    border: 1.5px solid rgba(179, 138, 45, 0.4);
+    backdrop-filter: blur(15px);
+    margin-bottom: 18px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6);
+}
+
+.flight-tab {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1.5px solid transparent;
+    padding: 11px 38px;
+    border-radius: 30px;
+    font-weight: 800;
+    font-size: 17px;
+    letter-spacing: 1.5px;
+    outline: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.3s ease;
+}
+
+.flight-tab.active {
+    background: var(--gold-gradient) !important;
+    color: #0d111a !important;
+    box-shadow: 0 4px 20px var(--gold-glow);
+    font-weight: 900;
+}
+
+.flight-tab:focus {
+    background: var(--gold-gradient) !important;
+    color: #0d111a !important;
+    border-color: #ffffff !important;
+    transform: scale(1.04);
+    box-shadow: 0 0 25px var(--gold-glow);
+}
+
+/* ── Table Container ───────────────────────────────────────── */
+.table-container {
+    position: relative;
+    width: 100%;
+    background: var(--bg-dark-glass);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 2px solid var(--border-glass);
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.85), inset 0 0 15px rgba(179, 138, 45, 0.08);
+}
+
+#videoOverlay {
+    display: none !important;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+thead {
+    background: rgba(10, 14, 22, 0.9);
+    border-bottom: 2px solid var(--border-glass);
+}
+
+th {
+    padding: 18px 24px;
+    color: var(--primary-gold);
+    font-size: 19px;
+    font-weight: 800;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    text-align: left;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+
+th i {
+    margin-right: 8px;
+    opacity: 0.9;
+}
+
+tr {
+    height: 66px;
+    transition: background 0.2s ease;
+}
+
+tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.025);
+}
+
+tr:hover {
+    background: rgba(229, 184, 66, 0.08);
+}
+
+td {
+    padding: 14px 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 21px;
+    font-weight: 600;
+    text-transform: uppercase;
+    text-align: left;
+    color: #ffffff;
+    vertical-align: middle;
+}
+
+th:nth-child(1),
+td:nth-child(1) {
+    width: 10%;
+    padding-left: 32px;
+    color: #ffa500 !important;
+    font-weight: 800;
+    font-size: 24px;
+}
+
+th:nth-child(2),
+td:nth-child(2) {
+    width: 12%;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: #ffffff !important;
+    font-size: 22px;
+}
+
+th:nth-child(3),
+td:nth-child(3) {
+    width: 10%;
+    text-align: center;
+    color: #ffd700 !important;
+    font-weight: 800;
+    font-size: 22px;
+}
+
+th:nth-child(4),
+td:nth-child(4) {
+    width: 20%;
+    color: #f1f5f9 !important;
+    font-weight: 600;
+    font-size: 21px;
+}
+
+th:nth-child(5),
+td:nth-child(5) {
+    width: 24%;
+    color: #ffffff !important;
+    font-weight: 600;
+    font-size: 21px;
+}
+
+th:nth-child(6),
+td:nth-child(6) {
+    width: 24%;
+    text-align: center !important;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+/* Status Classes */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 16px;
+    letter-spacing: 0.8px;
+    padding: 6px 18px;
+    border-radius: 22px;
+    white-space: nowrap;
+    min-width: 160px;
+    box-sizing: border-box;
+}
+
+.status-badge.status-ontime,
+.status-ontime {
+    color: #10b981 !important;
+    text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+    background: rgba(16, 185, 129, 0.15);
+    border: 1.5px solid rgba(16, 185, 129, 0.45);
+}
+
+.status-badge.status-delayed,
+.status-delayed {
+    color: #f59e0b !important;
+    text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+    background: rgba(245, 158, 11, 0.15);
+    border: 1.5px solid rgba(245, 158, 11, 0.45);
+}
+
+.status-badge.status-cancelled,
+.status-cancelled {
+    color: #ef4444 !important;
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+    background: rgba(239, 68, 68, 0.15);
+    border: 1.5px solid rgba(239, 68, 68, 0.45);
+}
+
+/* ── Footer Controls (Bottom Anchored) ─────────────────────── */
+.footer-info {
+    position: absolute;
+    bottom: 30px;
+    left: 100px;
+    right: 100px;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 36px;
+    width: 1720px;
+    margin: 0 auto;
+    box-sizing: border-box;
+    background: var(--bg-dark-glass);
+    backdrop-filter: blur(15px);
+    border: 1.5px solid var(--border-glass);
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+}
+
+.footer-left,
+.footer-right {
+    flex: 1;
+    display: flex;
+    align-items: center;
+}
+
+.footer-right {
+    justify-content: flex-end;
+}
+
+.center-controls {
+    display: flex;
+    gap: 20px;
+}
+
+.last-updated-badge {
+    color: var(--text-muted);
+    font-size: 17px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 8px 22px;
+    border-radius: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.flight-btn-sec,
+.flight-btn-action {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-bright);
+    border: 1.5px solid rgba(255, 255, 255, 0.2);
+    padding: 12px 36px;
+    border-radius: 30px;
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: 1.2px;
+    outline: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.25s ease;
+}
+
+.flight-btn-action {
+    background: rgba(255, 215, 0, 0.15);
+    color: var(--primary-gold);
+    border: 1.5px solid var(--primary-gold);
+}
+
+.flight-btn-sec:focus,
+.flight-btn-sec:hover,
+.flight-btn-action:focus,
+.flight-btn-action:hover {
+    background: var(--gold-gradient);
+    color: #000000;
+    border-color: #ffffff;
+    transform: scale(1.06);
+    box-shadow: 0 0 25px rgba(255, 215, 0, 0.7);
+}

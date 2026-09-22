@@ -3,6 +3,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/services/storage/shared_prefs.dart';
 import '../../../../core/services/storage/token_manger.dart';
 import '../../../../core/services/template/template_manager_service.dart';
+import '../../../../core/services/device/device_info_service.dart';
 import '../../../../core/widget/loading_widget.dart';
 import '../../../dashboard/presentation/pages/tv_webview_screen.dart';
 import 'tv_login_screen.dart';
@@ -72,6 +73,8 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
       final isDownloaded = await TemplateManagerService.isTemplateDownloaded();
       if (isDownloaded) {
         await TemplateManagerService.regenerateDataJson();
+        // Android device name set karo (mobile cast list mein dikhne ke liye)
+        _applyTvDeviceName();
         _navigateToWebview();
         return;
       }
@@ -100,6 +103,14 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
       }
     } catch (_) {
       _navigateToLogin();
+    }
+  }
+
+  /// Android device name set karta hai jo mobile cast list mein dikhta hai
+  void _applyTvDeviceName() {
+    final tvDisplayName = SharedPrefs.getString('tv_display_name') ?? '';
+    if (tvDisplayName.isNotEmpty) {
+      DeviceInfoService.setDeviceName(tvDisplayName);
     }
   }
 
