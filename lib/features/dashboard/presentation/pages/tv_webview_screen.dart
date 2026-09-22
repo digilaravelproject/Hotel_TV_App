@@ -87,6 +87,14 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
       Logger.i('[TvWebviewScreen] App resumed from external app. Restoring WebView focus...');
+      
+      // FIX FOR BLACK SCREEN ON WAKE UP:
+      // TV sleep hone par Android WebView ka GPU context destroy ho jata hai aur black screen aati hai.
+      // Isliye jab app resume ho, toh WebView ko force reload kar do.
+      if (_controller != null) {
+        _controller!.reload();
+      }
+
       // Screensaver dismiss karo agar show ho raha tha
       if (_showScreensaver && mounted) {
         _resetInactivityTimer();

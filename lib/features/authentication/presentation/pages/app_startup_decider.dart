@@ -72,7 +72,9 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
 
       final isDownloaded = await TemplateManagerService.isTemplateDownloaded();
       if (isDownloaded) {
-        await TemplateManagerService.regenerateDataJson();
+        // We DO NOT await regenerateDataJson() here because it blocks startup if TV is offline.
+        // It is already handled safely (in background) by WebViewBloc.
+        
         // Android device name set karo (mobile cast list mein dikhne ke liye)
         _applyTvDeviceName();
         _navigateToWebview();
@@ -161,7 +163,6 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.black,
       body: LoadingWidget(
         type: LoadingType.tvScreen,
         subtitle: _statusMessage,

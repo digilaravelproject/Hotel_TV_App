@@ -952,6 +952,7 @@ class MainActivity : FlutterActivity() {
     private var lastLaunchHdmiTime: Long = 0
 
     private fun launchHdmi(port: String): Boolean {
+        prepareForExternalLaunch()
         val now = System.currentTimeMillis()
         if (now - lastLaunchHdmiTime < 2000) {
             return true
@@ -1021,7 +1022,6 @@ class MainActivity : FlutterActivity() {
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 data = targetUri
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
             try {
                 startActivity(intent)

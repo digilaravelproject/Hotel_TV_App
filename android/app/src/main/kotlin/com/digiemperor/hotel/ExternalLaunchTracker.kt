@@ -11,9 +11,9 @@ object ExternalLaunchTracker {
     }
 
     fun isRecentlyLaunchedExternal(): Boolean {
-        // Reduced timeout to 3 seconds.
-        // If an external activity was triggered within 3 seconds, do NOT auto-relaunch Hotel TV app.
-        // This ensures the kiosk mode recovers quickly if the user presses HOME.
-        return (SystemClock.elapsedRealtime() - lastExternalLaunchTime) < 3000
+        // Increased timeout to 8 seconds.
+        // Some TVs (like Skyworth/MediaTek) take 3-5 seconds to detect HDMI signal.
+        // If we re-lock too early, it might pull the app back to foreground.
+        return (SystemClock.elapsedRealtime() - lastExternalLaunchTime) < 8000
     }
 }
