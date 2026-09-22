@@ -286,6 +286,9 @@ class FlutterBridgeHandler {
         }
         return {'selectedPort': '', 'port': ''};
 
+      case 'launchTvInput':
+      case 'launchTVInput':
+      case 'switchTvInput':
       case 'launchLiveTv':
       case 'openLiveTv':
       case 'launchLiveTV':
@@ -297,9 +300,17 @@ class FlutterBridgeHandler {
         }
         _lastHdmiLaunchTime = now;
 
-        String? model = (args.isNotEmpty && args[0] != null && args[0].toString().trim().isNotEmpty && args[0].toString() != 'null')
-            ? args[0].toString().trim()
-            : null;
+        String? model;
+        if (args.isNotEmpty && args[0] != null) {
+          if (args[0] is Map) {
+             model = args[0]['model']?.toString() ?? args[0]['id']?.toString() ?? args[0]['port']?.toString();
+          } else {
+             model = args[0].toString().trim();
+          }
+        }
+        if (model == 'null' || (model != null && model.isEmpty)) {
+           model = null;
+        }
         String checkedSource = model != null ? 'argument' : '';
 
         if (model == null || model.isEmpty || model == 'null') {
