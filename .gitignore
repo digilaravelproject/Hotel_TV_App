@@ -46,3 +46,4 @@ app.*.map.json
 
 *.tpk
 *.apk
+*.ipk

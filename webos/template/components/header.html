@@ -1,0 +1,57 @@
+<header class="w-full px-16 pt-10 pb-4 flex items-center justify-between z-30 select-none relative font-sans">
+
+    <!-- LEFT: Time/Date (Home) OR Back Button (Sub-Pages) -->
+    <div class="flex flex-col items-start min-w-[320px]">
+        <template x-if="currentView === 'home'">
+            <div class="flex flex-col items-start">
+                <div class="text-3xl font-extrabold text-white tracking-wide drop-shadow-lg leading-none">
+                    <span x-text="timeStr">--:-- --</span>
+                </div>
+                <div class="text-3xl font-extrabold text-white tracking-wide drop-shadow-lg mt-3 leading-none">
+                    <span x-text="dateStr">-- --- ----</span>
+                </div>
+            </div>
+        </template>
+
+        <!-- Compact Pill Back Button on Sub-Pages -->
+        <template x-if="currentView !== 'home'">
+            <button id="tv-header-back-btn"
+                    tabindex="0"
+                    @click="goBack()"
+                    @focus="onHeaderBackFocus()"
+                    @keydown.down="onHeaderBackDown($event)"
+                    class="group flex items-center justify-center space-x-2 px-5 py-2 rounded-full bg-black/80 border border-amber-500/50 text-slate-200 hover:bg-amber-400 hover:border-amber-400 hover:text-black hover:shadow-[0_0_15px_rgba(255,199,0,0.6)] focus:bg-amber-400 focus:border-amber-400 focus:text-black focus:shadow-[0_0_20px_rgba(255,199,0,0.8)] focus:scale-105 transition-all duration-300 outline-none cursor-pointer backdrop-blur-md">
+                <span class="text-xl font-black leading-none">←</span>
+                <span class="text-lg font-bold tracking-widest uppercase leading-none" 
+                      x-text="t('back', t('previous', 'BACK')).toUpperCase()">BACK</span>
+            </button>
+        </template>
+    </div>
+
+    <!-- MIDDLE: Centered Hotel Logo (Always Visible on all pages) -->
+    <div class="flex items-center justify-center flex-1 px-8">
+        <template x-if="hotelLogo">
+            <img :src="hotelLogo" alt="Hotel Logo" 
+                 loading="lazy" decoding="async"
+                 class="max-h-24 max-w-[360px] w-auto object-contain filter drop-shadow-2xl transition-all duration-500"
+                 onerror="this.style.display='none'">
+        </template>
+    </div>
+
+    <!-- RIGHT: Room Number & Weather (Visible on Home Page) -->
+    <div class="flex flex-col items-end min-w-[320px] text-right">
+        <template x-if="currentView === 'home'">
+            <div class="flex flex-col items-end">
+                <div class="text-3xl font-extrabold text-white tracking-wide drop-shadow-lg leading-none">
+                    <span class="mr-2" x-text="t('room_label', 'Room')">Room</span><span class="text-amber-400 font-black" x-text="roomNo || '----'">----</span>
+                </div>
+                <template x-if="weatherStr">
+                    <div class="text-3xl font-extrabold text-white tracking-wide drop-shadow-lg mt-3 leading-none">
+                        <span x-text="weatherStr"></span>
+                    </div>
+                </template>
+            </div>
+        </template>
+    </div>
+
+</header>

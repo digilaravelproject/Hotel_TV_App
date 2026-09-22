@@ -1,0 +1,330 @@
+<!-- Airport FIDS (Flight Information Display System) Screen -->
+<div class="w-full flex-1 flex flex-col justify-start px-12 pt-3 pb-6 max-h-[860px] select-none">
+
+    <!-- Top Airport Header & Controller Bar -->
+    <div
+        class="flex items-center justify-between bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl px-8 py-3 mb-3 shadow-2xl">
+        <!-- Airport Title & Code -->
+        <div class="flex items-center space-x-4">
+            <div
+                class="w-12 h-12 rounded-xl bg-amber-400 text-black flex items-center justify-center font-black text-xl shadow-[0_0_20px_rgba(251,191,36,0.5)]">
+                <svg class="w-6 h-6 text-black" viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                        d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
+                </svg>
+            </div>
+            <div>
+                <div class="flex items-center space-x-3">
+                    <span class="text-xl font-black text-white tracking-wide" x-text="currentAirportName"></span>
+                    <span
+                        class="font-mono font-black text-xs px-2.5 py-0.5 rounded-md bg-amber-400/20 text-amber-300 border border-amber-400/40"
+                        x-text="currentAirportIata"></span>
+                </div>
+                <p class="text-xs text-slate-400 flex items-center space-x-2 mt-0.5">
+                    <span>Live FIDS Terminal Schedule</span>
+                    <span>&bull;</span>
+                    <span>City: <strong class="text-slate-200" x-text="currentAirportCity"></strong></span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Airport Switcher & Live Refresh Trigger -->
+        <div class="flex items-center space-x-3">
+            <!-- Secondary Airport Chip Switcher if available -->
+            <template x-if="secondaryAirportData">
+                <div class="flex items-center bg-white/5 border border-white/10 rounded-xl p-1 space-x-1">
+                    <button id="flight-focus-toggle_primary" 
+                        @click="switchAirportSlot('primary')"
+                        @mouseenter="flightFocusZone = 'header'; flightFocusIndex = 0; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                        class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer" :class="[
+                                activeAirportSlot === 'primary' ? 'bg-amber-400 text-black shadow-md font-black' : 'text-slate-300 hover:text-white',
+                                (flightFocusZone === 'header' && flightFocusIndex === 0) ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-black' : ''
+                            ]">
+                        <span x-text="(primaryAirportData ? primaryAirportData.iata_code : "") || 'Primary'"></span>
+                    </button>
+                    <button id="flight-focus-toggle_secondary" 
+                        @click="switchAirportSlot('secondary')"
+                        @mouseenter="flightFocusZone = 'header'; flightFocusIndex = 1; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                        class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer" :class="[
+                                activeAirportSlot === 'secondary' ? 'bg-amber-400 text-black shadow-md font-black' : 'text-slate-300 hover:text-white',
+                                (flightFocusZone === 'header' && flightFocusIndex === 1) ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-black' : ''
+                            ]">
+                        <span x-text="(secondaryAirportData ? secondaryAirportData.iata_code : "") || 'Secondary'"></span>
+                    </button>
+                </div>
+            </template>
+
+            <!-- Last Updated Timestamp Badge (Single Clean Horizontal Line) -->
+            <div
+                class="flex items-center space-x-2.5 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-mono text-slate-300 shadow-xs">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-slate-400 font-sans font-bold uppercase tracking-wider text-2xs">Last Synced:</span>
+                <span class="text-amber-300 font-black text-sm" x-text="flightLastUpdated || 'Just Now'"></span>
+            </div>
+
+            <!-- Manual Refresh Action Button (Crystal Clear Text & Dynamic Active Colors) -->
+            <button id="flight-focus-btn_refresh" 
+                @click="refreshFlights()"
+                @mouseenter="flightFocusZone = 'header'; flightFocusIndex = (secondaryAirportData ? 2 : 0); (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                @focus="flightFocusZone = 'header'; flightFocusIndex = (secondaryAirportData ? 2 : 0); (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                class="px-5 py-2 rounded-xl border flex items-center space-x-2 transition-all cursor-pointer font-black text-xs tracking-wider uppercase shadow-md"
+                :class="[
+                        (flightFocusZone === 'header' && ((secondaryAirportData && flightFocusIndex === 2) || (!secondaryAirportData && flightFocusIndex === 0))) 
+                            ? '!bg-amber-400 !text-black border-amber-300 shadow-[0_0_25px_rgba(251,191,36,0.8)] scale-105' 
+                            : 'bg-amber-400/15 text-amber-300 border-amber-400/40 hover:bg-amber-400 hover:text-black hover:border-amber-400',
+                        isFlightRefreshing ? 'opacity-50 pointer-events-none' : ''
+                    ]">
+                <!-- Refresh SVG Icon -->
+                <svg class="w-4 h-4 flex-shrink-0" :class="{ 'animate-spin': isFlightRefreshing }" fill="none"
+                    stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span class="font-extrabold tracking-wide"
+                    x-text="isFlightRefreshing ? 'SYNCING...' : 'REFRESH'"></span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Departures / Arrivals Flight Board Container (Strict Zero Scrollbar) -->
+    <div
+        class="flex-1 bg-slate-950/90 backdrop-blur-2xl border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col justify-between">
+
+        <!-- Top Section: Tab Selector Bar -->
+        <div class="flex items-center justify-between border-b border-white/10 px-8 pt-3 pb-2.5 bg-white/[0.02]">
+            <div class="flex items-center space-x-4">
+                <!-- Departures Tab -->
+                <button id="flight-focus-tab_departures" 
+                    @click="switchFlightTab('departures')"
+                    @mouseenter="flightFocusZone = 'tabs'; flightFocusIndex = 0; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    class="px-6 py-2 rounded-2xl text-sm font-black tracking-wider uppercase transition-all flex items-center space-x-2.5 cursor-pointer"
+                    :class="[
+                            activeFlightTab === 'departures' ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-black shadow-[0_0_25px_rgba(251,191,36,0.4)]' : 'bg-white/5 text-slate-300 hover:text-white border border-white/10',
+                            (flightFocusZone === 'tabs' && flightFocusIndex === 0) ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-black' : ''
+                        ]">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M2.5 19h19v2h-19v-2zm19.57-9.36c-.21-.8-1.04-1.28-1.84-1.06L14.92 10 8.08 3.39c-.58-.56-1.5-.59-2.11-.07-.62.52-.73 1.42-.26 2.07l4.31 5.95-4.14 1.11-2.4-1.47c-.43-.26-.98-.24-1.39.06l-.59.43 2.87 3.99 15.2-4.07c.8-.21 1.28-1.04 1.06-1.84z" />
+                    </svg>
+                    <span>DEPARTURES (UDAAN)</span>
+                </button>
+
+                <!-- Arrivals Tab -->
+                <button id="flight-focus-tab_arrivals" 
+                    @click="switchFlightTab('arrivals')"
+                    @mouseenter="flightFocusZone = 'tabs'; flightFocusIndex = 1; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    class="px-6 py-2 rounded-2xl text-sm font-black tracking-wider uppercase transition-all flex items-center space-x-2.5 cursor-pointer"
+                    :class="[
+                            activeFlightTab === 'arrivals' ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-black shadow-[0_0_25px_rgba(251,191,36,0.4)]' : 'bg-white/5 text-slate-300 hover:text-white border border-white/10',
+                            (flightFocusZone === 'tabs' && flightFocusIndex === 1) ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-black' : ''
+                        ]">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M2.5 19h19v2h-19v-2zm16.84-6.43l-3.14-1.14 2.86-7.85c.29-.8-.13-1.68-.93-1.97-.8-.29-1.68.13-1.97.93l-2.86 7.85-4.14-1.5-1.12-2.58c-.2-.46-.62-.77-1.12-.8l-.72-.05 1.07 4.8-10.4 3.79c-.8.29-1.22 1.17-.93 1.97.29.8 1.17 1.22 1.97.93l18.57-6.76c.8-.29 1.22-1.17.93-1.97z" />
+                    </svg>
+                    <span>ARRIVALS (AAGMAN)</span>
+                </button>
+            </div>
+
+            <div class="flex items-center space-x-3 text-xs font-bold text-slate-400">
+                <span class="inline-flex items-center">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 mr-2 animate-pulse"></span>
+                    Live Radar Feed
+                </span>
+                <span>&bull;</span>
+                <span class="font-mono text-slate-300"
+                    x-text="`${getCurrentFlightList().length} Flights Scheduled`"></span>
+            </div>
+        </div>
+
+        <!-- Table Column Headers (Pixel-Perfect Alignment with Rows) -->
+        <div class="px-8 bg-black/40 border-b border-white/10">
+            <div class="grid grid-cols-12 gap-4 px-4 py-3 text-sm uppercase font-black text-amber-400 tracking-wider border-l-4 border-transparent">
+                <div class="col-span-3">Flight / Airline</div>
+                <div class="col-span-3" x-text="activeFlightTab === 'departures' ? 'Destination' : 'Origin City'"></div>
+                <div class="col-span-2 text-center">Scheduled / Est.</div>
+                <div class="col-span-1 text-center">Terminal</div>
+                <div class="col-span-1 text-center" x-text="activeFlightTab === 'departures' ? 'Gate' : 'Belt'"></div>
+                <div class="col-span-2 text-right">Status</div>
+            </div>
+        </div>
+
+        <!-- Middle Section: Exactly 7 Flight Rows (Large TV Legibility, Zero Scrollbar) -->
+        <div class="flex-1 overflow-hidden px-8 py-1.5 flex flex-col justify-start"
+            style="scrollbar-width: none; -ms-overflow-style: none;">
+
+            <!-- Loading State -->
+            <div x-show="isFlightLoading" class="flex-1 flex flex-col items-center justify-center py-16 space-y-3">
+                <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+                <p class="text-base font-bold text-slate-300">Synchronizing Live Flight Information...</p>
+            </div>
+
+            <!-- Paginated 7 Flight Rows -->
+            <template x-if="!isFlightLoading">
+                <div class="space-y-1">
+                    <template x-for="(flight, idx) in getPaginatedFlights()" :key="flight.flight_no + '_' + idx">
+                        <div class="grid grid-cols-12 gap-4 h-[60px] items-center transition-all duration-150 rounded-xl px-4 cursor-pointer border-l-4 border-transparent"
+                            @mouseenter="flightFocusZone = 'rows'; flightFocusIndex = idx; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                            :class="{
+                                 'bg-amber-400/20 !border-amber-400 shadow-[0_0_25px_rgba(251,191,36,0.25)]': (flightFocusZone === 'rows' && flightFocusIndex === idx),
+                                 'hover:bg-white/[0.05] bg-white/[0.02]': !(flightFocusZone === 'rows' && flightFocusIndex === idx)
+                             }">
+
+                            <!-- Flight No & Airline (Large Prominent Fonts) -->
+                            <div class="col-span-3 flex items-center space-x-3.5">
+                                <span class="font-mono font-black text-xl tracking-wider text-amber-400"
+                                    :class="(flightFocusZone === 'rows' && flightFocusIndex === idx) ? 'text-amber-300 scale-105 transition-transform' : ''"
+                                    x-text="flight.flight_no"></span>
+                                <span class="text-base text-slate-200 font-bold truncate"
+                                    x-text="flight.airline"></span>
+                            </div>
+
+                            <!-- Destination or Origin City (Large Font) -->
+                            <div class="col-span-3 flex items-center space-x-2.5">
+                                <svg class="w-4 h-4 text-amber-400/80 flex-shrink-0" viewBox="0 0 24 24"
+                                    fill="currentColor">
+                                    <path
+                                        d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                                </svg>
+                                <span class="text-lg font-extrabold text-white tracking-wide truncate"
+                                    x-text="activeFlightTab === 'departures' ? flight.destination : flight.origin"></span>
+                            </div>
+
+                            <!-- Scheduled / Estimated Time (Large Bold Mono) -->
+                            <div class="col-span-2 text-center font-mono font-black text-lg">
+                                <span class="text-white" x-text="flight.scheduled_time"></span>
+                                <template
+                                    x-if="flight.estimated_time && flight.estimated_time !== flight.scheduled_time">
+                                    <span class="text-amber-400 text-sm ml-1 font-bold"
+                                        x-text="`(${flight.estimated_time})`"></span>
+                                </template>
+                            </div>
+
+                            <!-- Terminal Badge -->
+                            <div class="col-span-1 text-center font-mono font-black text-base text-slate-200">
+                                <span class="px-3 py-1 rounded-lg bg-white/10 border border-white/15 shadow-xs"
+                                    x-text="flight.terminal || 'T2'"></span>
+                            </div>
+
+                            <!-- Gate or Baggage Belt (Bright Amber) -->
+                            <div class="col-span-1 text-center font-mono font-black text-lg text-amber-300">
+                                <span class="px-2.5 py-0.5 rounded-md bg-amber-400/10 border border-amber-400/30"
+                                    x-text="activeFlightTab === 'departures' ? (flight.gate || '-') : (flight.belt || '-')"></span>
+                            </div>
+
+                            <!-- Live Flight Status Badge (Large Glowing Pill) -->
+                            <div class="col-span-2 text-right">
+                                <span
+                                    class="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-black uppercase tracking-wider shadow-sm"
+                                    :class="{
+                                          'bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.25)]': ['On Time', 'Landed'].includes(flight.status),
+                                          'bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.25)]': ['Boarding', 'Delayed'].includes(flight.status),
+                                          'bg-rose-500/25 text-rose-300 border border-rose-500/40 shadow-[0_0_15px_rgba(244,63,94,0.25)]': ['Cancelled'].includes(flight.status),
+                                          'bg-sky-500/25 text-sky-300 border border-sky-500/40 shadow-[0_0_15px_rgba(14,165,233,0.25)]': ['Departed'].includes(flight.status)
+                                      }" x-text="flight.status">
+                                </span>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Empty State if no flights -->
+                    <template x-if="getPaginatedFlights().length === 0">
+                        <div class="text-center py-16 text-slate-400 space-y-2">
+                            <svg class="w-12 h-12 mx-auto text-slate-600" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
+                            </svg>
+                            <p class="text-base font-bold text-slate-300" x-text="flightError || 'No flight schedules currently available for this airport.'"></p>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- Bottom Section: Elegant TV Pagination Controls (7 Rows Per Page) -->
+        <div
+            class="px-8 py-2.5 bg-black/50 border-t border-white/10 flex items-center justify-between text-sm font-bold text-slate-400">
+            <!-- Left: Page Status -->
+            <div class="flex items-center space-x-2">
+                <span class="text-slate-400 font-medium">Showing</span>
+                <span class="text-white font-mono font-black"
+                    x-text="`${Math.min(1 + (flightPage - 1) * flightPageSize, getCurrentFlightList().length)}-${Math.min(flightPage * flightPageSize, getCurrentFlightList().length)}`"></span>
+                <span class="text-slate-400 font-medium">of</span>
+                <span class="text-white font-mono font-black" x-text="getCurrentFlightList().length"></span>
+                <span class="text-slate-400 font-medium">Flights</span>
+            </div>
+
+            <!-- Center: Interactive Page Switcher -->
+            <div class="flex items-center space-x-3">
+                <!-- Previous Page Button -->
+                <button id="flight-focus-btn_prev" @click="prevFlightPage()" :disabled="flightPage <= 1"
+                    class="px-4 py-1.5 rounded-xl border text-xs font-black flex items-center space-x-1.5 transition-all cursor-pointer"
+                    :class="[
+                            flightPage <= 1 ? 'opacity-30 border-white/10 text-slate-600 cursor-not-allowed' : 'border-white/20 text-white hover:bg-amber-400 hover:text-black',
+                            (flightFocusZone === 'pagination' && flightFocusIndex === 0) ? 'ring-2 ring-amber-400 bg-amber-400 text-black shadow-md' : 'bg-white/5'
+                        ]">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    <span>PREV</span>
+                </button>
+
+                <!-- Page Number Pills -->
+                <div class="flex items-center space-x-2">
+                    <template x-for="p in getTotalFlightPages()" :key="'page_' + p">
+                        <button @click="flightPage = p; flightFocusIndex = 0;"
+                            class="w-8 h-8 rounded-lg text-sm font-mono font-black flex items-center justify-center transition-all cursor-pointer"
+                            :class="flightPage === p ? 'bg-amber-400 text-black shadow-md scale-110' : 'bg-white/10 text-slate-300 hover:bg-white/20'"
+                            x-text="p">
+                        </button>
+                    </template>
+                </div>
+
+                <!-- Next Page Button -->
+                <button id="flight-focus-btn_next" @click="nextFlightPage()"
+                    :disabled="flightPage >= getTotalFlightPages()"
+                    class="px-4 py-1.5 rounded-xl border text-xs font-black flex items-center space-x-1.5 transition-all cursor-pointer"
+                    :class="[
+                            flightPage >= getTotalFlightPages() ? 'opacity-30 border-white/10 text-slate-600 cursor-not-allowed' : 'border-white/20 text-white hover:bg-amber-400 hover:text-black',
+                            (flightFocusZone === 'pagination' && flightFocusIndex === 1) ? 'ring-2 ring-amber-400 bg-amber-400 text-black shadow-md' : 'bg-white/5'
+                        ]">
+                    <span>NEXT</span>
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Right: Page Indicator -->
+            <div class="font-mono text-sm">
+                <span class="text-slate-400 font-sans">Page</span>
+                <span class="text-amber-400 font-black text-base" x-text="flightPage"></span>
+                <span class="text-slate-500">/</span>
+                <span class="text-slate-200 font-bold" x-text="getTotalFlightPages()"></span>
+            </div>
+        </div>
+
+        <!-- TV Remote Keys Helper Bar -->
+        <div
+            class="px-8 py-2.5 bg-black/80 border-t border-white/10 flex items-center justify-between text-2xs font-bold text-slate-400 uppercase tracking-wider">
+            <div class="flex items-center space-x-7">
+                <span class="flex items-center space-x-1.5">
+                    <span class="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-3xs">◄ ►</span>
+                    <span>Switch Tabs / Pages</span>
+                </span>
+                <span class="flex items-center space-x-1.5">
+                    <span class="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-3xs">▲ ▼</span>
+                    <span>Select Flight Rows</span>
+                </span>
+                <span class="flex items-center space-x-1.5">
+                    <span class="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-3xs">OK</span>
+                    <span>Select / Refresh / Page</span>
+                </span>
+                <span class="flex items-center space-x-1.5">
+                    <span class="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-3xs">BACK</span>
+                    <span>Exit to Menu</span>
+                </span>
+            </div>
+        </div>
+    </div>
+</div>

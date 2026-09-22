@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/services.dart';
@@ -31,24 +32,26 @@ class DeviceInfoService {
     String macAddress = '';
 
     // Fetch IP Address
-    try {
-      final interfaces = await NetworkInterface.list(
-        includeLoopback: false,
-        type: InternetAddressType.IPv4,
-      );
-      for (var interface in interfaces) {
-        for (var addr in interface.addresses) {
-          if (!addr.isLoopback) {
-            ipAddress = addr.address;
-            break;
+    if (!kIsWeb) {
+      try {
+        final interfaces = await NetworkInterface.list(
+          includeLoopback: false,
+          type: InternetAddressType.IPv4,
+        );
+        for (var interface in interfaces) {
+          for (var addr in interface.addresses) {
+            if (!addr.isLoopback) {
+              ipAddress = addr.address;
+              break;
+            }
           }
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
 
     // Fetch native MAC address via MethodChannel
     try {
-      if (Platform.isAndroid) {
+      if (!kIsWeb && Platform.isAndroid) {
         final String? nativeMac = await _channel.invokeMethod<String>('getMacAddress');
         if (nativeMac != null && nativeMac.isNotEmpty) {
           macAddress = nativeMac;
@@ -79,7 +82,14 @@ class DeviceInfoService {
 
     final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
     try {
-      if (Platform.isAndroid) {
+      if (kIsWeb) {
+        try {
+          final WebBrowserInfo webInfo = await deviceInfo.webBrowserInfo;
+          model = webInfo.browserName.name;
+          brand = webInfo.vendor ?? 'LG webOS / Web';
+          osVersion = webInfo.userAgent ?? 'webOS';
+        } catch (_) {}
+      } else if (Platform.isAndroid) {
         final AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
         // Fetch secure android_id natively
         try {
@@ -121,7 +131,7 @@ class DeviceInfoService {
       }
     } catch (_) {}
 
-    // Fallback for Tizen, Linux, or any platform without native hardware deviceId
+    // Fallback for Web, Tizen, Linux, or any platform without native hardware deviceId
     if (deviceId.isEmpty) {
       final storedId = SharedPrefs.getString('device_unique_id');
       if (storedId != null && storedId.isNotEmpty) {
@@ -129,7 +139,8 @@ class DeviceInfoService {
       } else {
         final random = Random();
         final randPart = List.generate(8, (_) => random.nextInt(16).toRadixString(16)).join().toUpperCase();
-        deviceId = 'TIZEN-$randPart';
+        final prefix = kIsWeb ? 'WEBOS' : 'TIZEN';
+        deviceId = '$prefix-$randPart';
         await SharedPrefs.setString('device_unique_id', deviceId);
       }
     }
@@ -139,13 +150,13 @@ class DeviceInfoService {
     }
 
     if (model.isEmpty) {
-      model = 'Samsung Tizen TV';
+      model = kIsWeb ? 'LG webOS TV' : 'Samsung Tizen TV';
     }
     if (brand.isEmpty) {
-      brand = 'Samsung';
+      brand = kIsWeb ? 'LG' : 'Samsung';
     }
     if (osVersion.isEmpty) {
-      osVersion = 'Tizen 10.0';
+      osVersion = kIsWeb ? 'webOS 6.0' : 'Tizen 10.0';
     }
 
     String gateway = '';
@@ -153,7 +164,7 @@ class DeviceInfoService {
     String dns = '';
 
     try {
-      if (Platform.isAndroid) {
+      if (!kIsWeb && Platform.isAndroid) {
         final Map? netDetails = await _channel.invokeMethod<Map>('getNetworkDetails');
         if (netDetails != null) {
           gateway = netDetails['gateway']?.toString() ?? '';

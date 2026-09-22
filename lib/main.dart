@@ -22,7 +22,7 @@ void main() async {
   PaintingBinding.instance.imageCache.maximumSizeBytes = 15 * 1024 * 1024;
 
   try {
-    if (Platform.isAndroid || Platform.isIOS || Platform.isMacOS || Platform.isWindows) {
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS || Platform.isMacOS || Platform.isWindows)) {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       ).timeout(const Duration(seconds: 3));

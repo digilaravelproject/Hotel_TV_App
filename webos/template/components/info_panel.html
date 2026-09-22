@@ -1,0 +1,165 @@
+<!-- ============================================================
+     HOTEL LUXURY TV TEMPLATE v2.0.1 - DYNAMIC INFO PANEL
+     Dynamically renders hotel_info, room_info, amenities, and our_city
+     ============================================================ -->
+<div x-show="['hotel_info', 'room_info', 'amenities', 'our_city', 'ourcity'].includes(currentView)"
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0 scale-95"
+     x-transition:enter-end="opacity-100 scale-100"
+     class="w-full flex-1 flex flex-col items-center justify-start px-14 pb-8 select-none relative z-20 font-sans">
+
+    <!-- Centered Golden Page Title -->
+    <div class="mb-5 text-center">
+        <h1 class="text-[36px] font-black uppercase tracking-[0.25em] text-amber-400 drop-shadow-[0_3px_14px_rgba(0,0,0,0.95)]"
+            x-text="getInfoPanelTitle()"></h1>
+    </div>
+
+    <!-- 2-Column Info Panel Container (1640px Max Width) -->
+    <div class="w-full max-w-[1640px] flex-1 flex gap-7 items-stretch max-h-[750px]">
+
+        <!-- LEFT COLUMN: Title Card + Image Slider Card -->
+        <div class="flex-[2.6] flex flex-col gap-5 h-full">
+
+            <!-- Title Card -->
+            <div class="flex items-center gap-5 px-7 py-4 rounded-2xl bg-black/85 border-2 border-amber-500/60 shadow-[0_8px_25px_rgba(0,0,0,0.7),inset_0_0_15px_rgba(179,138,45,0.15)] backdrop-blur-md">
+                <div class="px-4 py-1.5 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-black font-black text-2xl tracking-wider shadow-[0_2px_10px_rgba(212,175,55,0.5)] flex-shrink-0"
+                     x-text="String(infoSlideIndex + 1).padStart(2, '0')">01</div>
+                <h2 class="text-[32px] font-extrabold text-white tracking-wide truncate drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]"
+                    x-text="getCurrentInfoItem().title || 'Information'"></h2>
+            </div>
+
+            <!-- Image Slider Card -->
+            <div class="flex-1 relative rounded-2xl border-2 border-amber-500/60 bg-gradient-to-br from-[#1c1c1c] via-[#0f0f0f] to-black overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.8),0_0_20px_rgba(179,138,45,0.15)] flex items-center justify-center">
+                <!-- Slides Crossfade -->
+                <template x-for="(img, idx) in getInfoImages()" :key="idx">
+                    <div class="absolute inset-0 w-full h-full bg-gradient-to-br from-[#1c1c1c] via-[#0f0f0f] to-black transition-opacity duration-700 ease-in-out flex items-center justify-center"
+                         :class="infoSlideIndex === idx ? 'opacity-100' : 'opacity-0'">
+                        <template x-if="img">
+                            <img :src="img" 
+                                 :alt="getCurrentInfoItem().title"
+                                 loading="lazy" decoding="async"
+                                 class="w-full h-full object-cover transition-opacity duration-500 ease-out"
+                                 @error="$el.style.display='none'">
+                        </template>
+                        <div x-show="!img" class="flex flex-col items-center justify-center p-8 text-center space-y-3">
+                            <div class="w-20 h-20 rounded-full bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center text-3xl text-amber-400 font-bold"
+                                 x-text="['our_city', 'ourcity'].includes(currentView) ? '🏙️' : '🏨'">
+                            </div>
+                            <span class="text-amber-400 font-bold text-2xl" x-text="getCurrentInfoItem().title || ''"></span>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Navigation Prev / Next Arrows -->
+                <button @click="changeInfoSlide(-1)"
+                        tabindex="0"
+                        class="absolute left-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-black/60 hover:bg-amber-400 hover:text-black text-white border border-white/20 flex items-center justify-center backdrop-blur-md shadow-xl transition-all duration-200 cursor-pointer z-30 group hover:scale-110 outline-none">
+                    <span class="text-3xl font-bold -translate-x-0.5 group-hover:text-black leading-none">‹</span>
+                </button>
+                <button @click="changeInfoSlide(1)"
+                        tabindex="0"
+                        class="absolute right-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-black/60 hover:bg-amber-400 hover:text-black text-white border border-white/20 flex items-center justify-center backdrop-blur-md shadow-xl transition-all duration-200 cursor-pointer z-30 group hover:scale-110 outline-none">
+                    <span class="text-3xl font-bold translate-x-0.5 group-hover:text-black leading-none">›</span>
+                </button>
+
+                <!-- Slide Dots -->
+                <div class="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2.5 px-5 py-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10 z-30">
+                    <template x-for="(img, idx) in getInfoImages()" :key="idx">
+                        <div class="h-3 rounded-full transition-all duration-300 cursor-pointer"
+                             @click="infoSlideIndex = idx"
+                             :class="infoSlideIndex === idx ? 'w-8 bg-amber-400 shadow-[0_0_10px_rgba(255,215,0,0.9)]' : 'w-3 bg-white/40'"></div>
+                    </template>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- RIGHT COLUMN: Details & Specifications / Features -->
+        <div class="flex-[1.4] flex flex-col rounded-2xl border-2 border-amber-500/60 bg-gradient-to-br from-[#121212]/95 to-[#080808]/95 p-9 shadow-[0_10px_30px_rgba(0,0,0,0.8),inset_0_0_15px_rgba(179,138,45,0.15)] backdrop-blur-md justify-start space-y-5 overflow-hidden">
+            
+            <!-- Header with Counter Badge (No Overlap, Clean Single Line) -->
+            <div class="flex items-center justify-between border-b-2 border-amber-500/30 pb-4 flex-shrink-0 gap-4">
+                <span class="text-2xl font-black tracking-wider text-amber-400 uppercase whitespace-nowrap drop-shadow-sm"
+                      x-text="['our_city', 'ourcity'].includes(currentView) ? t('icons.our_city', 'CITY GUIDE') : currentView === 'hotel_info' ? t('icons.hotel_info', 'ABOUT HOTEL') : currentView === 'room_info' ? t('icons.rooms', 'FEATURE DETAILS') : t('icons.amenities', 'DESCRIPTION')"></span>
+                
+                <span class="text-base font-black text-amber-300 bg-amber-500/20 px-4 py-1.5 rounded-full border border-amber-500/40 tracking-wider shadow-sm whitespace-nowrap min-w-[75px] text-center flex-shrink-0"
+                      x-text="`${infoSlideIndex + 1} / ${getInfoImages().length || 1}`"></span>
+            </div>
+
+            <!-- Location if Hotel Info -->
+            <template x-if="currentView === 'hotel_info' && (hotelData.hotel ? hotelData.hotel.hotel_location : "")">
+                <div class="text-amber-300 text-[22px] font-bold leading-snug flex-shrink-0"
+                     x-text="(hotelData.hotel ? hotelData.hotel.hotel_location : "")"></div>
+            </template>
+
+            <!-- Description & Features Scroll Container (Smooth Remote Scrolling via DOWN / UP Arrows) -->
+            <div id="info-description-scroll" class="flex-1 overflow-y-auto pr-3 select-text space-y-5 scrollbar-none" style="scrollbar-width: none; scroll-behavior: smooth;">
+                <p class="text-slate-100 text-[24px] leading-[1.65] font-normal"
+                   x-text="getCurrentInfoItem().description || 'No description available.'"></p>
+
+                <!-- Dynamic Features Pill Tags for Hotel Info (from data.json) -->
+                <template x-if="currentView === 'hotel_info' && getCurrentInfoItem().features && getCurrentInfoItem().features.length > 0">
+                    <div class="pt-5 border-t border-amber-500/20">
+                        <div class="text-xl font-black uppercase tracking-wider text-amber-400 mb-3.5 flex items-center gap-2">
+                            <span>✨ Features &amp; Highlights</span>
+                        </div>
+                        <div class="flex flex-wrap gap-3">
+                            <template x-for="(feat, fIdx) in getCurrentInfoItem().features" :key="fIdx">
+                                <span class="px-5 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 text-lg font-bold uppercase tracking-wider shadow-md hover:bg-amber-500/30 transition"
+                                      x-text="feat"></span>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Dynamic Specifications Pill Tags for Room Info (from data.json) -->
+                <template x-if="currentView === 'room_info' && getCurrentInfoItem().specifications && getCurrentInfoItem().specifications.length > 0">
+                    <div class="pt-5 border-t border-amber-500/20">
+                        <div class="text-xl font-black uppercase tracking-wider text-amber-400 mb-3.5 flex items-center gap-2">
+                            <span>🔑 Specifications</span>
+                        </div>
+                        <div class="flex flex-wrap gap-3">
+                            <template x-for="(spec, sIdx) in getCurrentInfoItem().specifications" :key="sIdx">
+                                <span class="px-5 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 text-lg font-bold uppercase tracking-wider shadow-md hover:bg-amber-500/30 transition"
+                                      x-text="spec"></span>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Dynamic Attractions Pill Tags for Our City (from data.json) -->
+                <template x-if="['our_city', 'ourcity'].includes(currentView) && getCurrentInfoItem().attractions && getCurrentInfoItem().attractions.length > 0">
+                    <div class="pt-5 border-t border-amber-500/20">
+                        <div class="text-xl font-black uppercase tracking-wider text-amber-400 mb-3.5 flex items-center gap-2">
+                            <span>📍 Attractions &amp; Highlights</span>
+                        </div>
+                        <div class="flex flex-wrap gap-3">
+                            <template x-for="(attr, aIdx) in getCurrentInfoItem().attractions" :key="aIdx">
+                                <span class="px-5 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 text-lg font-bold uppercase tracking-wider shadow-md hover:bg-amber-500/30 transition"
+                                      x-text="attr"></span>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Bottom Subtle Remote Hint Bar (No Clutter, Clean Placement) -->
+    <div class="mt-4 flex items-center gap-6 px-7 py-2 rounded-full bg-black/70 border border-amber-500/30 backdrop-blur-md shadow-lg">
+        <span class="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
+            <span class="text-amber-400 font-extrabold text-sm">▲</span> Focus Back
+        </span>
+        <span class="text-amber-500/50 font-bold">•</span>
+        <span class="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
+            <span class="text-amber-400 font-extrabold text-sm">◄ ►</span> Switch Slide
+        </span>
+        <span class="text-amber-500/50 font-bold">•</span>
+        <span class="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
+            <span class="text-amber-400 font-extrabold text-sm">▼</span> Scroll Content
+        </span>
+    </div>
+
+</div>

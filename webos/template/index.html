@@ -1,0 +1,2235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TV Template v2.0.1</title>
+
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23eab308'/><text y='.75em' x='50%' font-size='60' text-anchor='middle'>📺</text></svg>">
+
+    <link rel="stylesheet" href="assets/css/tailwind.min.css">
+    <link rel="stylesheet" href="assets/css/custom.css">
+    <script src="assets/js/bridge.js"></script>
+    <script src="assets/js/remote.js"></script>
+    <script src="assets/js/dataService.js"></script>
+    <script src="assets/js/languagesData.js"></script>
+    <script src="assets/js/menuData.js"></script>
+    <script src="assets/js/applications.js"></script>
+    <script src="assets/js/screenCast.js"></script>
+    <script src="assets/js/weather.js"></script>
+    <script src="assets/js/inputController.js"></script>
+    <script src="assets/js/settingsController.js"></script>
+    <script src="assets/js/flights.js"></script>
+    <script src="assets/js/app.js"></script>
+    <script defer src="assets/js/alpine.min.js"></script>
+
+    <script>
+        // Strict TV Kiosk Canvas Lock: Block all browser zoom keyboard shortcuts & mouse gestures
+        (function() {
+            function blockBrowserZoom(e) {
+                if (e.ctrlKey || e.metaKey) {
+                    var k = e.key;
+                    var c = e.code;
+                    if (
+                        k === '+' || k === '=' || k === '-' || k === '_' || k === '0' ||
+                        c === 'NumpadAdd' || c === 'NumpadSubtract' || c === 'Equal' || c === 'Minus' || c === 'Digit0'
+                    ) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.stopImmediatePropagation();
+                        return false;
+                    }
+                }
+            }
+            window.addEventListener('keydown', blockBrowserZoom, { capture: true, passive: false });
+            window.addEventListener('wheel', function(e) {
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    return false;
+                }
+            }, { capture: true, passive: false });
+            document.addEventListener('gesturestart', function(e) { e.preventDefault(); }, { passive: false });
+            document.addEventListener('gesturechange', function(e) { e.preventDefault(); }, { passive: false });
+            document.addEventListener('gestureend', function(e) { e.preventDefault(); }, { passive: false });
+        })();
+
+        function scaleCanvas() {
+            var canvas = document.getElementById('tv-canvas');
+            if (!canvas) return;
+            var targetW = 1920;
+            var targetH = 1080;
+            var scale = Math.min(window.innerWidth / targetW, window.innerHeight / targetH);
+            canvas.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
+        }
+        window.addEventListener('resize', scaleCanvas);
+        window.addEventListener('orientationchange', scaleCanvas);
+        window.addEventListener('fullscreenchange', scaleCanvas);
+        window.addEventListener('DOMContentLoaded', scaleCanvas);
+    </script>
+</head>
+
+<body class="bg-black select-none overflow-hidden m-0 p-0 font-sans" x-data="tvApp()" x-init="init()">
+
+    <div id="tv-canvas" class="relative text-white font-sans overflow-hidden bg-black flex flex-col justify-between"
+         @keydown.window="handleGlobalKeys($event)">
+
+        <div class="absolute inset-0 bg-black z-50 pointer-events-none transition-opacity duration-1000 ease-out"
+             :class="isLoaded ? 'opacity-0' : 'opacity-100'"
+             style="will-change: opacity;">
+        </div>
+
+        <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+            <template x-for="(img, index) in sliderImages" :key="index">
+                <div class="absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-in-out"
+                     :style="{ backgroundImage: 'url(' + img + ')' }"
+                     :class="activeSlideIndex === index ? 'opacity-100 scale-100' : 'opacity-0 scale-105'"
+                     style="will-change: opacity, transform;">
+                </div>
+            </template>
+            <div class="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60"></div>
+        </div>
+
+        <!-- Top Header Component -->
+        <div class="w-full relative z-30">
+<header class="w-full px-16 pt-10 pb-4 flex items-center justify-between z-30 select-none relative font-sans">
+
+    <!-- LEFT: Time/Date (Home) OR Back Button (Sub-Pages) -->
+    <div class="flex flex-col items-start min-w-[320px]">
+        <template x-if="currentView === 'home'">
+            <div class="flex flex-col items-start">
+                <div class="text-3xl font-extrabold text-white tracking-wide drop-shadow-lg leading-none">
+                    <span x-text="timeStr">--:-- --</span>
+                </div>
+                <div class="text-3xl font-extrabold text-white tracking-wide drop-shadow-lg mt-3 leading-none">
+                    <span x-text="dateStr">-- --- ----</span>
+                </div>
+            </div>
+        </template>
+
+        <!-- Compact Pill Back Button on Sub-Pages -->
+        <template x-if="currentView !== 'home'">
+            <button id="tv-header-back-btn"
+                    tabindex="0"
+                    @click="goBack()"
+                    @focus="onHeaderBackFocus()"
+                    @keydown.down="onHeaderBackDown($event)"
+                    class="group flex items-center justify-center space-x-2 px-5 py-2 rounded-full bg-black/80 border border-amber-500/50 text-slate-200 hover:bg-amber-400 hover:border-amber-400 hover:text-black hover:shadow-[0_0_15px_rgba(255,199,0,0.6)] focus:bg-amber-400 focus:border-amber-400 focus:text-black focus:shadow-[0_0_20px_rgba(255,199,0,0.8)] focus:scale-105 transition-all duration-300 outline-none cursor-pointer backdrop-blur-md">
+                <span class="text-xl font-black leading-none">←</span>
+                <span class="text-lg font-bold tracking-widest uppercase leading-none" 
+                      x-text="t('back', t('previous', 'BACK')).toUpperCase()">BACK</span>
+            </button>
+        </template>
+    </div>
+
+    <!-- MIDDLE: Centered Hotel Logo (Always Visible on all pages) -->
+    <div class="flex items-center justify-center flex-1 px-8">
+        <template x-if="hotelLogo">
+            <img :src="hotelLogo" alt="Hotel Logo" 
+                 loading="lazy" decoding="async"
+                 class="max-h-24 max-w-[360px] w-auto object-contain filter drop-shadow-2xl transition-all duration-500"
+                 onerror="this.style.display='none'">
+        </template>
+    </div>
+
+    <!-- RIGHT: Room Number & Weather (Visible on Home Page) -->
+    <div class="flex flex-col items-end min-w-[320px] text-right">
+        <template x-if="currentView === 'home'">
+            <div class="flex flex-col items-end">
+                <div class="text-3xl font-extrabold text-white tracking-wide drop-shadow-lg leading-none">
+                    <span class="mr-2" x-text="t('room_label', 'Room')">Room</span><span class="text-amber-400 font-black" x-text="roomNo || '----'">----</span>
+                </div>
+                <template x-if="weatherStr">
+                    <div class="text-3xl font-extrabold text-white tracking-wide drop-shadow-lg mt-3 leading-none">
+                        <span x-text="weatherStr"></span>
+                    </div>
+                </template>
+            </div>
+        </template>
+    </div>
+
+</header>
+        </div>
+
+        <!-- Home Greeting Component -->
+        <div x-show="currentView === 'home'" 
+             x-cloak
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             class="w-full relative z-20">
+<div class="w-full flex flex-col items-center justify-center text-center select-none py-6 z-20">
+    <h2 class="text-4xl font-bold text-white tracking-wide drop-shadow-[0_4px_16px_rgba(0,0,0,0.95)]">
+        <span x-text="greetingStr">Good Afternoon, Guest</span>
+    </h2>
+</div>
+        </div>
+
+        <!-- Shared Info Panel Component (Hotel Info, Room Info, Amenities, Our City) -->
+<!-- ============================================================
+     HOTEL LUXURY TV TEMPLATE v2.0.1 - DYNAMIC INFO PANEL
+     Dynamically renders hotel_info, room_info, amenities, and our_city
+     ============================================================ -->
+<div x-cloak x-show="['hotel_info', 'room_info', 'amenities', 'our_city', 'ourcity'].includes(currentView)"
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0 scale-95"
+     x-transition:enter-end="opacity-100 scale-100"
+     class="w-full flex-1 flex flex-col items-center justify-start px-14 pb-8 select-none relative z-20 font-sans">
+
+    <!-- Centered Golden Page Title -->
+    <div class="mb-5 text-center">
+        <h1 class="text-[36px] font-black uppercase tracking-[0.25em] text-amber-400 drop-shadow-[0_3px_14px_rgba(0,0,0,0.95)]"
+            x-text="getInfoPanelTitle()"></h1>
+    </div>
+
+    <!-- 2-Column Info Panel Container (1640px Max Width) -->
+    <div class="w-full max-w-[1640px] flex-1 flex gap-7 items-stretch max-h-[750px]">
+
+        <!-- LEFT COLUMN: Title Card + Image Slider Card -->
+        <div class="flex-[2.6] flex flex-col gap-5 h-full">
+
+            <!-- Title Card -->
+            <div class="flex items-center gap-5 px-7 py-4 rounded-2xl bg-black/85 border-2 border-amber-500/60 shadow-[0_8px_25px_rgba(0,0,0,0.7),inset_0_0_15px_rgba(179,138,45,0.15)] backdrop-blur-md">
+                <div class="px-4 py-1.5 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-black font-black text-2xl tracking-wider shadow-[0_2px_10px_rgba(212,175,55,0.5)] flex-shrink-0"
+                     x-text="String(infoSlideIndex + 1).padStart(2, '0')">01</div>
+                <h2 class="text-[32px] font-extrabold text-white tracking-wide truncate drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]"
+                    x-text="getCurrentInfoItem().title || 'Information'"></h2>
+            </div>
+
+            <!-- Image Slider Card -->
+            <div class="flex-1 relative rounded-2xl border-2 border-amber-500/60 bg-gradient-to-br from-[#1c1c1c] via-[#0f0f0f] to-black overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.8),0_0_20px_rgba(179,138,45,0.15)] flex items-center justify-center">
+                <!-- Slides Crossfade -->
+                <template x-for="(img, idx) in getInfoImages()" :key="idx">
+                    <div class="absolute inset-0 w-full h-full bg-gradient-to-br from-[#1c1c1c] via-[#0f0f0f] to-black transition-opacity duration-700 ease-in-out flex items-center justify-center"
+                         :class="infoSlideIndex === idx ? 'opacity-100' : 'opacity-0'">
+                        <template x-if="img">
+                            <img :src="img" 
+                                 :alt="getCurrentInfoItem().title"
+                                 loading="lazy" decoding="async"
+                                 class="w-full h-full object-cover transition-opacity duration-500 ease-out"
+                                 @error="$el.style.display='none'">
+                        </template>
+                        <div x-show="!img" class="flex flex-col items-center justify-center p-8 text-center space-y-3">
+                            <div class="w-20 h-20 rounded-full bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center text-3xl text-amber-400 font-bold"
+                                 x-text="['our_city', 'ourcity'].includes(currentView) ? '🏙️' : '🏨'">
+                            </div>
+                            <span class="text-amber-400 font-bold text-2xl" x-text="getCurrentInfoItem().title || ''"></span>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Navigation Prev / Next Arrows -->
+                <button @click="changeInfoSlide(-1)"
+                        tabindex="0"
+                        class="absolute left-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-black/60 hover:bg-amber-400 hover:text-black text-white border border-white/20 flex items-center justify-center backdrop-blur-md shadow-xl transition-all duration-200 cursor-pointer z-30 group hover:scale-110 outline-none">
+                    <span class="text-3xl font-bold -translate-x-0.5 group-hover:text-black leading-none">‹</span>
+                </button>
+                <button @click="changeInfoSlide(1)"
+                        tabindex="0"
+                        class="absolute right-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-black/60 hover:bg-amber-400 hover:text-black text-white border border-white/20 flex items-center justify-center backdrop-blur-md shadow-xl transition-all duration-200 cursor-pointer z-30 group hover:scale-110 outline-none">
+                    <span class="text-3xl font-bold translate-x-0.5 group-hover:text-black leading-none">›</span>
+                </button>
+
+                <!-- Slide Dots -->
+                <div class="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2.5 px-5 py-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10 z-30">
+                    <template x-for="(img, idx) in getInfoImages()" :key="idx">
+                        <div class="h-3 rounded-full transition-all duration-300 cursor-pointer"
+                             @click="infoSlideIndex = idx"
+                             :class="infoSlideIndex === idx ? 'w-8 bg-amber-400 shadow-[0_0_10px_rgba(255,215,0,0.9)]' : 'w-3 bg-white/40'"></div>
+                    </template>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- RIGHT COLUMN: Details & Specifications / Features -->
+        <div class="flex-[1.4] flex flex-col rounded-2xl border-2 border-amber-500/60 bg-gradient-to-br from-[#121212]/95 to-[#080808]/95 p-9 shadow-[0_10px_30px_rgba(0,0,0,0.8),inset_0_0_15px_rgba(179,138,45,0.15)] backdrop-blur-md justify-start space-y-5 overflow-hidden">
+            
+            <!-- Header with Counter Badge (No Overlap, Clean Single Line) -->
+            <div class="flex items-center justify-between border-b-2 border-amber-500/30 pb-4 flex-shrink-0 gap-4">
+                <span class="text-2xl font-black tracking-wider text-amber-400 uppercase whitespace-nowrap drop-shadow-sm"
+                      x-text="['our_city', 'ourcity'].includes(currentView) ? t('icons.our_city', 'CITY GUIDE') : currentView === 'hotel_info' ? t('icons.hotel_info', 'ABOUT HOTEL') : currentView === 'room_info' ? t('icons.rooms', 'FEATURE DETAILS') : t('icons.amenities', 'DESCRIPTION')"></span>
+                
+                <span class="text-base font-black text-amber-300 bg-amber-500/20 px-4 py-1.5 rounded-full border border-amber-500/40 tracking-wider shadow-sm whitespace-nowrap min-w-[75px] text-center flex-shrink-0"
+                      x-text="`${infoSlideIndex + 1} / ${getInfoImages().length || 1}`"></span>
+            </div>
+
+            <!-- Location if Hotel Info -->
+            <template x-if="currentView === 'hotel_info' && (hotelData.hotel ? hotelData.hotel.hotel_location : "")">
+                <div class="text-amber-300 text-[22px] font-bold leading-snug flex-shrink-0"
+                     x-text="(hotelData.hotel ? hotelData.hotel.hotel_location : "")"></div>
+            </template>
+
+            <!-- Description & Features Scroll Container (Smooth Remote Scrolling via DOWN / UP Arrows) -->
+            <div id="info-description-scroll" class="flex-1 overflow-y-auto pr-3 select-text space-y-5 scrollbar-none" style="scrollbar-width: none; scroll-behavior: smooth;">
+                <p class="text-slate-100 text-[24px] leading-[1.65] font-normal"
+                   x-text="getCurrentInfoItem().description || 'No description available.'"></p>
+
+                <!-- Dynamic Features Pill Tags for Hotel Info (from data.json) -->
+                <template x-if="currentView === 'hotel_info' && getCurrentInfoItem().features && getCurrentInfoItem().features.length > 0">
+                    <div class="pt-5 border-t border-amber-500/20">
+                        <div class="text-xl font-black uppercase tracking-wider text-amber-400 mb-3.5 flex items-center gap-2">
+                            <span>✨ Features &amp; Highlights</span>
+                        </div>
+                        <div class="flex flex-wrap gap-3">
+                            <template x-for="(feat, fIdx) in getCurrentInfoItem().features" :key="fIdx">
+                                <span class="px-5 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 text-lg font-bold uppercase tracking-wider shadow-md hover:bg-amber-500/30 transition"
+                                      x-text="feat"></span>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Dynamic Specifications Pill Tags for Room Info (from data.json) -->
+                <template x-if="currentView === 'room_info' && getCurrentInfoItem().specifications && getCurrentInfoItem().specifications.length > 0">
+                    <div class="pt-5 border-t border-amber-500/20">
+                        <div class="text-xl font-black uppercase tracking-wider text-amber-400 mb-3.5 flex items-center gap-2">
+                            <span>🔑 Specifications</span>
+                        </div>
+                        <div class="flex flex-wrap gap-3">
+                            <template x-for="(spec, sIdx) in getCurrentInfoItem().specifications" :key="sIdx">
+                                <span class="px-5 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 text-lg font-bold uppercase tracking-wider shadow-md hover:bg-amber-500/30 transition"
+                                      x-text="spec"></span>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Dynamic Attractions Pill Tags for Our City (from data.json) -->
+                <template x-if="['our_city', 'ourcity'].includes(currentView) && getCurrentInfoItem().attractions && getCurrentInfoItem().attractions.length > 0">
+                    <div class="pt-5 border-t border-amber-500/20">
+                        <div class="text-xl font-black uppercase tracking-wider text-amber-400 mb-3.5 flex items-center gap-2">
+                            <span>📍 Attractions &amp; Highlights</span>
+                        </div>
+                        <div class="flex flex-wrap gap-3">
+                            <template x-for="(attr, aIdx) in getCurrentInfoItem().attractions" :key="aIdx">
+                                <span class="px-5 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 text-lg font-bold uppercase tracking-wider shadow-md hover:bg-amber-500/30 transition"
+                                      x-text="attr"></span>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Bottom Subtle Remote Hint Bar (No Clutter, Clean Placement) -->
+    <div class="mt-4 flex items-center gap-6 px-7 py-2 rounded-full bg-black/70 border border-amber-500/30 backdrop-blur-md shadow-lg">
+        <span class="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
+            <span class="text-amber-400 font-extrabold text-sm">▲</span> Focus Back
+        </span>
+        <span class="text-amber-500/50 font-bold">•</span>
+        <span class="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
+            <span class="text-amber-400 font-extrabold text-sm">◄ ►</span> Switch Slide
+        </span>
+        <span class="text-amber-500/50 font-bold">•</span>
+        <span class="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
+            <span class="text-amber-400 font-extrabold text-sm">▼</span> Scroll Content
+        </span>
+    </div>
+
+</div>
+
+        <!-- Languages Component -->
+<!-- ============================================================
+     HOTEL LUXURY TV TEMPLATE v2.0.1 - LANGUAGES COMPONENT
+     Full 21-Language Grid with Universal D-Pad Remote Navigation
+     ============================================================ -->
+<div x-cloak x-show="['language', 'languages'].includes(currentView)"
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0 scale-95"
+     x-transition:enter-end="opacity-100 scale-100"
+     class="w-full flex-1 flex flex-col items-center justify-start px-12 pt-10 pb-3 select-none relative z-20 font-sans">
+
+    <!-- Centered Luxury Modal Container (1540px Large TV Width) -->
+    <div class="w-full max-w-[1540px] rounded-3xl border-2 border-amber-500/60 bg-gradient-to-br from-[#121212]/95 via-[#0a0a0a]/95 to-black/95 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.95),inset_0_0_25px_rgba(179,138,45,0.15)] backdrop-blur-2xl flex flex-col justify-between overflow-hidden">
+
+        <!-- Top Header Bar -->
+        <div class="flex items-center gap-4 pb-3 border-b border-amber-500/30 flex-shrink-0">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/25 to-amber-600/15 border-2 border-amber-500/70 flex items-center justify-center text-2xl text-amber-400 shadow-[0_0_15px_rgba(179,138,45,0.35)] p-2">
+                🌐
+            </div>
+            <div>
+                <h1 class="text-2xl font-black uppercase tracking-[0.18em] text-amber-400 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]"
+                    x-text="t('icons.language', 'SELECT LANGUAGE').toUpperCase()">
+                    SELECT LANGUAGE
+                </h1>
+                <p class="text-sm font-semibold text-slate-300 tracking-wide">
+                    Choose your preferred system language
+                </p>
+            </div>
+        </div>
+
+        <!-- 3-Column Languages Grid (Fits all 21 items directly on 1 screen without scrolling) -->
+        <div id="languages-grid-container" 
+             class="grid grid-cols-3 gap-x-6 gap-y-2.5 my-2.5 p-2 overflow-visible">
+
+            <template x-for="(lang, idx) in availableLanguages" :key="lang.file">
+                <div @click="selectLanguage(lang.file, idx)"
+                     @mouseenter="activeLangFocusIndex = idx"
+                     tabindex="0"
+                     :id="`lang_item_${idx}`"
+                     @focus="activeLangFocusIndex = idx"
+                     class="h-[62px] px-5 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 outline-none border text-left group"
+                     :class="{
+                         'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 border-white text-black shadow-[0_0_25px_rgba(255,215,0,0.95),0_6px_15px_rgba(0,0,0,0.9)] scale-[1.02] z-30 font-black ring-2 ring-amber-300': activeLangFocusIndex === idx,
+                         'bg-amber-500/15 border-amber-500/70 text-white shadow-sm': selectedLangFile === lang.file && activeLangFocusIndex !== idx,
+                         'bg-white/[0.04] border-white/10 text-white hover:border-amber-500/50 hover:bg-white/[0.08]': selectedLangFile !== lang.file && activeLangFocusIndex !== idx
+                     }">
+
+                    <!-- Left: Radio Circle + Native Language Name -->
+                    <div class="flex items-center gap-3.5 overflow-hidden">
+                        <!-- Custom Radio Circle -->
+                        <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors duration-200"
+                             :class="{
+                                 'border-black': activeLangFocusIndex === idx,
+                                 'border-amber-400': selectedLangFile === lang.file && activeLangFocusIndex !== idx,
+                                 'border-white/30': selectedLangFile !== lang.file && activeLangFocusIndex !== idx
+                             }">
+                            <div class="w-2.5 h-2.5 rounded-full transition-transform duration-200"
+                                 :class="{
+                                     'bg-black scale-100': activeLangFocusIndex === idx && selectedLangFile === lang.file,
+                                     'bg-black/50 scale-75': activeLangFocusIndex === idx && selectedLangFile !== lang.file,
+                                     'bg-amber-400 scale-100': selectedLangFile === lang.file && activeLangFocusIndex !== idx,
+                                     'scale-0': selectedLangFile !== lang.file && activeLangFocusIndex !== idx
+                                 }"></div>
+                        </div>
+
+                        <!-- Language Name in Native Script (Large & Clear) -->
+                        <span class="text-[21px] tracking-wide truncate"
+                              :class="activeLangFocusIndex === idx ? 'text-black font-black' : 'text-slate-100 font-bold'"
+                              x-text="lang.name"></span>
+                    </div>
+
+                    <!-- Right: Language ISO Badge -->
+                    <span class="px-2.5 py-0.5 rounded-md text-xs font-black tracking-wider uppercase flex-shrink-0 transition-colors duration-200"
+                          :class="{
+                              'bg-black/25 text-black font-black': activeLangFocusIndex === idx,
+                              'bg-amber-500/20 text-amber-300 border border-amber-500/40': selectedLangFile === lang.file && activeLangFocusIndex !== idx,
+                              'bg-black/50 text-slate-400 border border-white/5': selectedLangFile !== lang.file && activeLangFocusIndex !== idx
+                          }"
+                          x-text="lang.code"></span>
+                </div>
+            </template>
+
+        </div>
+
+        <!-- Bottom Action Buttons Bar -->
+        <div class="flex items-center justify-end gap-4 pt-3 border-t border-amber-500/30 flex-shrink-0">
+            <!-- Apply & Continue Button -->
+            <button id="lang-btn-apply"
+                    @click="applyLanguage()"
+                    @mouseenter="activeLangFocusIndex = 'apply'"
+                    @focus="activeLangFocusIndex = 'apply'"
+                    tabindex="0"
+                    class="flex items-center gap-2.5 px-8 py-2.5 rounded-2xl font-black text-base tracking-wide uppercase transition-all duration-200 outline-none cursor-pointer border-2"
+                    :class="activeLangFocusIndex === 'apply' 
+                        ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 border-white text-black shadow-[0_0_30px_rgba(255,215,0,0.95)] scale-105 ring-2 ring-amber-300' 
+                        : 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30'">
+                <span class="text-lg leading-none">✓</span>
+                <span x-text="t('apply_continue', 'Apply & Continue')">Apply &amp; Continue</span>
+            </button>
+
+            <!-- Cancel / Back Button -->
+            <button id="lang-btn-cancel"
+                    @click="goBack()"
+                    @mouseenter="activeLangFocusIndex = 'cancel'"
+                    @focus="activeLangFocusIndex = 'cancel'"
+                    tabindex="0"
+                    class="flex items-center gap-2.5 px-8 py-2.5 rounded-2xl font-black text-base tracking-wide uppercase transition-all duration-200 outline-none cursor-pointer border-2"
+                    :class="activeLangFocusIndex === 'cancel' 
+                        ? 'bg-white text-black border-white shadow-[0_0_25px_rgba(255,255,255,0.85)] scale-105' 
+                        : 'bg-white/[0.06] border-white/20 text-white hover:bg-white/[0.12]'">
+                <span class="text-lg leading-none">✕</span>
+                <span x-text="t('back', t('previous', 'Back'))">Back</span>
+            </button>
+        </div>
+
+    </div>
+
+    <!-- Bottom Subtle Remote Hint Bar -->
+    <div class="mt-3 flex items-center gap-6 px-7 py-1.5 rounded-full bg-black/70 border border-amber-500/30 backdrop-blur-md shadow-lg flex-shrink-0">
+        <span class="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
+            <span class="text-amber-400 font-extrabold text-sm">▲ ▼ ◄ ►</span> Navigate
+        </span>
+        <span class="text-amber-500/50 font-bold">•</span>
+        <span class="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
+            <span class="text-amber-400 font-extrabold text-sm">OK</span> Select
+        </span>
+        <span class="text-amber-500/50 font-bold">•</span>
+        <span class="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
+            <span class="text-amber-400 font-extrabold text-sm">▼</span> Jump to Apply
+        </span>
+        <span class="text-amber-500/50 font-bold">•</span>
+        <span class="text-xs font-bold text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
+            <span class="text-amber-400 font-extrabold text-sm">BACK</span> Exit
+        </span>
+    </div>
+
+</div>
+
+        <!-- Applications / OTT Apps Screen -->
+<!-- ============================================================
+     HOTEL LUXURY TV TEMPLATE v2.0.1 - APPLICATIONS COMPONENT
+     Smart TV OTT Applications Grid with Flutter Native Bridge
+     ============================================================ -->
+<div x-cloak x-show="['apps', 'applications'].includes(currentView)"
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0 scale-95"
+     x-transition:enter-end="opacity-100 scale-100"
+     class="w-full flex-1 flex flex-col items-center justify-start px-12 pt-8 pb-4 select-none relative z-20 font-sans">
+
+    <!-- Centered Luxury Modal Container (1560px Wide TV Canvas) -->
+    <div class="w-full max-w-[1560px] max-h-[820px] rounded-3xl border-2 border-amber-500/60 bg-gradient-to-br from-[#121212]/95 via-[#0c0c0c]/95 to-black/95 p-7 shadow-[0_25px_70px_rgba(0,0,0,0.95),inset_0_0_25px_rgba(179,138,45,0.15)] backdrop-blur-2xl flex flex-col justify-between overflow-hidden">
+
+        <!-- Top Header Bar -->
+        <div class="flex items-center justify-between pb-4 border-b border-amber-500/30 flex-shrink-0">
+            <div class="flex items-center gap-4">
+                <div class="w-13 h-13 rounded-2xl bg-gradient-to-br from-amber-500/30 to-amber-600/15 border-2 border-amber-500/70 flex items-center justify-center text-3xl text-amber-400 shadow-[0_0_20px_rgba(179,138,45,0.4)] p-2">
+                    📱
+                </div>
+                <div>
+                    <h1 class="text-3xl font-black uppercase tracking-[0.16em] text-amber-400 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]"
+                        x-text="t('icons.applications', t('icons.apps', 'APPLICATIONS')).toUpperCase()">
+                        APPLICATIONS
+                    </h1>
+                    <p class="text-sm font-semibold text-slate-300 tracking-wide mt-0.5"
+                       x-text="t('apps_subtitle', 'Launch streaming apps & entertainment channels on your TV')">
+                        Launch streaming apps & entertainment channels on your TV
+                    </p>
+                </div>
+            </div>
+
+            <!-- Apps Counter & Remote Instructions Badge -->
+            <div class="flex items-center gap-3">
+                <div class="px-4 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/50 text-amber-300 text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-sm">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span x-text="getActiveOttList().length + ' ' + t('apps_count', 'Apps Available')"></span>
+                </div>
+                <div class="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 font-semibold px-3 py-1 bg-white/5 rounded-lg border border-white/10">
+                    <span>Use</span>
+                    <span class="px-1.5 py-0.5 rounded bg-black/80 border border-white/20 text-white font-mono text-[10px]">▲ ▼ ◄ ►</span>
+                    <span>to navigate &</span>
+                    <span class="px-2 py-0.5 rounded bg-amber-500/30 border border-amber-400 text-amber-300 font-bold text-[10px]">OK</span>
+                    <span>to Launch</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5-Column Applications Grid (Scrollbar Hidden with no-scrollbar, Extra Padding to Prevent Clipping) -->
+        <div id="apps-grid-container" 
+             class="grid grid-cols-5 gap-6 my-3 p-6 overflow-y-auto max-h-[580px] no-scrollbar">
+
+            <template x-for="(app, idx) in getActiveOttList()" :key="app.id || idx">
+                <div @click="launchApp(app)"
+                     @mouseenter="activeAppFocusIndex = idx; lastAppCardIndex = idx; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                     tabindex="0"
+                     :id="`app_card_${idx}`"
+                     @focus="activeAppFocusIndex = idx; lastAppCardIndex = idx; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                     class="h-52 rounded-2xl flex flex-col items-center justify-between p-4 cursor-pointer transition-all duration-300 outline-none border text-center relative group select-none"
+                     :class="{
+                         'bg-gradient-to-b from-amber-500/25 via-[#181818] to-black border-2 border-amber-400 shadow-[0_0_35px_rgba(255,215,0,0.7),0_12px_28px_rgba(0,0,0,0.95)] scale-[1.05] z-30 ring-2 ring-amber-300': activeAppFocusIndex === idx,
+                         'bg-white/[0.04] border border-white/10 hover:border-amber-500/50 hover:bg-white/[0.08] hover:scale-[1.02]': activeAppFocusIndex !== idx
+                     }">
+
+                    <!-- Glow overlay inside card when active -->
+                    <div x-show="activeAppFocusIndex === idx" 
+                         class="absolute inset-0 bg-gradient-to-t from-amber-500/20 via-transparent to-transparent pointer-events-none rounded-2xl"></div>
+
+                    <!-- Centered Uniform Square Icon Box with Slight Border Radius -->
+                    <div class="w-full flex-1 flex items-center justify-center pt-1 pb-2 relative z-10">
+                        <div class="w-24 h-24 rounded-2xl flex items-center justify-center p-3 overflow-hidden transition-all duration-300 relative shadow-md"
+                             :class="getAppBoxClass(app, activeAppFocusIndex === idx)">
+
+                            <!-- App Icon Image (if available) -->
+                            <template x-if="getAppIcon(app)">
+                                <img :src="getAppIcon(app)"
+                                     :alt="app.name"
+                                     loading="lazy"
+                                     decoding="async"
+                                     class="w-full h-full object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)] transition-transform duration-300"
+                                     :class="activeAppFocusIndex === idx ? 'scale-110' : 'scale-100'">
+                            </template>
+
+                            <!-- Clean Brand Acronym if image is not available (Zero fallback image principle) -->
+                            <template x-if="!getAppIcon(app)">
+                                <span class="font-black text-2xl tracking-wider transition-transform duration-300"
+                                      :class="activeAppFocusIndex === idx ? 'scale-110 drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]' : 'scale-100'"
+                                      x-text="getAppInitials(app.name)">
+                                </span>
+                            </template>
+
+                        </div>
+                    </div>
+
+                    <!-- App Name & Status Indicator -->
+                    <div class="w-full pt-2 border-t border-white/10 relative z-10 flex flex-col items-center flex-shrink-0">
+                        <h3 class="text-sm sm:text-base font-extrabold tracking-wide truncate max-w-full transition-colors duration-200"
+                            :class="activeAppFocusIndex === idx ? 'text-amber-300 drop-shadow-[0_2px_8px_rgba(255,215,0,0.6)]' : 'text-slate-200'"
+                            x-text="app.name">
+                        </h3>
+                        <div class="flex items-center gap-1.5 mt-0.5">
+                            <span class="w-1.5 h-1.5 rounded-full" 
+                                  :class="activeAppFocusIndex === idx ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'"></span>
+                            <span class="text-[10px] font-bold uppercase tracking-wider"
+                                  :class="activeAppFocusIndex === idx ? 'text-amber-200' : 'text-slate-400'"
+                                  x-text="t('app_ready', 'Open App')">
+                            </span>
+                        </div>
+                    </div>
+
+                </div>
+            </template>
+
+        </div>
+
+        <!-- Bottom Action Bar (Clear & Concise) -->
+        <div class="flex items-center justify-between pt-3 border-t border-amber-500/25 flex-shrink-0">
+            <p class="text-xs text-slate-400 font-medium tracking-wide">
+                Press <span class="text-amber-400 font-bold">BACK</span> on TV remote to return to Home screen
+            </p>
+            <div class="flex items-center gap-2 text-xs text-slate-400 font-semibold">
+                <span>Select app with</span>
+                <span class="px-2 py-0.5 rounded bg-amber-500/30 border border-amber-400 text-amber-300 font-bold text-[10px]">OK</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Floating Luxury Toast Notification for Launch Feedback -->
+    <div x-show="toastMessage"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 translate-y-6 scale-90"
+         x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+         x-transition:leave-end="opacity-0 translate-y-6 scale-90"
+         class="fixed bottom-12 z-50 px-8 py-4 rounded-2xl bg-black/95 border-2 border-amber-400 shadow-[0_15px_50px_rgba(0,0,0,0.95),0_0_30px_rgba(255,215,0,0.6)] backdrop-blur-2xl flex items-center gap-4 text-white font-bold text-lg">
+        <span class="text-2xl animate-spin">⚡</span>
+        <span x-text="toastMessage"></span>
+    </div>
+
+</div>
+
+        <!-- Screen Cast Screen -->
+        <div x-show="['screen_cast', 'cast'].includes(currentView)"
+             x-cloak
+             class="w-full flex-1 flex flex-col items-center justify-center">
+<div class="flex-1 flex flex-col items-center justify-center px-12 py-2 select-none relative z-20 font-sans w-full max-w-6xl mx-auto">
+
+    <!-- Luxury TV Glass Card Container -->
+    <div class="w-full bg-[#121214]/90 backdrop-blur-2xl border-2 border-amber-500/35 rounded-3xl p-6 sm:p-7 max-h-[820px] shadow-[0_20px_60px_rgba(0,0,0,0.9),0_0_40px_rgba(255,215,0,0.15)] flex flex-col items-center text-center relative overflow-hidden">
+
+        <!-- Ambient Golden Glow in background -->
+        <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <!-- Animated Cast Icon -->
+        <div class="relative z-10 mb-3">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 via-[#1e1a12] to-black border-2 border-amber-400/60 flex items-center justify-center shadow-[0_0_30px_rgba(255,215,0,0.4)]">
+                <!-- SVG Cast Wireless Icon -->
+                <svg class="w-8 h-8 text-amber-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+            </div>
+        </div>
+
+        <!-- Title & Subtitle -->
+        <div class="relative z-10">
+            <h2 class="text-2xl sm:text-3xl font-black text-amber-400 tracking-wider uppercase drop-shadow-[0_2px_10px_rgba(255,215,0,0.5)]"
+                x-text="t('icons.screen_cast', 'WIRELESS SCREEN CAST').toUpperCase()">
+                WIRELESS SCREEN CAST
+            </h2>
+            <p class="text-slate-300 text-xs sm:text-sm mt-1 max-w-2xl font-medium tracking-wide"
+               x-text="t('cast_desc', 'Connect your mobile device to the hotel Wi-Fi and cast videos, photos, or presentations directly to this TV.')">
+                Connect your mobile device to the hotel Wi-Fi and cast videos, photos, or presentations directly to this TV.
+            </p>
+        </div>
+
+        <!-- PROMINENT TARGET TV DEVICE NAME BOX (Core Request) -->
+        <div class="w-full max-w-2xl my-4 p-4 rounded-2xl bg-gradient-to-r from-black/90 via-[#1c1810] to-black/90 border-2 border-amber-400/80 shadow-[0_0_35px_rgba(255,215,0,0.3)] relative z-10 flex items-center justify-between">
+            <div class="flex items-center gap-4 text-left">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-black flex items-center justify-center font-black text-2xl shadow-lg flex-shrink-0">
+                    📺
+                </div>
+                <div>
+                    <span class="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 block">
+                        Target TV Device Name
+                    </span>
+                    <span class="text-2xl font-black text-amber-300 tracking-wide drop-shadow-[0_2px_8px_rgba(255,215,0,0.5)]"
+                          x-text="getCastDeviceName()">
+                        Hotel TV
+                    </span>
+                </div>
+            </div>
+
+            <!-- Ready Status Indicator -->
+            <div class="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs font-black tracking-wider flex-shrink-0">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                <span>READY TO CONNECT</span>
+            </div>
+        </div>
+
+        <!-- Two Column Instruction Panels (Android / Windows & Apple iOS) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl relative z-10 text-left my-2">
+
+            <!-- Card 1: Android & Windows -->
+            <div class="p-5 rounded-2xl bg-white/[0.04] border border-white/10 hover:border-amber-500/40 transition-colors">
+                <div class="flex items-center gap-2.5 mb-3">
+                    <span class="text-xl">🤖</span>
+                    <h3 class="text-base font-extrabold text-white tracking-wide">
+                        Android & Windows
+                    </h3>
+                </div>
+                <ul class="space-y-2 text-xs text-slate-300 font-medium leading-relaxed">
+                    <li class="flex items-start gap-2">
+                        <span class="text-amber-400 font-bold">1.</span>
+                        <span>Ensure your device is connected to the hotel Wi-Fi network.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-amber-400 font-bold">2.</span>
+                        <span>Swipe down to open Quick Settings panel.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-amber-400 font-bold">3.</span>
+                        <span>Tap <strong class="text-white">Cast</strong> / <strong class="text-white">Smart View</strong> / <strong class="text-white">Wireless Display</strong>.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-amber-400 font-bold">4.</span>
+                        <span>Select <strong class="text-amber-300" x-text="getCastDeviceName()">Hotel TV</strong> to start mirroring.</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Card 2: Apple iOS & macOS -->
+            <div class="p-5 rounded-2xl bg-white/[0.04] border border-white/10 hover:border-amber-500/40 transition-colors">
+                <div class="flex items-center gap-2.5 mb-3">
+                    <span class="text-xl">🍎</span>
+                    <h3 class="text-base font-extrabold text-white tracking-wide">
+                        Apple iPhone, iPad & Mac
+                    </h3>
+                </div>
+                <ul class="space-y-2 text-xs text-slate-300 font-medium leading-relaxed">
+                    <li class="flex items-start gap-2">
+                        <span class="text-amber-400 font-bold">1.</span>
+                        <span>Connect to the same hotel Wi-Fi network as this TV.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-amber-400 font-bold">2.</span>
+                        <span>Swipe down from top-right to open <strong class="text-white">Control Center</strong>.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-amber-400 font-bold">3.</span>
+                        <span>Tap <strong class="text-white">Screen Mirroring</strong> (<span class="font-bold">AirPlay</span>).</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-amber-400 font-bold">4.</span>
+                        <span>Choose <strong class="text-amber-300" x-text="getCastDeviceName()">Hotel TV</strong> to project your screen.</span>
+                    </li>
+                </ul>
+            </div>
+
+        </div>
+
+        <!-- Bottom Status Bar -->
+        <div class="w-full pt-4 mt-2 border-t border-amber-500/25 flex items-center justify-between text-xs text-slate-400 relative z-10">
+            <p class="font-medium tracking-wide">
+                Press <span class="text-amber-400 font-bold">BACK</span> on TV remote to return to Home screen
+            </p>
+            <div class="flex items-center gap-3">
+                <template x-if="(hotelData && hotelData.device && hotelData.device.ip_address)">
+                    <span class="text-[11px] font-mono text-slate-400">
+                        IP: <strong class="text-amber-400" x-text="hotelData.device.ip_address"></strong>
+                    </span>
+                </template>
+                <template x-if="roomNo">
+                    <span class="text-[11px] font-bold text-slate-300 px-2.5 py-0.5 rounded bg-black/50 border border-white/10">
+                        Room: <strong class="text-amber-400" x-text="roomNo"></strong>
+                    </span>
+                </template>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+        </div>
+
+        <!-- Weather Screen -->
+        <div x-show="['weather'].includes(currentView)"
+             x-cloak
+             class="w-full flex-1 flex flex-col items-center justify-center">
+<div class="flex-1 flex flex-col items-center justify-center px-8 py-2 select-none relative z-20 font-sans w-full max-w-[1700px] mx-auto">
+
+    <!-- Loading State Overlay -->
+    <template x-if="weatherLoading && !weatherData">
+        <div class="w-full bg-[#0d0d10] border-2 border-amber-500/50 rounded-3xl p-20 flex flex-col items-center justify-center shadow-2xl text-center space-y-6">
+            <div class="w-20 h-20 border-4 border-amber-400/25 border-t-amber-400 rounded-full animate-spin"></div>
+            <p class="text-2xl lg:text-3xl font-black text-white tracking-wide">
+                Fetching Real-time Weather Forecast...
+            </p>
+            <p class="text-base lg:text-lg text-slate-300 font-medium">
+                Connecting to satellite weather service for <span class="text-amber-400 font-extrabold" x-text="weatherCity || 'your location'"></span>
+            </p>
+        </div>
+    </template>
+
+    <!-- Error State Overlay -->
+    <template x-if="weatherError && !weatherData">
+        <div class="w-full bg-[#0d0d10] border-2 border-rose-500/60 rounded-3xl p-16 flex flex-col items-center justify-center shadow-2xl text-center space-y-6 max-w-2xl">
+            <span class="text-6xl">⚠️</span>
+            <h3 class="text-3xl font-black text-rose-400 tracking-wide">
+                Weather Forecast Unavailable
+            </h3>
+            <p class="text-base text-slate-300 max-w-lg" x-text="weatherError"></p>
+            <button @click="refreshWeather()" 
+                    class="px-10 py-3.5 rounded-full bg-amber-500 text-black font-black text-base hover:bg-amber-400 transition shadow-[0_0_25px_rgba(255,199,0,0.6)] cursor-pointer">
+                ↻ Retry Connection
+            </button>
+        </div>
+    </template>
+
+    <!-- Main Weather Dashboard Card (Deep Dark Solid Background for Maximum Sharp Contrast) -->
+    <template x-if="weatherData">
+        <div class="w-full bg-[#0c0c0f] border-2 border-[#caa44d]/75 rounded-3xl p-6 lg:p-7 max-h-[820px] shadow-[0_30px_90px_rgba(0,0,0,0.99),0_0_60px_rgba(0,0,0,0.95)] flex flex-col justify-between relative overflow-hidden">
+
+            <!-- Ambient Atmospheric Aura -->
+            <div class="absolute -top-40 left-1/4 w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+            <!-- Offline Cache Notice Badge (if offline) -->
+            <div x-show="weatherIsCached" 
+                 class="mb-2 px-4 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-300 text-xs font-extrabold tracking-wide flex items-center justify-center gap-2 self-center shadow-md">
+                <span class="text-sm">⚠️</span>
+                <span>Offline Mode — Showing Cached Weather Data for <strong x-text="weatherData.city"></strong></span>
+            </div>
+
+            <!-- TOP ROW: Current Weather Spotlight & Parameters Bento Grid -->
+            <div class="grid grid-cols-12 gap-6 items-center relative z-10">
+
+                <!-- Left Column: Primary Weather Spotlight (5 Cols) -->
+                <div class="col-span-5 flex flex-col items-start justify-center pl-3">
+                    
+                    <!-- City Name & Live Tag -->
+                    <div class="flex items-center gap-3">
+                        <h1 class="text-4xl lg:text-5xl font-black text-[#ffc700] tracking-wider drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)] uppercase leading-none"
+                            x-text="weatherData.city">
+                        </h1>
+                        <span class="px-2.5 py-0.5 rounded-full bg-amber-500/25 text-amber-300 text-[11px] font-black uppercase tracking-widest border border-amber-500/50">
+                            LIVE
+                        </span>
+                    </div>
+
+                    <!-- Weather Condition Text & Large Icon -->
+                    <div class="flex items-center gap-3 mt-2.5">
+                        <img :src="getWeatherIcon(weatherData.current.weatherCode)" 
+                             alt="Weather" 
+                             class="w-10 h-10 lg:w-12 lg:h-12 object-contain drop-shadow-md">
+                        <span class="text-xl lg:text-2xl font-black text-white tracking-wide drop-shadow-sm"
+                              x-text="getWeatherDesc(weatherData.current.weatherCode)">
+                        </span>
+                    </div>
+
+                    <!-- Huge Crisp High-Contrast Temperature Display -->
+                    <div class="flex items-baseline gap-3 my-1.5">
+                        <span class="text-7xl lg:text-8xl font-black text-white tracking-tighter drop-shadow-[0_8px_25px_rgba(0,0,0,0.99)] leading-none">
+                            <span x-text="weatherData.current.temp !== null ? (weatherData.current.temp > 0 ? '+' : '') + weatherData.current.temp + '°C' : '--°C'"></span>
+                        </span>
+                        <template x-if="weatherData.current.feelsLike !== null">
+                            <span class="text-slate-300 text-base lg:text-lg font-bold">
+                                Feels <strong class="text-[#ffc700] font-extrabold" x-text="weatherData.current.feelsLike + '°C'"></strong>
+                            </span>
+                        </template>
+                    </div>
+
+                    <!-- Enhanced Live AQI Status Pill -->
+                    <template x-if="weatherData.current.aqi !== null">
+                        <div class="mt-0.5 flex items-center gap-2.5 px-4 py-1.5 rounded-xl border shadow-md"
+                             :class="getAqiInfo(weatherData.current.aqi).bgClass">
+                            <span class="text-xs lg:text-sm font-black tracking-wider" 
+                                  :class="getAqiInfo(weatherData.current.aqi).textClass">
+                                AQI <span x-text="weatherData.current.aqi"></span>
+                            </span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                            <span class="text-xs lg:text-sm font-black tracking-wider" 
+                                  :class="getAqiInfo(weatherData.current.aqi).textClass"
+                                  x-text="getAqiInfo(weatherData.current.aqi).label">
+                            </span>
+                        </div>
+                    </template>
+
+                </div>
+
+                <!-- Right Column: 6-Metric Premium Bento Grid (Deep Dark Background Cards) -->
+                <div class="col-span-7 grid grid-cols-3 gap-3 lg:gap-4">
+
+                    <!-- 1. Feels Like -->
+                    <div class="p-4 lg:p-4.5 rounded-2xl bg-[#141419] border border-white/12 flex flex-col justify-center shadow-lg">
+                        <span class="text-[11px] lg:text-xs font-extrabold text-slate-400 uppercase tracking-widest block" x-text="t('weather_feels', 'Feels Like')">Feels Like</span>
+                        <span class="text-xl lg:text-2xl font-black text-[#ffc700] mt-0.5" x-text="weatherData.current.feelsLike !== null ? weatherData.current.feelsLike + '°C' : '--'"></span>
+                    </div>
+
+                    <!-- 2. Humidity -->
+                    <div class="p-4 lg:p-4.5 rounded-2xl bg-[#141419] border border-white/12 flex flex-col justify-center shadow-lg">
+                        <span class="text-[11px] lg:text-xs font-extrabold text-slate-400 uppercase tracking-widest block" x-text="t('weather_humidity', 'Humidity')">Humidity</span>
+                        <span class="text-xl lg:text-2xl font-black text-white mt-0.5" x-text="weatherData.current.humidity !== null ? weatherData.current.humidity + '%' : '--'"></span>
+                    </div>
+
+                    <!-- 3. Wind Speed -->
+                    <div class="p-4 lg:p-4.5 rounded-2xl bg-[#141419] border border-white/12 flex flex-col justify-center shadow-lg">
+                        <span class="text-[11px] lg:text-xs font-extrabold text-slate-400 uppercase tracking-widest block" x-text="t('weather_wind', 'Wind')">Wind</span>
+                        <span class="text-xl lg:text-2xl font-black text-white mt-0.5" x-text="weatherData.current.wind !== null ? weatherData.current.wind + ' KM/H' : '--'"></span>
+                    </div>
+
+                    <!-- 4. Pressure -->
+                    <div class="p-4 lg:p-4.5 rounded-2xl bg-[#141419] border border-white/12 flex flex-col justify-center shadow-lg">
+                        <span class="text-[11px] lg:text-xs font-extrabold text-slate-400 uppercase tracking-widest block" x-text="t('weather_pressure', 'Pressure')">Pressure</span>
+                        <span class="text-xl lg:text-2xl font-black text-white mt-0.5" x-text="weatherData.current.pressure !== null ? weatherData.current.pressure + ' MB' : '--'"></span>
+                    </div>
+
+                    <!-- 5. Sunrise -->
+                    <div class="p-4 lg:p-4.5 rounded-2xl bg-[#141419] border border-white/12 flex flex-col justify-center shadow-lg">
+                        <span class="text-[11px] lg:text-xs font-extrabold text-slate-400 uppercase tracking-widest block" x-text="t('weather_sunrise', 'Sunrise')">Sunrise</span>
+                        <span class="text-lg lg:text-xl font-black text-[#ffc700] mt-0.5" x-text="formatTimeFromIso((weatherData.daily && weatherData.daily[0] ? weatherData.daily[0].sunrise : ""))"></span>
+                    </div>
+
+                    <!-- 6. Sunset -->
+                    <div class="p-4 lg:p-4.5 rounded-2xl bg-[#141419] border border-white/12 flex flex-col justify-center shadow-lg">
+                        <span class="text-[11px] lg:text-xs font-extrabold text-slate-400 uppercase tracking-widest block" x-text="t('weather_sunset', 'Sunset')">Sunset</span>
+                        <span class="text-lg lg:text-xl font-black text-[#ffc700] mt-0.5" x-text="formatTimeFromIso((weatherData.daily && weatherData.daily[0] ? weatherData.daily[0].sunset : ""))"></span>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- LUXURY GOLD DIVIDER -->
+            <div class="w-full my-4 border-t border-[#caa44d]/30"></div>
+
+            <!-- BOTTOM ROW: 7-DAY EXTENDED FORECAST (High-Contrast Solid Cards) -->
+            <div class="relative z-10">
+                <div class="flex items-center justify-between mb-2 px-2">
+                    <h3 class="text-xs lg:text-sm font-black uppercase tracking-widest text-slate-200 flex items-center gap-2">
+                        <span class="text-base">🗓️</span>
+                        <span>7-Day Extended Forecast</span>
+                    </h3>
+                    <span class="text-[11px] lg:text-xs text-[#ffc700]/90 font-extrabold">Daily High / Low</span>
+                </div>
+
+                <!-- 7 Forecast Cards Grid -->
+                <div class="grid grid-cols-7 gap-2.5 lg:gap-3">
+                    <template x-for="(day, idx) in weatherData.daily" :key="idx">
+                        <div class="rounded-2xl p-3 lg:p-3.5 flex flex-col items-center justify-between text-center transition-all duration-300 border relative shadow-md"
+                             :class="idx === 0 
+                                ? 'bg-gradient-to-b from-[#261f10] via-[#16130b] to-[#0c0c0f] border-2 border-[#ffc700] shadow-[0_0_25px_rgba(255,199,0,0.35)] scale-[1.02]' 
+                                : 'bg-[#141418] border-white/10 hover:border-amber-400/50 hover:bg-[#1a1a20]'">
+                            
+                            <!-- Day Label -->
+                            <span class="text-xs lg:text-sm font-black tracking-wider uppercase"
+                                  :class="idx === 0 ? 'text-[#ffc700]' : 'text-slate-100'"
+                                  x-text="formatWeatherDay(day.date, idx)">
+                            </span>
+
+                            <!-- Short Date -->
+                            <span class="text-[10px] lg:text-xs font-bold text-slate-400 mt-0.5"
+                                  x-text="formatWeatherDate(day.date)">
+                            </span>
+
+                            <!-- Weather Icon -->
+                            <img :src="getWeatherIcon(day.weatherCode)" 
+                                 :alt="getWeatherDesc(day.weatherCode)"
+                                 class="w-10 h-10 lg:w-12 lg:h-12 object-contain my-2 drop-shadow-lg transition-transform duration-300 group-hover:scale-110">
+
+                            <!-- Short Desc -->
+                            <span class="text-[10px] lg:text-xs font-bold text-slate-200 truncate max-w-full"
+                                  x-text="getWeatherDesc(day.weatherCode)">
+                            </span>
+
+                            <!-- Max / Min Temp -->
+                            <div class="mt-1.5 flex items-baseline gap-1 text-xs lg:text-sm">
+                                <span class="font-black text-[#ffc700]" x-text="day.maxTemp !== null ? day.maxTemp + '°' : '--'"></span>
+                                <span class="text-slate-500 text-[10px]">/</span>
+                                <span class="font-bold text-slate-400" x-text="day.minTemp !== null ? day.minTemp + '°' : '--'"></span>
+                            </div>
+
+                        </div>
+                    </template>
+                </div>
+
+            </div>
+
+            <!-- ENHANCED BOTTOM FOOTER (With Real-time "Last Updated" and Clickable Refresh Button) -->
+            <div class="mt-4 pt-3 border-t border-white/15 flex items-center justify-between text-xs lg:text-sm relative z-10">
+                <p class="font-medium text-slate-400 tracking-wide">
+                    Press <span class="text-[#ffc700] font-extrabold">BACK</span> on TV remote to return to Interactive Services
+                </p>
+
+                <!-- Status & Action Area -->
+                <div class="flex items-center gap-4">
+                    
+                    <!-- Real-Time "Last Updated" Timestamp -->
+                    <div class="flex items-center gap-2 text-slate-300 font-semibold">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span>Last Updated:</span>
+                        <strong class="text-[#ffc700] font-extrabold" x-text="weatherLastUpdated || 'Just now'"></strong>
+                    </div>
+
+                    <!-- Clickable & D-Pad Focusable Refresh Button -->
+                    <button id="tv-weather-refresh-btn"
+                            @click="refreshWeather()"
+                            @keydown.up.prevent="(document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').focus())"
+                            tabindex="0"
+                            class="group flex items-center gap-2 px-5 py-2 rounded-full bg-black border-2 border-[#caa44d] text-white hover:bg-[#ffc700] hover:border-[#ffc700] hover:text-black hover:shadow-[0_0_30px_rgba(255,199,0,0.9),0_0_12px_rgba(255,215,0,0.95)] focus:bg-[#ffc700] focus:text-black focus:border-[#ffc700] focus:shadow-[0_0_35px_rgba(255,199,0,0.95),0_0_15px_rgba(255,215,0,0.95)] focus:scale-105 transition-all duration-300 outline-none cursor-pointer text-xs lg:text-sm font-black tracking-wide">
+                        <svg class="w-4 h-4 transition-transform duration-500 group-hover:rotate-180 group-focus:rotate-180" 
+                             :class="{ 'animate-spin': isRefreshing || weatherLoading }" 
+                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        <span x-text="(isRefreshing || weatherLoading) ? 'Updating...' : 'Refresh Weather'">Refresh Weather</span>
+                    </button>
+
+                </div>
+            </div>
+
+        </div>
+    </template>
+
+</div>
+        </div>
+
+        <!-- TV Input / HDMI Ports Screen -->
+        <div x-show="['input', 'inputs', 'hdmi'].includes(currentView)"
+             x-cloak
+             class="w-full flex-1 flex flex-col items-center justify-start px-12 pt-4 pb-6">
+<!-- ============================================================
+     HOTEL LUXURY TV TEMPLATE v2.0.1 - TV INPUTS / HDMI PORTS
+     Native Flutter Bridge TvInputManager Hardware Interface
+     ============================================================ -->
+<div class="w-full max-w-[1560px] rounded-3xl border-2 border-amber-500/60 bg-gradient-to-br from-[#121214]/95 via-[#0d0d0f]/95 to-black/95 p-6 lg:p-7 max-h-[820px] shadow-[0_25px_70px_rgba(0,0,0,0.95),inset_0_0_25px_rgba(179,138,45,0.15)] backdrop-blur-2xl flex flex-col justify-between relative overflow-hidden select-none font-sans">
+
+    <!-- Ambient Golden Glow in background -->
+    <div class="absolute -top-32 left-1/3 w-[36rem] h-[36rem] bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+    <!-- ============================================================
+         1. HORIZONTAL TV HEADER BAR (Matches Applications & Screen Cast)
+         ============================================================ -->
+    <div class="flex items-center justify-between pb-5 border-b border-amber-500/30 flex-shrink-0 relative z-10">
+        <div class="flex items-center gap-4">
+            <!-- Hardware TV Port Glowing Icon -->
+            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500/30 to-amber-600/15 border-2 border-amber-500/70 flex items-center justify-center text-3xl text-amber-400 shadow-[0_0_20px_rgba(179,138,45,0.4)] flex-shrink-0">
+                <svg class="w-8 h-8 text-amber-400 animate-pulse" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M4 6h16a2 2 0 0 1 2 2v7a1 1 0 0 1-1 1h-2l-2 2H7l-2-2H3a1 1 0 0 1-1-1V8a2 2 0 0 1 2-2zm2 4v4h2v-4H6zm4 0v4h2v-4h-2zm4 0v4h2v-4h-2z" />
+                </svg>
+            </div>
+            <div class="text-left">
+                <h1 class="text-3xl font-black uppercase tracking-[0.16em] text-amber-400 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] leading-tight">
+                    TV INPUTS
+                </h1>
+                <p class="text-sm font-semibold text-slate-300 tracking-wide mt-0.5">
+                    Select a connected hardware port to switch TV display (HDMI, Set-top Box, Console, AV, Tuner)
+                </p>
+            </div>
+        </div>
+
+        <!-- Right Side: Current Active Source & Remote Help Badge -->
+        <div class="flex items-center gap-4">
+            <!-- Active Display Indicator Pill -->
+            <div class="px-4 py-2 rounded-full bg-amber-500/15 border border-amber-500/50 text-amber-300 text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-sm">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)] animate-pulse"></span>
+                <span>Active:</span>
+                <span class="text-white font-extrabold" x-text="currentActivePortId ? currentActivePortId.replace(/_/g, ' ') : 'HDMI 1'">HDMI 1</span>
+            </div>
+
+            <!-- D-Pad TV Remote Guide -->
+            <div class="hidden sm:flex items-center gap-2 text-xs text-slate-300 font-bold px-4 py-2 bg-white/5 rounded-xl border border-white/10">
+                <span>Use</span>
+                <span class="px-2 py-0.5 rounded bg-black/80 border border-white/20 text-white font-mono text-[11px]">◄ ►</span>
+                <span>to select &</span>
+                <span class="px-2 py-0.5 rounded bg-amber-400 text-black font-black text-[11px] shadow-sm">OK</span>
+                <span>to Switch</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         2. LOADING STATE
+         ============================================================ -->
+    <template x-if="inputLoading">
+        <div class="flex flex-col items-center justify-center py-24 space-y-4 relative z-10">
+            <div class="w-14 h-14 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+            <span class="text-slate-300 font-extrabold text-base tracking-wider uppercase">Querying TV Ports via Flutter...</span>
+        </div>
+    </template>
+
+    <!-- ============================================================
+         3. TV INPUTS DYNAMIC ADAPTIVE HARDWARE PORTS GRID
+         Automatically adapts layout for 1, 2, 3, 4, 5, or 6+ ports
+         ============================================================ -->
+    <template x-if="!inputLoading">
+        <div class="w-full relative z-10 my-4">
+            <div :class="getGridContainerClass()">
+
+                <template x-for="(port, idx) in inputPorts" :key="port.id || idx">
+                    <div :id="`input_port_${idx}`"
+                         tabindex="0"
+                         @click="selectInputPort(port)"
+                         @mouseenter="activeInputFocusIndex = idx; lastInputPortIndex = idx; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                         @focus="activeInputFocusIndex = idx; lastInputPortIndex = idx; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                         class="group relative flex flex-col items-center justify-between cursor-pointer transition-all duration-300 outline-none select-none text-center"
+                         :class="[
+                             isCompactLayout() ? 'p-5 rounded-2xl min-h-[270px]' : 'p-7 rounded-3xl min-h-[350px]',
+                             activeInputFocusIndex === idx 
+                                 ? 'bg-gradient-to-b from-amber-500/25 via-[#1a160e] to-black border-2 border-amber-400 scale-[1.03] shadow-[0_0_40px_rgba(255,215,0,0.7),0_18px_35px_rgba(0,0,0,0.95)] z-20 ring-2 ring-amber-300' 
+                                 : (isPortActive(port) 
+                                     ? 'bg-amber-500/[0.08] border-2 border-amber-400/50 shadow-[0_0_25px_rgba(255,215,0,0.2)] z-10' 
+                                     : 'bg-white/[0.04] border border-white/10 hover:border-amber-500/40 hover:bg-white/[0.08] z-10')
+                         ]">
+
+                        <!-- Top Tag Bar -->
+                        <div class="w-full flex items-center justify-between gap-2 mb-1.5">
+                            <!-- Hardware Spec Tag -->
+                            <span class="px-3 py-0.5 rounded-full text-[11px] font-black tracking-wider uppercase truncate"
+                                  :class="port.type === 'TUNER' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40' : (port.type === 'AV' ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40')"
+                                  x-text="port.badge || port.type || 'HDMI'">
+                            </span>
+
+                            <!-- Active / Ready Status Beacon -->
+                            <template x-if="isPortActive(port)">
+                                <div class="flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-400 text-black text-[10px] font-black tracking-wider shadow-[0_0_15px_rgba(255,215,0,0.7)] flex-shrink-0">
+                                    <span class="w-2 h-2 rounded-full bg-black animate-ping"></span>
+                                    <span>ACTIVE</span>
+                                </div>
+                            </template>
+                            <template x-if="!isPortActive(port)">
+                                <div class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-extrabold tracking-wider flex-shrink-0">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400"
+                                          :class="activeInputFocusIndex === idx ? 'animate-ping' : ''"></span>
+                                    <span>READY</span>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Hardware Vector Icon Container -->
+                        <div class="flex items-center justify-center transition-all duration-300 group-hover:scale-105"
+                             :class="[
+                                 isCompactLayout() ? 'my-2 w-16 h-16 rounded-xl' : 'my-4 w-24 h-24 rounded-2xl',
+                                 activeInputFocusIndex === idx 
+                                     ? 'bg-gradient-to-br from-amber-400 to-amber-500 text-black shadow-[0_0_30px_rgba(255,215,0,0.9)]' 
+                                     : (isPortActive(port) ? 'bg-[#221c10] border-2 border-amber-400/80 text-amber-400' : 'bg-black/60 border border-white/15 text-amber-400')
+                             ]">
+
+                            <!-- HDMI Plug Vector -->
+                            <template x-if="port.type === 'HDMI'">
+                                <svg :class="isCompactLayout() ? 'w-10 h-10' : 'w-14 h-14'" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M4 6h16a2 2 0 0 1 2 2v7a1 1 0 0 1-1 1h-2l-2 2H7l-2-2H3a1 1 0 0 1-1-1V8a2 2 0 0 1 2-2zm2 4v4h2v-4H6zm4 0v4h2v-4h-2zm4 0v4h2v-4h-2z" />
+                                </svg>
+                            </template>
+
+                            <!-- AV RCA Composite Vector -->
+                            <template x-if="port.type === 'AV'">
+                                <svg :class="isCompactLayout() ? 'w-10 h-10' : 'w-14 h-14'" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <circle cx="7" cy="12" r="5" stroke-width="2" />
+                                    <circle cx="7" cy="12" r="2" fill="currentColor" />
+                                    <circle cx="17" cy="12" r="5" stroke-width="2" />
+                                    <circle cx="17" cy="12" r="2" fill="currentColor" />
+                                </svg>
+                            </template>
+
+                            <!-- Tuner / TV Antenna Vector -->
+                            <template x-if="port.type === 'TUNER'">
+                                <svg :class="isCompactLayout() ? 'w-10 h-10' : 'w-14 h-14'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                          d="M7 4l5 4 5-4M4 8h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2zm8 4v4m-3-2h6" />
+                                </svg>
+                            </template>
+                        </div>
+
+                        <!-- Port Name & Device Type Hint -->
+                        <div class="mt-1 w-full px-2 text-center">
+                            <h3 class="font-black uppercase tracking-wider transition-colors duration-200"
+                                :class="[
+                                    isCompactLayout() ? 'text-xl' : 'text-2xl',
+                                    activeInputFocusIndex === idx ? 'text-amber-300 drop-shadow-[0_2px_10px_rgba(255,215,0,0.6)]' : 'text-white'
+                                ]"
+                                x-text="port.label || port.name || port.id">
+                            </h3>
+                            <p class="text-slate-300 text-xs mt-1 font-semibold truncate"
+                               x-text="port.description">
+                            </p>
+                        </div>
+
+                        <!-- Action Button Pill -->
+                        <div class="w-full border-t border-white/10 flex items-center justify-center"
+                             :class="isCompactLayout() ? 'mt-3 pt-3' : 'mt-5 pt-4'">
+                            <span class="rounded-full font-black uppercase tracking-wider transition-all duration-300"
+                                  :class="[
+                                      isCompactLayout() ? 'px-4 py-1.5 text-[11px]' : 'px-6 py-2.5 text-xs',
+                                      activeInputFocusIndex === idx 
+                                          ? 'bg-amber-400 text-black shadow-[0_0_25px_rgba(255,215,0,0.85)] scale-105' 
+                                          : (isPortActive(port) ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-white/10 text-slate-300 group-hover:bg-amber-400 group-hover:text-black')
+                                  ]">
+                                <span x-text="isPortActive(port) ? 'CURRENT SOURCE ✓' : 'SWITCH INPUT ↵'"></span>
+                            </span>
+                        </div>
+
+                    </div>
+                </template>
+
+            </div>
+        </div>
+    </template>
+
+    <!-- ============================================================
+         4. SWITCHING INPUT OVERLAY (Alpine Reactive Modal)
+         ============================================================ -->
+    <div x-show="isSwitchingInput"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 scale-90"
+         x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 scale-100"
+         x-transition:leave-end="opacity-0 scale-90"
+         class="absolute inset-0 bg-black/95 backdrop-blur-3xl z-50 flex flex-col items-center justify-center p-8">
+        <div class="w-28 h-28 rounded-3xl bg-gradient-to-br from-amber-400 to-amber-500 text-black flex items-center justify-center shadow-[0_0_60px_rgba(255,215,0,0.9)] animate-pulse mb-6">
+            <svg class="w-16 h-16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M4 6h16a2 2 0 0 1 2 2v7a1 1 0 0 1-1 1h-2l-2 2H7l-2-2H3a1 1 0 0 1-1-1V8a2 2 0 0 1 2-2zm2 4v4h2v-4H6zm4 0v4h2v-4h-2zm4 0v4h2v-4h-2z" />
+            </svg>
+        </div>
+        <h3 class="text-3xl sm:text-4xl font-black text-amber-400 tracking-wider uppercase mb-2">
+            SWITCHING TV DISPLAY...
+        </h3>
+        <p class="text-slate-200 text-lg font-semibold tracking-wide">
+            Connecting hardware signal to <span class="text-white font-black" x-text="switchingPortName"></span>
+        </p>
+        <div class="w-72 h-2.5 bg-white/20 rounded-full mt-6 overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 rounded-full animate-pulse w-full"></div>
+        </div>
+    </div>
+
+</div>
+        </div>
+
+        <!-- Settings / Admin Screen -->
+        <div x-show="['settings', 'admin'].includes(currentView)"
+             x-cloak
+             class="w-full flex-1 flex flex-col items-center justify-center px-12 pt-2 pb-4">
+<!-- ============================================================
+     HOTEL LUXURY TV TEMPLATE v2.0.1 - SETTINGS & ADMIN ACCESS
+     PIN Authentication (YYMMDD Date Format) + Advanced Configuration
+     ============================================================ -->
+<div class="w-full flex-1 flex flex-col items-center justify-center select-none font-sans relative z-20">
+
+    <!-- ============================================================
+         STEP 1: ADMIN ACCESS PIN AUTHENTICATION SCREEN
+         ============================================================ -->
+    <template x-if="settingsStep === 'auth'">
+        <div
+            class="w-full max-w-[560px] rounded-3xl border-2 border-amber-500/60 bg-[#0e0f14] p-8 shadow-[0_25px_80px_rgba(0,0,0,1),inset_0_0_30px_rgba(179,138,45,0.2)] flex flex-col items-center text-center relative overflow-hidden">
+
+            <!-- Ambient Golden Aura -->
+            <div
+                class="absolute -top-24 left-1/2 -translate-x-1/2 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none">
+            </div>
+
+            <!-- Shield / Lock Vector Icon -->
+            <div
+                class="relative z-10 w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-500/25 via-[#1e1a12] to-black border-2 border-amber-400/70 flex items-center justify-center text-amber-400 shadow-[0_0_30px_rgba(255,215,0,0.4)] mb-4">
+                <svg class="w-10 h-10 animate-pulse" viewBox="0 0 24 24" fill="currentColor">
+                    <path fill-rule="evenodd"
+                        d="M12 1.5a5.25 5.25 0 0 0-5.25 5.25v3a3 3 0 0 0-3 3v6.75a3 3 0 0 0 3 3h10.5a3 3 0 0 0 3-3v-6.75a3 3 0 0 0-3-3v-3c0-2.9-2.35-5.25-5.25-5.25Zm3.75 8.25v-3a3.75 3.75 0 1 0-7.5 0v3h7.5Z"
+                        clip-rule="evenodd" />
+                </svg>
+            </div>
+
+            <!-- Title & Subtitle -->
+            <div class="relative z-10">
+                <h2
+                    class="text-3xl font-black text-amber-400 tracking-[0.15em] uppercase drop-shadow-[0_2px_10px_rgba(255,215,0,0.6)]">
+                    ADMIN ACCESS
+                </h2>
+                <p class="text-slate-300 text-xs font-semibold tracking-wide mt-1">
+                    Enter 6-Digit Administrator PIN
+                </p>
+            </div>
+
+            <!-- PIN Display Boxes (6 Digits) -->
+            <div class="my-6 flex items-center justify-center gap-3 relative z-10">
+                <template x-for="(char, idx) in maskedPin" :key="idx">
+                    <div class="w-13 h-14 sm:w-14 sm:h-16 rounded-2xl border-2 flex items-center justify-center text-3xl font-black transition-all duration-300 select-none"
+                        :class="[
+                             authStatus === 'error' 
+                                 ? 'border-rose-500 bg-rose-500/20 text-rose-300 shadow-[0_0_25px_rgba(244,63,94,0.6)] animate-bounce' 
+                                 : (authStatus === 'success' 
+                                     ? 'border-emerald-400 bg-emerald-500/25 text-emerald-300 shadow-[0_0_25px_rgba(52,211,153,0.7)]' 
+                                     : (settingsPin.length === idx 
+                                         ? 'border-amber-400 bg-amber-500/15 text-amber-300 shadow-[0_0_20px_rgba(255,215,0,0.5)] scale-105' 
+                                         : (settingsPin.length > idx 
+                                             ? 'border-amber-500/80 bg-amber-500/10 text-white' 
+                                             : 'border-white/20 bg-white/5 text-slate-500')))
+                         ]">
+                        <span x-text="char"></span>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Status / Error / Success Message -->
+            <div class="h-6 mb-3 relative z-10 flex items-center justify-center">
+                <span class="text-xs font-black uppercase tracking-wider transition-all duration-300"
+                    :class="authStatus === 'error' ? 'text-rose-400 drop-shadow-[0_0_10px_rgba(244,63,94,0.8)]' : (authStatus === 'success' ? 'text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.8)]' : 'text-slate-400')"
+                    x-text="authMessage || 'Press digits on remote or keypad below'">
+                </span>
+            </div>
+
+            <!-- 3x4 TV Keypad Grid (1-9, DEL, 0, ESC) -->
+            <div class="grid grid-cols-3 gap-3 w-full max-w-[380px] relative z-10 my-1">
+
+                <!-- Digit 1 -->
+                <button id="settings_key_0" tabindex="0" @click="addPinDigit(1)"
+                    @mouseenter="activeKeypadIndex = 0; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    @focus="activeKeypadIndex = 0; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    class="h-14 rounded-2xl font-black text-2xl transition-all duration-200 outline-none flex items-center justify-center cursor-pointer border select-none"
+                    :class="getKeypadBtnClass(0)">
+                    1
+                </button>
+
+                <!-- Digit 2 -->
+                <button id="settings_key_1" tabindex="0" @click="addPinDigit(2)"
+                    @mouseenter="activeKeypadIndex = 1; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    @focus="activeKeypadIndex = 1; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    class="h-14 rounded-2xl font-black text-2xl transition-all duration-200 outline-none flex items-center justify-center cursor-pointer border select-none"
+                    :class="getKeypadBtnClass(1)">
+                    2
+                </button>
+
+                <!-- Digit 3 -->
+                <button id="settings_key_2" tabindex="0" @click="addPinDigit(3)"
+                    @mouseenter="activeKeypadIndex = 2; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    @focus="activeKeypadIndex = 2; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    class="h-14 rounded-2xl font-black text-2xl transition-all duration-200 outline-none flex items-center justify-center cursor-pointer border select-none"
+                    :class="getKeypadBtnClass(2)">
+                    3
+                </button>
+
+                <!-- Digit 4 -->
+                <button id="settings_key_3" tabindex="0" @click="addPinDigit(4)"
+                    @mouseenter="activeKeypadIndex = 3; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    @focus="activeKeypadIndex = 3; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    class="h-14 rounded-2xl font-black text-2xl transition-all duration-200 outline-none flex items-center justify-center cursor-pointer border select-none"
+                    :class="getKeypadBtnClass(3)">
+                    4
+                </button>
+
+                <!-- Digit 5 -->
+                <button id="settings_key_4" tabindex="0" @click="addPinDigit(5)"
+                    @mouseenter="activeKeypadIndex = 4; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    @focus="activeKeypadIndex = 4; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    class="h-14 rounded-2xl font-black text-2xl transition-all duration-200 outline-none flex items-center justify-center cursor-pointer border select-none"
+                    :class="getKeypadBtnClass(4)">
+                    5
+                </button>
+
+                <!-- Digit 6 -->
+                <button id="settings_key_5" tabindex="0" @click="addPinDigit(6)"
+                    @mouseenter="activeKeypadIndex = 5; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    @focus="activeKeypadIndex = 5; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    class="h-14 rounded-2xl font-black text-2xl transition-all duration-200 outline-none flex items-center justify-center cursor-pointer border select-none"
+                    :class="getKeypadBtnClass(5)">
+                    6
+                </button>
+
+                <!-- Digit 7 -->
+                <button id="settings_key_6" tabindex="0" @click="addPinDigit(7)"
+                    @mouseenter="activeKeypadIndex = 6; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    @focus="activeKeypadIndex = 6; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    class="h-14 rounded-2xl font-black text-2xl transition-all duration-200 outline-none flex items-center justify-center cursor-pointer border select-none"
+                    :class="getKeypadBtnClass(6)">
+                    7
+                </button>
+
+                <!-- Digit 8 -->
+                <button id="settings_key_7" tabindex="0" @click="addPinDigit(8)"
+                    @mouseenter="activeKeypadIndex = 7; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    @focus="activeKeypadIndex = 7; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    class="h-14 rounded-2xl font-black text-2xl transition-all duration-200 outline-none flex items-center justify-center cursor-pointer border select-none"
+                    :class="getKeypadBtnClass(7)">
+                    8
+                </button>
+
+                <!-- Digit 9 -->
+                <button id="settings_key_8" tabindex="0" @click="addPinDigit(9)"
+                    @mouseenter="activeKeypadIndex = 8; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    @focus="activeKeypadIndex = 8; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    class="h-14 rounded-2xl font-black text-2xl transition-all duration-200 outline-none flex items-center justify-center cursor-pointer border select-none"
+                    :class="getKeypadBtnClass(8)">
+                    9
+                </button>
+
+                <!-- Key DEL -->
+                <button id="settings_key_9" tabindex="0" @click="delPinDigit()"
+                    @mouseenter="activeKeypadIndex = 9; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    @focus="activeKeypadIndex = 9; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    class="h-14 rounded-2xl font-black text-xl transition-all duration-200 outline-none flex items-center justify-center cursor-pointer border select-none"
+                    :class="getKeypadBtnClass(9, 'del')">
+                    ⌫
+                </button>
+
+                <!-- Digit 0 -->
+                <button id="settings_key_10" tabindex="0" @click="addPinDigit(0)"
+                    @mouseenter="activeKeypadIndex = 10; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    @focus="activeKeypadIndex = 10; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    class="h-14 rounded-2xl font-black text-2xl transition-all duration-200 outline-none flex items-center justify-center cursor-pointer border select-none"
+                    :class="getKeypadBtnClass(10)">
+                    0
+                </button>
+
+                <!-- Key ESC / Back -->
+                <button id="settings_key_11" tabindex="0" @click="handleSettingsEsc()"
+                    @mouseenter="activeKeypadIndex = 11; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    @focus="activeKeypadIndex = 11; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    class="h-14 rounded-2xl font-black text-base transition-all duration-200 outline-none flex items-center justify-center cursor-pointer border select-none"
+                    :class="getKeypadBtnClass(11, 'esc')">
+                    ESC
+                </button>
+
+            </div>
+
+            <!-- Remote Help Footer -->
+            <div
+                class="mt-5 pt-3 border-t border-white/10 w-full flex items-center justify-center text-[11px] text-slate-400 font-bold">
+                <span>Direct Remote digits <strong class="text-white font-mono">0-9</strong> supported</span>
+            </div>
+
+        </div>
+    </template>
+
+    <!-- ============================================================
+         STEP 2: ADVANCED CONFIGURATION DASHBOARD (Unlocked)
+         ============================================================ -->
+    <template x-if="settingsStep === 'dashboard'">
+        <div
+            class="w-full max-w-[1540px] rounded-3xl border-2 border-amber-500/60 bg-[#0b0c10] p-6 lg:p-7 shadow-[0_30px_90px_rgba(0,0,0,1),inset_0_0_35px_rgba(179,138,45,0.15)] flex flex-col relative overflow-hidden select-none font-sans">
+
+            <!-- Ambient Glow -->
+            <div
+                class="absolute -top-32 left-1/3 w-[36rem] h-[36rem] bg-amber-500/5 rounded-full blur-3xl pointer-events-none">
+            </div>
+
+            <!-- Dashboard Top Header Bar -->
+            <div
+                class="flex items-center justify-between pb-5 border-b border-amber-500/30 flex-shrink-0 relative z-10">
+                <div class="flex items-center gap-5">
+                    <div
+                        class="w-15 h-15 rounded-2xl bg-gradient-to-br from-amber-500/30 via-amber-600/20 to-black border-2 border-amber-500/70 flex items-center justify-center text-3xl text-amber-400 shadow-[0_0_25px_rgba(179,138,45,0.4)] flex-shrink-0">
+                        ⚙️
+                    </div>
+                    <div class="text-left">
+                        <h1
+                            class="text-3xl lg:text-4xl font-black uppercase tracking-[0.12em] text-amber-400 drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)] leading-tight">
+                            ADVANCED CONFIGURATION
+                        </h1>
+                        <p class="text-sm font-semibold text-slate-300 tracking-wide mt-1">
+                            System management, hardware telemetry & default port routing
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Admin Status Beacon Badge -->
+                <div class="flex items-center gap-3">
+                    <div
+                        class="px-4 py-2 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-sm">
+                        <span
+                            class="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)] animate-pulse"></span>
+                        <span>ADMIN VERIFIED</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Dashboard Body (2 Column Layout) -->
+            <div class="grid grid-cols-12 gap-6 mt-6 mb-2 relative z-10 items-stretch flex-1">
+
+                <!-- LEFT COLUMN (8 Cols): Room, Default TV Input & Diagnostics Table -->
+                <div class="col-span-8 flex flex-col gap-6 justify-start">
+
+                    <!-- Top Row: Room Number & Default TV Input Cards -->
+                    <div class="grid grid-cols-2 gap-5">
+
+                        <!-- Room Number Box (100% Server Managed / Read-Only) -->
+                        <div
+                            class="p-5 rounded-2xl bg-[#12131a] border-2 border-white/10 flex flex-col justify-between shadow-lg relative overflow-hidden">
+                            <div class="flex items-center justify-between mb-2">
+                                <span
+                                    class="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                                    <span>🏨</span>
+                                    <span>ROOM NUMBER</span>
+                                </span>
+                                <span
+                                    class="text-[11px] px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-bold uppercase flex items-center gap-1">
+                                    <span>🔒</span>
+                                    <span>READ ONLY</span>
+                                </span>
+                            </div>
+                            <div class="my-2 flex items-baseline gap-3">
+                                <span class="text-4xl font-black text-amber-300 font-mono tracking-wider"
+                                    x-text="roomNo || (hotelData && hotelData.device ? hotelData.device.room_no : "") || '1111'"></span>
+                                <span class="text-xs text-slate-400 font-medium">Server Assigned</span>
+                            </div>
+                            <p class="text-xs text-slate-400 border-t border-white/5 pt-2 mt-1">
+                                Synchronized via Central Hotel Management System
+                            </p>
+                        </div>
+
+                        <!-- Default TV Input Box (Interactive & Editable) -->
+                        <div
+                            class="p-5 rounded-2xl bg-[#12131a] border-2 border-amber-500/30 flex flex-col justify-between shadow-lg">
+                            <div class="flex items-center justify-between mb-2">
+                                <span
+                                    class="text-xs font-black uppercase tracking-widest text-amber-400 flex items-center gap-1.5">
+                                    <span>📺</span>
+                                    <span>DEFAULT TV INPUT</span>
+                                </span>
+                                <span
+                                    class="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold uppercase flex items-center gap-1">
+                                    <span>✔</span>
+                                    <span x-text="getSelectedPortDisplayLabel()"></span>
+                                </span>
+                            </div>
+
+                            <!-- Categorized TV Input Selector -->
+                            <div class="flex-1 my-2 flex flex-col justify-center relative min-h-[50px]">
+                                <!-- Main Categories -->
+                                <div x-show="inputSelectionState === 'main'" class="flex gap-3">
+                                    <button id="settings_input_hdmi"
+                                            type="button" tabindex="0"
+                                            @click="openHdmiMenu()"
+                                            @mouseenter="dashboardFocus = 'input_hdmi'"
+                                            @focus="dashboardFocus = 'input_hdmi'"
+                                            class="flex-1 py-3 rounded-xl font-black text-sm uppercase tracking-wider transition-all duration-200 outline-none border flex items-center justify-center gap-2 cursor-pointer"
+                                            :class="dashboardFocus === 'input_hdmi' 
+                                                ? 'ring-4 ring-amber-400 scale-105 bg-amber-400 text-black border-amber-300 shadow-[0_0_20px_rgba(255,215,0,0.8)] z-10' 
+                                                : (isHdmiSelected() 
+                                                    ? 'bg-amber-500/20 text-amber-300 border-amber-400/80 shadow-[0_0_15px_rgba(255,215,0,0.25)]' 
+                                                    : 'bg-white/10 text-slate-200 border-white/20 hover:bg-white/15')">
+                                        <span x-show="isHdmiSelected()" class="text-amber-300 text-xs">✔</span>
+                                        <span>HDMI</span>
+                                    </button>
+                                    <button id="settings_input_iptv"
+                                            type="button" tabindex="0"
+                                            @click="selectIptv()"
+                                            @mouseenter="dashboardFocus = 'input_iptv'"
+                                            @focus="dashboardFocus = 'input_iptv'"
+                                            class="flex-1 py-3 rounded-xl font-black text-sm uppercase tracking-wider transition-all duration-200 outline-none border flex items-center justify-center gap-2 cursor-pointer"
+                                            :class="dashboardFocus === 'input_iptv' 
+                                                ? 'ring-4 ring-amber-400 scale-105 bg-amber-400 text-black border-amber-300 shadow-[0_0_20px_rgba(255,215,0,0.8)] z-10' 
+                                                : (isIptvSelected() 
+                                                    ? 'bg-amber-500/20 text-amber-300 border-amber-400/80 shadow-[0_0_15px_rgba(255,215,0,0.25)]' 
+                                                    : 'bg-white/10 text-slate-200 border-white/20 hover:bg-white/15')">
+                                        <span x-show="isIptvSelected()" class="text-amber-300 text-xs">✔</span>
+                                        <span>IPTV</span>
+                                    </button>
+                                    <button id="settings_input_apps"
+                                            type="button" tabindex="0"
+                                            @click="openAppsMenu()"
+                                            @mouseenter="dashboardFocus = 'input_apps'"
+                                            @focus="dashboardFocus = 'input_apps'"
+                                            class="flex-1 py-3 rounded-xl font-black text-sm uppercase tracking-wider transition-all duration-200 outline-none border flex items-center justify-center gap-2 cursor-pointer"
+                                            :class="dashboardFocus === 'input_apps' 
+                                                ? 'ring-4 ring-amber-400 scale-105 bg-amber-400 text-black border-amber-300 shadow-[0_0_20px_rgba(255,215,0,0.8)] z-10' 
+                                                : (isAppSelected() 
+                                                    ? 'bg-amber-500/20 text-amber-300 border-amber-400/80 shadow-[0_0_15px_rgba(255,215,0,0.25)]' 
+                                                    : 'bg-white/10 text-slate-200 border-white/20 hover:bg-white/15')">
+                                        <span x-show="isAppSelected()" class="text-amber-300 text-xs">✔</span>
+                                        <span>TV App</span>
+                                    </button>
+                                </div>
+
+                                <!-- Sub-menus -->
+                                <div x-show="inputSelectionState !== 'main'" class="flex gap-2 items-start" style="display: none;">
+                                    <button id="settings_input_back"
+                                            type="button" tabindex="0"
+                                            @click="closeInputMenu()"
+                                            @mouseenter="dashboardFocus = 'input_back'"
+                                            @focus="dashboardFocus = 'input_back'"
+                                            class="px-4 py-2 rounded-xl font-black text-xs uppercase transition-all duration-200 outline-none border flex-shrink-0 flex items-center justify-center gap-1 cursor-pointer"
+                                            :class="dashboardFocus === 'input_back' ? 'ring-4 ring-amber-400 scale-105 bg-amber-400 text-black border-amber-300 shadow-[0_0_20px_rgba(255,215,0,0.8)] z-10' : 'bg-white/10 text-slate-200 border-white/20 hover:bg-white/20'">
+                                        ← Back
+                                    </button>
+                                    
+                                    <!-- HDMI List -->
+                                    <div x-show="inputSelectionState === 'hdmi'" class="flex flex-1 gap-2 flex-wrap h-full">
+                                        <template x-for="(port, pIdx) in (hwData.availableTvPorts || availableTvPorts)" :key="port">
+                                            <button :id="`settings_hdmi_${pIdx}`"
+                                                    type="button" tabindex="0"
+                                                    @click="selectHdmi(port)"
+                                                    @mouseenter="dashboardFocus = `hdmi_${pIdx}`"
+                                                    @focus="dashboardFocus = `hdmi_${pIdx}`"
+                                                    class="flex-1 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all outline-none border flex items-center justify-center"
+                                                    :class="dashboardFocus === `hdmi_${pIdx}` ? 'ring-2 ring-amber-400 bg-amber-400 text-black border-amber-300 shadow-[0_0_15px_rgba(255,215,0,0.8)] scale-105' : (isPortSelected(port) ? 'bg-amber-400/20 text-amber-300 border-amber-400/50' : 'bg-white/10 text-slate-200 border-white/20')">
+                                                <span x-text="port"></span>
+                                            </button>
+                                        </template>
+                                    </div>
+
+                                    <!-- Apps List -->
+                                    <div x-show="inputSelectionState === 'apps'" class="flex flex-wrap gap-2 overflow-y-auto max-h-[110px] w-full hide-scrollbar pr-1 pb-1">
+                                        <template x-for="(app, aIdx) in TVAppsController.getActiveOttList()" :key="app.id">
+                                            <button :id="`settings_app_${aIdx}`"
+                                                    type="button" tabindex="0"
+                                                    @click="selectApp(app)"
+                                                    @mouseenter="dashboardFocus = `app_${aIdx}`"
+                                                    @focus="dashboardFocus = `app_${aIdx}`"
+                                                    class="px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all outline-none border flex items-center justify-center min-w-[70px]"
+                                                    :class="[
+                                                        TVAppsController.getAppBoxClass(app, dashboardFocus === `app_${aIdx}`),
+                                                        isSpecificAppSelected(app) ? 'bg-amber-400/20 text-amber-300 !border-amber-400 ring-1 ring-amber-400' : ''
+                                                    ]">
+                                                <span x-text="app.name" class="truncate max-w-[70px]"></span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p class="text-xs text-slate-400 border-t border-white/5 pt-2 mt-1">
+                                Select startup port connected to STB / Live TV
+                            </p>
+                        </div>
+
+                    </div>
+
+                    <!-- Hardware & Network Diagnostics Table Card -->
+                    <div class="p-6 rounded-2xl bg-[#0f1015] border-2 border-amber-500/20 flex flex-col flex-1 shadow-inner justify-between">
+                        <div class="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+                            <h3
+                                class="text-sm font-black uppercase tracking-widest text-amber-400 flex items-center gap-2">
+                                <span>⚡</span>
+                                <span>Hardware & Network Diagnostics</span>
+                            </h3>
+                            <div class="flex items-center gap-2 text-xs font-mono text-slate-400">
+                                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                                <span>Live TV Bridge Telemetry</span>
+                            </div>
+                        </div>
+
+                        <!-- 10 Diagnostic Fields in Spacious High-Contrast Grid -->
+                        <div class="grid grid-cols-2 gap-x-8 gap-y-3.5 text-sm font-medium">
+                            <div class="flex items-center justify-between py-1.5 border-b border-white/5">
+                                <span class="text-slate-400 font-bold">Android ID:</span>
+                                <span class="font-mono text-white font-extrabold truncate max-w-[210px]"
+                                    x-text="hwData.serial"></span>
+                            </div>
+                            <div class="flex items-center justify-between py-1.5 border-b border-white/5">
+                                <span class="text-slate-400 font-bold">IP Address:</span>
+                                <span class="font-mono text-amber-300 font-black text-base" x-text="hwData.ip"></span>
+                            </div>
+                            <div class="flex items-center justify-between py-1.5 border-b border-white/5">
+                                <span class="text-slate-400 font-bold">MAC Address:</span>
+                                <span class="font-mono text-white font-extrabold" x-text="hwData.mac"></span>
+                            </div>
+                            <div class="flex items-center justify-between py-1.5 border-b border-white/5">
+                                <span class="text-slate-400 font-bold">Gateway:</span>
+                                <span class="font-mono text-white font-extrabold" x-text="hwData.gateway"></span>
+                            </div>
+                            <div class="flex items-center justify-between py-1.5 border-b border-white/5">
+                                <span class="text-slate-400 font-bold">Subnet Mask:</span>
+                                <span class="font-mono text-white font-extrabold" x-text="hwData.subnet"></span>
+                            </div>
+                            <div class="flex items-center justify-between py-1.5 border-b border-white/5">
+                                <span class="text-slate-400 font-bold">DNS Server:</span>
+                                <span class="font-mono text-white font-extrabold" x-text="hwData.dns"></span>
+                            </div>
+                            <div class="flex items-center justify-between py-1.5 border-b border-white/5">
+                                <span class="text-slate-400 font-bold">Device Model:</span>
+                                <span class="text-white font-extrabold" x-text="hwData.model"></span>
+                            </div>
+                            <div class="flex items-center justify-between py-1.5 border-b border-white/5">
+                                <span class="text-slate-400 font-bold">Device Brand:</span>
+                                <span class="text-white font-extrabold capitalize" x-text="hwData.brand"></span>
+                            </div>
+                            <div class="flex items-center justify-between py-1.5">
+                                <span class="text-slate-400 font-bold">Android OS:</span>
+                                <span class="text-emerald-400 font-black text-base" x-text="hwData.android"></span>
+                            </div>
+                            <div class="flex items-center justify-between py-1.5">
+                                <span class="text-slate-400 font-bold">Template Version:</span>
+                                <span class="font-mono text-amber-400 font-black text-base"
+                                    x-text="hwData.version"></span>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <!-- RIGHT COLUMN (4 Cols): System Management & Diagnostic Controls -->
+                <div class="col-span-4 flex flex-col justify-between gap-5">
+
+                    <!-- Android System & Bridge Management Card -->
+                    <div
+                        class="p-6 rounded-2xl bg-[#12131a] border-2 border-white/10 flex flex-col justify-between flex-1 shadow-lg">
+                        <div>
+                            <div class="flex items-center gap-3 pb-3 border-b border-white/10 mb-4">
+                                <span class="text-2xl">🛠️</span>
+                                <div>
+                                    <h3 class="text-sm font-black uppercase tracking-widest text-amber-400">
+                                        System Management
+                                    </h3>
+                                    <p class="text-xs text-slate-400 font-medium mt-0.5">
+                                        Native OS settings and hardware bridge controls
+                                    </p>
+                                </div>
+                            </div>
+
+                            <p class="text-xs text-slate-300 leading-relaxed mb-4">
+                                Launch native Android TV system settings for Wi-Fi, Bluetooth, Audio, and Display
+                                configurations, or refresh telemetry directly from firmware.
+                            </p>
+                        </div>
+
+                        <div class="flex flex-col gap-4">
+                            <!-- Open Native Android Settings Button -->
+                            <button id="settings-android-btn"
+                                    tabindex="0"
+                                    @click="triggerAndroidSettings(); dashboardFocus = 'android_settings'"
+                                    @mouseenter="dashboardFocus = 'android_settings'"
+                                    @focus="dashboardFocus = 'android_settings'"
+                                    class="w-full py-4 px-6 rounded-2xl border-2 transition-all duration-300 font-black text-sm tracking-wider uppercase flex items-center justify-center gap-3 cursor-pointer outline-none shadow-lg group"
+                                    :class="dashboardFocus === 'android_settings' 
+                                        ? 'ring-4 ring-amber-400 bg-amber-400 text-black border-amber-300 scale-[1.02] shadow-[0_0_35px_rgba(255,215,0,0.9)] font-black' 
+                                        : 'bg-gradient-to-r from-[#1f1f28] to-[#16161e] border-amber-500/50 text-white hover:border-amber-400 hover:bg-amber-400/20'">
+                                <span class="text-2xl group-hover:scale-110 group-focus:scale-110 transition-transform">⚙️</span>
+                                <span>Open Android Settings</span>
+                            </button>
+
+                            <!-- Refresh Diagnostics Button -->
+                            <button id="settings-refresh-btn"
+                                    tabindex="0"
+                                    @click="loadHardwareDetails(true); dashboardFocus = 'refresh_hw'"
+                                    @mouseenter="dashboardFocus = 'refresh_hw'"
+                                    @focus="dashboardFocus = 'refresh_hw'"
+                                    class="w-full py-3.5 px-6 rounded-2xl border transition-all font-black text-xs tracking-wider uppercase flex items-center justify-center gap-2.5 cursor-pointer outline-none"
+                                    :class="dashboardFocus === 'refresh_hw' 
+                                        ? 'ring-4 ring-amber-400 bg-amber-400/30 text-amber-300 border-amber-400 scale-[1.02] shadow-[0_0_25px_rgba(255,215,0,0.7)] font-black' 
+                                        : 'bg-white/5 border-white/15 text-slate-300 hover:border-white/30 hover:bg-white/10'">
+                                <span class="text-base" :class="isRefreshingHw ? 'animate-spin' : ''">↻</span>
+                                <span x-text="isRefreshingHw ? 'Refreshing Telemetry...' : 'Refresh Hardware Diagnostics'">Refresh Hardware Diagnostics</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- System Status Card -->
+                    <div
+                        class="p-5 rounded-2xl bg-[#12131a] border-2 border-white/10 flex items-center justify-between shadow-md">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">📡</span>
+                            <div>
+                                <h4 class="text-xs font-black uppercase text-slate-300 tracking-wider">Network Bridge
+                                    Status</h4>
+                                <p class="text-[11px] text-slate-400 mt-0.5">Connected to TV Controller</p>
+                            </div>
+                        </div>
+                        <span
+                            class="px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs font-black">ONLINE</span>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- Bottom Action Controls Bar -->
+            <div class="pt-5 border-t border-white/15 flex items-center justify-between relative z-10 flex-shrink-0">
+                <p class="text-xs lg:text-sm font-semibold text-slate-400">
+                    Press <span class="text-amber-400 font-bold">BACK</span> or <span
+                        class="text-amber-400 font-bold">EXIT</span> to return to Interactive Services
+                </p>
+
+                <div class="flex items-center gap-4">
+                    <!-- Save Configuration Button -->
+                    <button id="settings-save-btn"
+                            tabindex="0"
+                            @click="saveConfiguration(); dashboardFocus = 'save'"
+                            @mouseenter="dashboardFocus = 'save'"
+                            @focus="dashboardFocus = 'save'"
+                            class="px-10 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-black font-black text-sm uppercase tracking-wider transition-all cursor-pointer outline-none"
+                            :class="dashboardFocus === 'save' 
+                                ? 'ring-4 ring-white scale-105 shadow-[0_0_35px_rgba(255,215,0,1)] brightness-125' 
+                                : 'shadow-[0_0_20px_rgba(255,215,0,0.6)] hover:brightness-110'">
+                        <span x-text="isSavingConfig ? 'Saving...' : 'Save Configuration'">Save Configuration</span>
+                    </button>
+
+                    <!-- Exit Button -->
+                    <button id="settings-exit-btn"
+                            tabindex="0"
+                            @click="goBack(); dashboardFocus = 'exit'"
+                            @mouseenter="dashboardFocus = 'exit'"
+                            @focus="dashboardFocus = 'exit'"
+                            class="px-8 py-3.5 rounded-full border text-white font-extrabold text-sm uppercase tracking-wider transition-all cursor-pointer outline-none"
+                            :class="dashboardFocus === 'exit' 
+                                ? 'ring-4 ring-amber-400 bg-white/30 border-white/60 scale-105 shadow-[0_0_25px_rgba(255,255,255,0.7)]' 
+                                : 'bg-white/10 hover:bg-white/20 border-white/20'">
+                        Exit
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </template>
+
+</div>
+        </div>
+
+        <!-- Real-Time Airport Flights Screen -->
+        <div x-show="['flights', 'flight'].includes(currentView)"
+             x-cloak
+             class="w-full flex-1 flex flex-col items-center justify-start px-12 pt-2 pb-4">
+<!-- Airport FIDS (Flight Information Display System) Screen -->
+<div class="w-full flex-1 flex flex-col justify-start px-12 pt-3 pb-6 max-h-[860px] select-none">
+
+    <!-- Top Airport Header & Controller Bar -->
+    <div
+        class="flex items-center justify-between bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl px-8 py-3 mb-3 shadow-2xl">
+        <!-- Airport Title & Code -->
+        <div class="flex items-center space-x-4">
+            <div
+                class="w-12 h-12 rounded-xl bg-amber-400 text-black flex items-center justify-center font-black text-xl shadow-[0_0_20px_rgba(251,191,36,0.5)]">
+                <svg class="w-6 h-6 text-black" viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                        d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
+                </svg>
+            </div>
+            <div>
+                <div class="flex items-center space-x-3">
+                    <span class="text-xl font-black text-white tracking-wide" x-text="currentAirportName"></span>
+                    <span
+                        class="font-mono font-black text-xs px-2.5 py-0.5 rounded-md bg-amber-400/20 text-amber-300 border border-amber-400/40"
+                        x-text="currentAirportIata"></span>
+                </div>
+                <p class="text-xs text-slate-400 flex items-center space-x-2 mt-0.5">
+                    <span>Live FIDS Terminal Schedule</span>
+                    <span>&bull;</span>
+                    <span>City: <strong class="text-slate-200" x-text="currentAirportCity"></strong></span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Airport Switcher & Live Refresh Trigger -->
+        <div class="flex items-center space-x-3">
+            <!-- Secondary Airport Chip Switcher if available -->
+            <template x-if="secondaryAirportData">
+                <div class="flex items-center bg-white/5 border border-white/10 rounded-xl p-1 space-x-1">
+                    <button id="flight-focus-toggle_primary" 
+                        @click="switchAirportSlot('primary')"
+                        @mouseenter="flightFocusZone = 'header'; flightFocusIndex = 0; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                        class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer" :class="[
+                                activeAirportSlot === 'primary' ? 'bg-amber-400 text-black shadow-md font-black' : 'text-slate-300 hover:text-white',
+                                (flightFocusZone === 'header' && flightFocusIndex === 0) ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-black' : ''
+                            ]">
+                        <span x-text="(primaryAirportData ? primaryAirportData.iata_code : "") || 'Primary'"></span>
+                    </button>
+                    <button id="flight-focus-toggle_secondary" 
+                        @click="switchAirportSlot('secondary')"
+                        @mouseenter="flightFocusZone = 'header'; flightFocusIndex = 1; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                        class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer" :class="[
+                                activeAirportSlot === 'secondary' ? 'bg-amber-400 text-black shadow-md font-black' : 'text-slate-300 hover:text-white',
+                                (flightFocusZone === 'header' && flightFocusIndex === 1) ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-black' : ''
+                            ]">
+                        <span x-text="(secondaryAirportData ? secondaryAirportData.iata_code : "") || 'Secondary'"></span>
+                    </button>
+                </div>
+            </template>
+
+            <!-- Last Updated Timestamp Badge (Single Clean Horizontal Line) -->
+            <div
+                class="flex items-center space-x-2.5 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-mono text-slate-300 shadow-xs">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-slate-400 font-sans font-bold uppercase tracking-wider text-2xs">Last Synced:</span>
+                <span class="text-amber-300 font-black text-sm" x-text="flightLastUpdated || 'Just Now'"></span>
+            </div>
+
+            <!-- Manual Refresh Action Button (Crystal Clear Text & Dynamic Active Colors) -->
+            <button id="flight-focus-btn_refresh" 
+                @click="refreshFlights()"
+                @mouseenter="flightFocusZone = 'header'; flightFocusIndex = (secondaryAirportData ? 2 : 0); (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                @focus="flightFocusZone = 'header'; flightFocusIndex = (secondaryAirportData ? 2 : 0); (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                class="px-5 py-2 rounded-xl border flex items-center space-x-2 transition-all cursor-pointer font-black text-xs tracking-wider uppercase shadow-md"
+                :class="[
+                        (flightFocusZone === 'header' && ((secondaryAirportData && flightFocusIndex === 2) || (!secondaryAirportData && flightFocusIndex === 0))) 
+                            ? '!bg-amber-400 !text-black border-amber-300 shadow-[0_0_25px_rgba(251,191,36,0.8)] scale-105' 
+                            : 'bg-amber-400/15 text-amber-300 border-amber-400/40 hover:bg-amber-400 hover:text-black hover:border-amber-400',
+                        isFlightRefreshing ? 'opacity-50 pointer-events-none' : ''
+                    ]">
+                <!-- Refresh SVG Icon -->
+                <svg class="w-4 h-4 flex-shrink-0" :class="{ 'animate-spin': isFlightRefreshing }" fill="none"
+                    stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span class="font-extrabold tracking-wide"
+                    x-text="isFlightRefreshing ? 'SYNCING...' : 'REFRESH'"></span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Departures / Arrivals Flight Board Container (Strict Zero Scrollbar) -->
+    <div
+        class="flex-1 bg-slate-950/90 backdrop-blur-2xl border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col justify-between">
+
+        <!-- Top Section: Tab Selector Bar -->
+        <div class="flex items-center justify-between border-b border-white/10 px-8 pt-3 pb-2.5 bg-white/[0.02]">
+            <div class="flex items-center space-x-4">
+                <!-- Departures Tab -->
+                <button id="flight-focus-tab_departures" 
+                    @click="switchFlightTab('departures')"
+                    @mouseenter="flightFocusZone = 'tabs'; flightFocusIndex = 0; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    class="px-6 py-2 rounded-2xl text-sm font-black tracking-wider uppercase transition-all flex items-center space-x-2.5 cursor-pointer"
+                    :class="[
+                            activeFlightTab === 'departures' ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-black shadow-[0_0_25px_rgba(251,191,36,0.4)]' : 'bg-white/5 text-slate-300 hover:text-white border border-white/10',
+                            (flightFocusZone === 'tabs' && flightFocusIndex === 0) ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-black' : ''
+                        ]">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M2.5 19h19v2h-19v-2zm19.57-9.36c-.21-.8-1.04-1.28-1.84-1.06L14.92 10 8.08 3.39c-.58-.56-1.5-.59-2.11-.07-.62.52-.73 1.42-.26 2.07l4.31 5.95-4.14 1.11-2.4-1.47c-.43-.26-.98-.24-1.39.06l-.59.43 2.87 3.99 15.2-4.07c.8-.21 1.28-1.04 1.06-1.84z" />
+                    </svg>
+                    <span>DEPARTURES (UDAAN)</span>
+                </button>
+
+                <!-- Arrivals Tab -->
+                <button id="flight-focus-tab_arrivals" 
+                    @click="switchFlightTab('arrivals')"
+                    @mouseenter="flightFocusZone = 'tabs'; flightFocusIndex = 1; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                    class="px-6 py-2 rounded-2xl text-sm font-black tracking-wider uppercase transition-all flex items-center space-x-2.5 cursor-pointer"
+                    :class="[
+                            activeFlightTab === 'arrivals' ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-black shadow-[0_0_25px_rgba(251,191,36,0.4)]' : 'bg-white/5 text-slate-300 hover:text-white border border-white/10',
+                            (flightFocusZone === 'tabs' && flightFocusIndex === 1) ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-black' : ''
+                        ]">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M2.5 19h19v2h-19v-2zm16.84-6.43l-3.14-1.14 2.86-7.85c.29-.8-.13-1.68-.93-1.97-.8-.29-1.68.13-1.97.93l-2.86 7.85-4.14-1.5-1.12-2.58c-.2-.46-.62-.77-1.12-.8l-.72-.05 1.07 4.8-10.4 3.79c-.8.29-1.22 1.17-.93 1.97.29.8 1.17 1.22 1.97.93l18.57-6.76c.8-.29 1.22-1.17.93-1.97z" />
+                    </svg>
+                    <span>ARRIVALS (AAGMAN)</span>
+                </button>
+            </div>
+
+            <div class="flex items-center space-x-3 text-xs font-bold text-slate-400">
+                <span class="inline-flex items-center">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 mr-2 animate-pulse"></span>
+                    Live Radar Feed
+                </span>
+                <span>&bull;</span>
+                <span class="font-mono text-slate-300"
+                    x-text="`${getCurrentFlightList().length} Flights Scheduled`"></span>
+            </div>
+        </div>
+
+        <!-- Table Column Headers (Pixel-Perfect Alignment with Rows) -->
+        <div class="px-8 bg-black/40 border-b border-white/10">
+            <div class="grid grid-cols-12 gap-4 px-4 py-3 text-sm uppercase font-black text-amber-400 tracking-wider border-l-4 border-transparent">
+                <div class="col-span-3">Flight / Airline</div>
+                <div class="col-span-3" x-text="activeFlightTab === 'departures' ? 'Destination' : 'Origin City'"></div>
+                <div class="col-span-2 text-center">Scheduled / Est.</div>
+                <div class="col-span-1 text-center">Terminal</div>
+                <div class="col-span-1 text-center" x-text="activeFlightTab === 'departures' ? 'Gate' : 'Belt'"></div>
+                <div class="col-span-2 text-right">Status</div>
+            </div>
+        </div>
+
+        <!-- Middle Section: Exactly 7 Flight Rows (Large TV Legibility, Zero Scrollbar) -->
+        <div class="flex-1 overflow-hidden px-8 py-1.5 flex flex-col justify-start"
+            style="scrollbar-width: none; -ms-overflow-style: none;">
+
+            <!-- Loading State -->
+            <div x-show="isFlightLoading" class="flex-1 flex flex-col items-center justify-center py-16 space-y-3">
+                <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+                <p class="text-base font-bold text-slate-300">Synchronizing Live Flight Information...</p>
+            </div>
+
+            <!-- Paginated 7 Flight Rows -->
+            <template x-if="!isFlightLoading">
+                <div class="space-y-1">
+                    <template x-for="(flight, idx) in getPaginatedFlights()" :key="flight.flight_no + '_' + idx">
+                        <div class="grid grid-cols-12 gap-4 h-[60px] items-center transition-all duration-150 rounded-xl px-4 cursor-pointer border-l-4 border-transparent"
+                            @mouseenter="flightFocusZone = 'rows'; flightFocusIndex = idx; (document.getElementById('tv-header-back-btn') && document.getElementById('tv-header-back-btn').blur());"
+                            :class="{
+                                 'bg-amber-400/20 !border-amber-400 shadow-[0_0_25px_rgba(251,191,36,0.25)]': (flightFocusZone === 'rows' && flightFocusIndex === idx),
+                                 'hover:bg-white/[0.05] bg-white/[0.02]': !(flightFocusZone === 'rows' && flightFocusIndex === idx)
+                             }">
+
+                            <!-- Flight No & Airline (Large Prominent Fonts) -->
+                            <div class="col-span-3 flex items-center space-x-3.5">
+                                <span class="font-mono font-black text-xl tracking-wider text-amber-400"
+                                    :class="(flightFocusZone === 'rows' && flightFocusIndex === idx) ? 'text-amber-300 scale-105 transition-transform' : ''"
+                                    x-text="flight.flight_no"></span>
+                                <span class="text-base text-slate-200 font-bold truncate"
+                                    x-text="flight.airline"></span>
+                            </div>
+
+                            <!-- Destination or Origin City (Large Font) -->
+                            <div class="col-span-3 flex items-center space-x-2.5">
+                                <svg class="w-4 h-4 text-amber-400/80 flex-shrink-0" viewBox="0 0 24 24"
+                                    fill="currentColor">
+                                    <path
+                                        d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                                </svg>
+                                <span class="text-lg font-extrabold text-white tracking-wide truncate"
+                                    x-text="activeFlightTab === 'departures' ? flight.destination : flight.origin"></span>
+                            </div>
+
+                            <!-- Scheduled / Estimated Time (Large Bold Mono) -->
+                            <div class="col-span-2 text-center font-mono font-black text-lg">
+                                <span class="text-white" x-text="flight.scheduled_time"></span>
+                                <template
+                                    x-if="flight.estimated_time && flight.estimated_time !== flight.scheduled_time">
+                                    <span class="text-amber-400 text-sm ml-1 font-bold"
+                                        x-text="`(${flight.estimated_time})`"></span>
+                                </template>
+                            </div>
+
+                            <!-- Terminal Badge -->
+                            <div class="col-span-1 text-center font-mono font-black text-base text-slate-200">
+                                <span class="px-3 py-1 rounded-lg bg-white/10 border border-white/15 shadow-xs"
+                                    x-text="flight.terminal || 'T2'"></span>
+                            </div>
+
+                            <!-- Gate or Baggage Belt (Bright Amber) -->
+                            <div class="col-span-1 text-center font-mono font-black text-lg text-amber-300">
+                                <span class="px-2.5 py-0.5 rounded-md bg-amber-400/10 border border-amber-400/30"
+                                    x-text="activeFlightTab === 'departures' ? (flight.gate || '-') : (flight.belt || '-')"></span>
+                            </div>
+
+                            <!-- Live Flight Status Badge (Large Glowing Pill) -->
+                            <div class="col-span-2 text-right">
+                                <span
+                                    class="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-black uppercase tracking-wider shadow-sm"
+                                    :class="{
+                                          'bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.25)]': ['On Time', 'Landed'].includes(flight.status),
+                                          'bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.25)]': ['Boarding', 'Delayed'].includes(flight.status),
+                                          'bg-rose-500/25 text-rose-300 border border-rose-500/40 shadow-[0_0_15px_rgba(244,63,94,0.25)]': ['Cancelled'].includes(flight.status),
+                                          'bg-sky-500/25 text-sky-300 border border-sky-500/40 shadow-[0_0_15px_rgba(14,165,233,0.25)]': ['Departed'].includes(flight.status)
+                                      }" x-text="flight.status">
+                                </span>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Empty State if no flights -->
+                    <template x-if="getPaginatedFlights().length === 0">
+                        <div class="text-center py-16 text-slate-400 space-y-2">
+                            <svg class="w-12 h-12 mx-auto text-slate-600" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
+                            </svg>
+                            <p class="text-base font-bold text-slate-300" x-text="flightError || 'No flight schedules currently available for this airport.'"></p>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- Bottom Section: Elegant TV Pagination Controls (7 Rows Per Page) -->
+        <div
+            class="px-8 py-2.5 bg-black/50 border-t border-white/10 flex items-center justify-between text-sm font-bold text-slate-400">
+            <!-- Left: Page Status -->
+            <div class="flex items-center space-x-2">
+                <span class="text-slate-400 font-medium">Showing</span>
+                <span class="text-white font-mono font-black"
+                    x-text="`${Math.min(1 + (flightPage - 1) * flightPageSize, getCurrentFlightList().length)}-${Math.min(flightPage * flightPageSize, getCurrentFlightList().length)}`"></span>
+                <span class="text-slate-400 font-medium">of</span>
+                <span class="text-white font-mono font-black" x-text="getCurrentFlightList().length"></span>
+                <span class="text-slate-400 font-medium">Flights</span>
+            </div>
+
+            <!-- Center: Interactive Page Switcher -->
+            <div class="flex items-center space-x-3">
+                <!-- Previous Page Button -->
+                <button id="flight-focus-btn_prev" @click="prevFlightPage()" :disabled="flightPage <= 1"
+                    class="px-4 py-1.5 rounded-xl border text-xs font-black flex items-center space-x-1.5 transition-all cursor-pointer"
+                    :class="[
+                            flightPage <= 1 ? 'opacity-30 border-white/10 text-slate-600 cursor-not-allowed' : 'border-white/20 text-white hover:bg-amber-400 hover:text-black',
+                            (flightFocusZone === 'pagination' && flightFocusIndex === 0) ? 'ring-2 ring-amber-400 bg-amber-400 text-black shadow-md' : 'bg-white/5'
+                        ]">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    <span>PREV</span>
+                </button>
+
+                <!-- Page Number Pills -->
+                <div class="flex items-center space-x-2">
+                    <template x-for="p in getTotalFlightPages()" :key="'page_' + p">
+                        <button @click="flightPage = p; flightFocusIndex = 0;"
+                            class="w-8 h-8 rounded-lg text-sm font-mono font-black flex items-center justify-center transition-all cursor-pointer"
+                            :class="flightPage === p ? 'bg-amber-400 text-black shadow-md scale-110' : 'bg-white/10 text-slate-300 hover:bg-white/20'"
+                            x-text="p">
+                        </button>
+                    </template>
+                </div>
+
+                <!-- Next Page Button -->
+                <button id="flight-focus-btn_next" @click="nextFlightPage()"
+                    :disabled="flightPage >= getTotalFlightPages()"
+                    class="px-4 py-1.5 rounded-xl border text-xs font-black flex items-center space-x-1.5 transition-all cursor-pointer"
+                    :class="[
+                            flightPage >= getTotalFlightPages() ? 'opacity-30 border-white/10 text-slate-600 cursor-not-allowed' : 'border-white/20 text-white hover:bg-amber-400 hover:text-black',
+                            (flightFocusZone === 'pagination' && flightFocusIndex === 1) ? 'ring-2 ring-amber-400 bg-amber-400 text-black shadow-md' : 'bg-white/5'
+                        ]">
+                    <span>NEXT</span>
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Right: Page Indicator -->
+            <div class="font-mono text-sm">
+                <span class="text-slate-400 font-sans">Page</span>
+                <span class="text-amber-400 font-black text-base" x-text="flightPage"></span>
+                <span class="text-slate-500">/</span>
+                <span class="text-slate-200 font-bold" x-text="getTotalFlightPages()"></span>
+            </div>
+        </div>
+
+        <!-- TV Remote Keys Helper Bar -->
+        <div
+            class="px-8 py-2.5 bg-black/80 border-t border-white/10 flex items-center justify-between text-2xs font-bold text-slate-400 uppercase tracking-wider">
+            <div class="flex items-center space-x-7">
+                <span class="flex items-center space-x-1.5">
+                    <span class="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-3xs">◄ ►</span>
+                    <span>Switch Tabs / Pages</span>
+                </span>
+                <span class="flex items-center space-x-1.5">
+                    <span class="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-3xs">▲ ▼</span>
+                    <span>Select Flight Rows</span>
+                </span>
+                <span class="flex items-center space-x-1.5">
+                    <span class="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-3xs">OK</span>
+                    <span>Select / Refresh / Page</span>
+                </span>
+                <span class="flex items-center space-x-1.5">
+                    <span class="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-3xs">BACK</span>
+                    <span>Exit to Menu</span>
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+        </div>
+
+        <!-- Dynamic Middle Viewport (Fallback When opening undefined detail screens) -->
+        <div x-show="currentView !== 'home' && !['hotel_info', 'room_info', 'amenities', 'our_city', 'ourcity', 'language', 'languages', 'apps', 'applications', 'screen_cast', 'cast', 'weather', 'input', 'inputs', 'hdmi', 'settings', 'admin', 'flights', 'flight'].includes(currentView)"
+             x-cloak
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100"
+             class="relative z-10 flex-1 flex flex-col justify-center items-center px-16 w-full">
+            
+            <div class="glass-card px-12 py-8 rounded-3xl text-center space-y-4 shadow-2xl border border-white/10 max-w-2xl">
+                <div class="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold uppercase tracking-wider">
+                    <span>Screen Active</span>
+                </div>
+                <h1 class="text-4xl font-extrabold text-white uppercase tracking-wide" x-text="currentView ? currentView.replace(/_/g, ' ') : ''"></h1>
+                <p class="text-slate-300 text-lg">Screen details will be rendered here.</p>
+                <button @click="goBack()" class="px-6 py-2 rounded-full bg-black border-2 border-[#caa44d] text-white font-extrabold hover:bg-[#ffc700] hover:text-black transition cursor-pointer">
+                    ← BACK
+                </button>
+            </div>
+        </div>
+
+        <div x-show="currentView === 'home'" x-cloak class="flex-1"></div>
+
+        <!-- Bottom Menu Slider (Flips seamlessly in place on Home Page) -->
+        <div x-show="currentView === 'home'" 
+             x-cloak
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 translate-y-4"
+             x-transition:enter-end="opacity-100 translate-y-0"
+             class="w-full relative z-30">
+<div class="w-full pb-8 pt-8 flex flex-col items-center justify-end select-none relative z-30 font-sans overflow-visible"
+     :class="isMenuFlipping ? 'scale-90 opacity-0 -translate-y-4' : 'scale-100 opacity-100 translate-y-0'"
+     style="transition: all 0.3s cubic-bezier(0.34, 1.2, 0.64, 1); will-change: transform, opacity;">
+
+
+    <!-- ============================================================
+         UNIFIED DYNAMIC ADAPTIVE CAROUSEL
+         Automatically scales and centers for ANY number of items (1 to 20+)
+         ============================================================ -->
+    <div class="w-full px-6 pt-10 pb-2 relative overflow-visible"
+        :style="currentMenuList.length >= 6 ? '-webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.85) 3%, black 6%, black 94%, rgba(0,0,0,0.85) 97%, transparent 100%); mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.85) 3%, black 6%, black 94%, rgba(0,0,0,0.85) 97%, transparent 100%);' : ''">
+
+        <div class="w-full flex items-end py-3 overflow-visible max-w-[1900px] mx-auto" :class="{
+                'justify-between': currentMenuList.length >= 6,
+                'space-x-12 justify-center': currentMenuList.length >= 3 && currentMenuList.length < 6,
+                'space-x-16 justify-center': currentMenuList.length < 3
+             }">
+
+            <template x-for="slot in getVisibleSlots()" :key="slot.uniqueKey">
+                <div @click="onSlotClick(slot)"
+                    class="flex flex-col items-center justify-center cursor-pointer flex-shrink-0"
+                    :class="slot.scaleClass"
+                    style="width: 250px; transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.35s ease; will-change: transform, opacity;">
+
+                    <!-- Icon Container with Center Spotlight Golden Glow -->
+                    <div class="relative flex items-center justify-center overflow-visible transition-all duration-300">
+                        <img :src="getMenuIcon(slot.item)" :alt="slot.item.name"
+                            loading="eager" decoding="async"
+                            class="object-contain rounded-full transition-all duration-300" :class="slot.imgClass"
+                            style="transition: all 0.4s cubic-bezier(0.34, 1.4, 0.64, 1); will-change: transform, box-shadow, border-color;"
+                            @error="$el.style.opacity='0.3'">
+                    </div>
+
+                    <!-- Label Display -->
+                    <div class="mt-3 text-center"
+                        style="transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1); will-change: transform, color;">
+                        <span class="tracking-wider block whitespace-nowrap uppercase" :class="slot.textClass"
+                            x-text="getMenuTitle(slot.item)">
+                        </span>
+                    </div>
+
+                </div>
+            </template>
+
+        </div>
+    </div>
+
+    <!-- Device ID footer (subtle) -->
+    <div class="w-full px-12 flex justify-end pt-1">
+        <span class="text-[11px] font-mono text-slate-500/80 tracking-wider"
+            x-text="`ID: ${(hotelData.device ? hotelData.device.device_id : "") || '3d761ddf4a5d30a3'}`"></span>
+    </div>
+
+</div>
+        </div>
+
+        <!-- Global TV Toast Feedback Notification -->
+        <div x-show="toastMessage"
+             x-cloak
+             x-transition:enter="transition ease-out duration-300 transform"
+             x-transition:enter-start="opacity-0 translate-y-8 scale-95"
+             x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+             x-transition:leave="transition ease-in duration-200 transform"
+             x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+             x-transition:leave-end="opacity-0 translate-y-8 scale-95"
+             class="fixed bottom-12 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+            <div class="px-8 py-3.5 rounded-2xl bg-black/95 border-2 border-[#ffc700] text-amber-300 font-black text-lg shadow-[0_10px_35px_rgba(0,0,0,0.9),0_0_25px_rgba(255,199,0,0.4)] flex items-center gap-3 backdrop-blur-xl">
+                <span class="text-2xl">⚠️</span>
+                <span x-text="toastMessage"></span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Prevent browser zoom via keyboard or mouse wheel -->
+    <script>
+        document.addEventListener('keydown', function(event) {
+            if (event.ctrlKey && (event.key === '=' || event.key === '-' || event.key === '+' || event.key === '0')) {
+                event.preventDefault();
+            }
+        });
+        document.addEventListener('wheel', function(event) {
+            if (event.ctrlKey) {
+                event.preventDefault();
+            }
+        }, { passive: false });
+    </script>
+</body>
+</html>
