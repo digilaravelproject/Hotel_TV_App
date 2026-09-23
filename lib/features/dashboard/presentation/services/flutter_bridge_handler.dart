@@ -282,19 +282,48 @@ class FlutterBridgeHandler {
       case 'getSelectedLiveTvPort':
       case 'getSavedPortPreference':
         final saved = SharedPrefs.getString('selectedLiveTvPort');
-        if (saved != null && saved.isNotEmpty && saved != 'null') {
-          return {'selectedPort': saved, 'port': saved};
-        }
+        List<Map<String, dynamic>> inputsList = [];
         try {
           final dynamic inputsRes = await _tvChannel.invokeMethod('getLiveTvInputs');
-          if (inputsRes is List && inputsRes.isNotEmpty) {
-            final firstMap = Map<String, dynamic>.from(inputsRes.first as Map);
-            final firstPort = firstMap['id']?.toString() ?? firstMap['model']?.toString() ?? firstMap['label']?.toString() ?? '';
-            return {'selectedPort': firstPort, 'port': firstPort};
+          if (inputsRes is List) {
+            inputsList = inputsRes.map((e) => Map<String, dynamic>.from(e as Map)).toList();
           }
         } catch (_) {}
-        return {'selectedPort': 'HDMI 1', 'port': 'HDMI 1'};
 
+        Map<String, dynamic>? matched;
+        if (saved != null && saved.isNotEmpty && saved != 'null') {
+          matched = inputsList.firstWhere(
+            (item) {
+              final id = item['id']?.toString() ?? '';
+              final model = item['model']?.toString() ?? '';
+              final label = item['label']?.toString() ?? '';
+              return id == saved || model == saved || label == saved;
+            },
+            orElse: () => <String, dynamic>{},
+          );
+        }
+        if ((matched == null || matched.isEmpty) && inputsList.isNotEmpty) {
+          matched = inputsList.first;
+        }
+
+        final selectedId = matched != null && matched.isNotEmpty
+            ? (matched['id']?.toString() ?? matched['model']?.toString() ?? '')
+            : (saved ?? '');
+        final cleanLabel = matched != null && matched.isNotEmpty
+            ? (matched['label']?.toString() ?? matched['name']?.toString() ?? selectedId)
+            : selectedId;
+
+        return {
+          'selectedPort': selectedId,
+          'port': selectedId,
+          'id': selectedId,
+          'label': cleanLabel,
+          'name': cleanLabel,
+        };
+
+      case 'launchTvInput':
+      case 'launchTVInput':
+      case 'switchTvInput':
       case 'launchLiveTv':
       case 'openLiveTv':
       case 'launchLiveTV':
@@ -306,9 +335,17 @@ class FlutterBridgeHandler {
         }
         _lastHdmiLaunchTime = now;
 
-        String? model = (args.isNotEmpty && args[0] != null && args[0].toString().trim().isNotEmpty && args[0].toString() != 'null')
-            ? args[0].toString().trim()
-            : null;
+        String? model;
+        if (args.isNotEmpty && args[0] != null) {
+          if (args[0] is Map) {
+             model = args[0]['model']?.toString() ?? args[0]['id']?.toString() ?? args[0]['port']?.toString();
+          } else {
+             model = args[0].toString().trim();
+          }
+        }
+        if (model == 'null' || (model != null && model.isEmpty)) {
+           model = null;
+        }
         String checkedSource = model != null ? 'argument' : '';
 
         if (model == null || model.isEmpty || model == 'null') {
@@ -359,19 +396,29 @@ class FlutterBridgeHandler {
           model = 'HDMI 1';
           checkedSource = 'default_hdmi1_fallback';
         }
+        final bool isTvInput = model.contains('/') ||
+            model.toLowerCase().contains('tvinput') ||
+            model.toLowerCase().contains('inputservice') ||
+            model.toUpperCase().startsWith('HDMI') ||
+            model.toUpperCase().startsWith('AV') ||
+            model.toUpperCase().startsWith('TUNER') ||
+            model.toUpperCase().startsWith('HW') ||
+            !model.contains('.');
+
         try {
           if (model.toUpperCase() == 'IPTV') {
             print('[FlutterBridge] Launching IPTV (source: $checkedSource)');
             await _tvChannel.invokeMethod('launchIptv');
-          } else if (model.contains('.')) {
-            print('[FlutterBridge] Launching TV APP: $model (source: $checkedSource)');
-            await _tvChannel.invokeMethod('launchApp', {'packageName': model});
-          } else {
+          } else if (isTvInput) {
             print('[FlutterBridge] Launching Live TV input port: $model (source: $checkedSource)');
             await _tvChannel.invokeMethod('launchHdmi', {'model': model});
+          } else {
+            // Standalone Android package name (e.g. "com.netflix.ninja")
+            print('[FlutterBridge] Launching TV APP: $model (source: $checkedSource)');
+            await _tvChannel.invokeMethod('launchApp', {'package': model, 'packageName': model});
           }
         } catch (e) {
-          print('[FlutterBridge] Error launching Live TV port / app: $e');
+          print('[FlutterBridge] Error in launchLiveTv/launchHdmi: $e');
         }
         return {
           'success': true,
