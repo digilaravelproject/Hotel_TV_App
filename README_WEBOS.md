@@ -21,8 +21,14 @@ cd C:\xampp_old\htdocs\Digi_Laravel_Prrojects\Hotel_TV_App
 ```
 
 Yeh script:
-1. `webos/` platform directory ko verify karta hai.
-2. `ares-package` use karke root folder me `com.pax.hospitality.tv_1.0.0_all.ipk` aur `pax_tv.ipk` generate kar deta hai.
+1. `web/appinfo.json` ke version ko **automatically increment (1.0.0 -> 1.0.1 -> 1.0.2)** karta hai.
+2. Har build par uniquely versioned package generate karta hai (jaise `com.pax.hospitality.tv_1.0.1_all.ipk`).
+3. Always-latest alias `pax_tv.ipk` bhi generate karta hai.
+
+#### Optional Switches:
+* Naya code recompile karne ke liye: `.\build_webos.ps1 -Rebuild`
+* Custom version set karne ke liye: `.\build_webos.ps1 -SetVersion 1.2.0`
+* Bina version change kiye pack karne ke liye: `.\build_webos.ps1 -NoBump`
 
 ---
 

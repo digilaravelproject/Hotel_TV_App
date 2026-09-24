@@ -1,21 +1,24 @@
-{
-  "id": "com.pax.hospitality.tv",
-  "version": "1.0.0",
-  "vendor": "PAX Hospitality",
-  "type": "web",
-  "main": "index.html",
-  "title": "PAX TV Hospitality",
-  "icon": "icon.png",
-  "largeIcon": "largeIcon.png",
-  "uiRevision": "2",
-  "resolution": "1920x1080",
-  "requiredACG": [],
-  "requiredPermissions": [
-    "system.clock",
-    "network.query",
-    "application.operation"
-  ],
-  "accessibility": {
-    "supportsAudioGuidance": true
-  }
+﻿{
+    "id":  "com.pax.hospitality.tv",
+    "version":  "1.0.3",
+    "vendor":  "PAX Hospitality",
+    "type":  "web",
+    "main":  "index.html",
+    "title":  "PAX TV Hospitality",
+    "icon":  "icon.png",
+    "largeIcon":  "largeIcon.png",
+    "uiRevision":  "2",
+    "resolution":  "1920x1080",
+    "requiredACG":  [
+
+                    ],
+    "requiredPermissions":  [
+                                "system.clock",
+                                "network.query",
+                                "application.operation"
+                            ],
+    "disableBackHistoryAPI":  true,
+    "accessibility":  {
+                          "supportsAudioGuidance":  true
+                      }
 }

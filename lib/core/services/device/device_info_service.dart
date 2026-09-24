@@ -176,7 +176,7 @@ class DeviceInfoService {
 
     List<String> tvInputs = [];
     try {
-      if (Platform.isAndroid) {
+      if (!kIsWeb && Platform.isAndroid) {
         final List? inputs = await _channel.invokeMethod<List>('getTvInputs');
         if (inputs != null) {
           tvInputs = inputs.map((e) => e.toString()).toList();

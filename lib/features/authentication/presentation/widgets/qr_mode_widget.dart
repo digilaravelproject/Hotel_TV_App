@@ -94,41 +94,40 @@ class QrModeWidget extends StatelessWidget {
         UiSpacer.vSpace(20),
 
         // Pairing Code Pill / Instruction Badge (YouTube TV Compact Style)
-        if (pairCode.isNotEmpty)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFDC2626), // YouTube Accent Red
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFDC2626).withOpacity(0.35),
-                  blurRadius: 16,
-                  spreadRadius: 1,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CustomAppText(
-                  "Scan with your phone or enter code:",
-                  color: Colors.white70,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w400,
-                ),
-                const SizedBox(height: 2),
-                CustomAppText(
-                  pairCode,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 3.0,
-                  color: Colors.white,
-                ),
-              ],
-            ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFDC2626), // YouTube Accent Red
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFDC2626).withOpacity(0.35),
+                blurRadius: 16,
+                spreadRadius: 1,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CustomAppText(
+                "Scan with your phone or enter code:",
+                color: Colors.white70,
+                fontSize: 10,
+                fontWeight: FontWeight.w400,
+              ),
+              const SizedBox(height: 2),
+              CustomAppText(
+                pairCode.isNotEmpty ? pairCode : "••••••",
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 3.0,
+                color: Colors.white,
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
