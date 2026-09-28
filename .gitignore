@@ -52,3 +52,4 @@ app.*.map.json
 /tizen/flutter/
 tizen/.app.deps.json
 tizen/*.csproj.user
+/webos/template
