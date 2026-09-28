@@ -11,14 +11,11 @@ const TVDataService = {
     }
     if (!config) {
       try {
-        const res = await fetch(`data.json?t=${Date.now()}`);
-        if (res.ok) {
-          const raw = await res.json();
-          config = raw.data || raw;
-          if ((_c = config.auth) == null ? void 0 : _c.token) {
-            token = config.auth.token;
-            localStorage.setItem("authToken", token);
-          }
+        const raw = typeof window.loadLocalJson === "function" ? await window.loadLocalJson(`data.json?t=${Date.now()}`) : await (await fetch(`data.json?t=${Date.now()}`)).json();
+        config = raw.data || raw;
+        if ((_c = config.auth) == null ? void 0 : _c.token) {
+          token = config.auth.token;
+          localStorage.setItem("authToken", token);
         }
       } catch (e) {
         console.warn("[DataService] Local data fetch notice:", e);

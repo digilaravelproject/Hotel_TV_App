@@ -40,7 +40,7 @@
                                 activeAirportSlot === 'primary' ? 'bg-amber-400 text-black shadow-md font-black' : 'text-slate-300 hover:text-white',
                                 (flightFocusZone === 'header' && flightFocusIndex === 0) ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-black' : ''
                             ]">
-                        <span x-text="(primaryAirportData ? primaryAirportData.iata_code : "") || 'Primary'"></span>
+                        <span x-text="(primaryAirportData ? primaryAirportData.iata_code : '') || 'Primary'"></span>
                     </button>
                     <button id="flight-focus-toggle_secondary" 
                         @click="switchAirportSlot('secondary')"
@@ -49,7 +49,7 @@
                                 activeAirportSlot === 'secondary' ? 'bg-amber-400 text-black shadow-md font-black' : 'text-slate-300 hover:text-white',
                                 (flightFocusZone === 'header' && flightFocusIndex === 1) ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-black' : ''
                             ]">
-                        <span x-text="(secondaryAirportData ? secondaryAirportData.iata_code : "") || 'Secondary'"></span>
+                        <span x-text="(secondaryAirportData ? secondaryAirportData.iata_code : '') || 'Secondary'"></span>
                     </button>
                 </div>
             </template>

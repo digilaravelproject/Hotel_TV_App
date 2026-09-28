@@ -1,6 +1,6 @@
 {
   "id": "com.pax.hospitality.tv",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "vendor": "PAX Hospitality",
   "type": "web",
   "main": "index.html",
@@ -9,6 +9,7 @@
   "largeIcon": "largeIcon.png",
   "uiRevision": "2",
   "resolution": "1920x1080",
+  "disableBackHistoryAPI": true,
   "requiredACG": [],
   "requiredPermissions": [
     "system.clock",

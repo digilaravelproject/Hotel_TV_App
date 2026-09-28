@@ -6,50 +6,85 @@ window.TVAppsController = {
   lastAppCardIndex: 0,
   toastMessage: "",
   toastTimer: null,
+  hasSyncedInstalled: false,
   getActiveOttList() {
     var _a, _b;
-    if (Array.isArray(this.activeOttList) && this.activeOttList.length > 0) return this.activeOttList;
-    const inst = window.tvAppInstance;
-    if (inst && Array.isArray(inst.activeOttList) && inst.activeOttList.length > 0) return inst.activeOttList;
-    if (inst && Array.isArray((_a = inst.hotelData) == null ? void 0 : _a.active_ott) && inst.hotelData.active_ott.length > 0) return inst.hotelData.active_ott;
-    if (Array.isArray((_b = this.hotelData) == null ? void 0 : _b.active_ott) && this.hotelData.active_ott.length > 0) return this.hotelData.active_ott;
-    return [];
+    const isWebOS = typeof window !== "undefined" && Boolean(
+      window.WebOSDevice && window.WebOSDevice.isWebOS || window.parent && window.parent.WebOSDevice && window.parent.WebOSDevice.isWebOS || window.webOS || window.parent && window.parent.webOS
+    );
+    let list = [];
+    if (this.hasSyncedInstalled && Array.isArray(this.activeOttList)) {
+      list = this.activeOttList;
+    } else if (Array.isArray(this.activeOttList) && this.activeOttList.length > 0) {
+      list = this.activeOttList;
+    } else {
+      const inst = window.tvAppInstance;
+      if (inst && Array.isArray(inst.activeOttList) && inst.activeOttList.length > 0) list = inst.activeOttList;
+      else if (inst && Array.isArray((_a = inst.hotelData) == null ? void 0 : _a.active_ott)) list = inst.hotelData.active_ott;
+      else if (Array.isArray((_b = this.hotelData) == null ? void 0 : _b.active_ott)) list = this.hotelData.active_ott;
+    }
+    if (isWebOS) {
+      list = list.filter((app) => {
+        const pkg = (app.package_name || app.id || "").toLowerCase();
+        const name = (app.name || "").toLowerCase();
+        return !pkg.includes("vending") && !pkg.includes("playstore") && !name.includes("play store") && !name.includes("playstore") && !name.includes("google play");
+      });
+    }
+    return list;
   },
   async syncInstalledApps() {
-    var _a, _b, _c;
-    if (!((_b = (_a = window.flutterBridge) == null ? void 0 : _a.isAvailable) == null ? void 0 : _b.call(_a))) {
-      return;
+    var _a2;
+    var _a, _b;
+    const isWebOS = typeof window !== "undefined" && Boolean(
+      window.WebOSDevice && window.WebOSDevice.isWebOS || window.parent && window.parent.WebOSDevice && window.parent.WebOSDevice.isWebOS || window.webOS || window.parent && window.parent.webOS
+    );
+    const webosDev = typeof window !== "undefined" && (window.WebOSDevice || window.parent && window.parent.WebOSDevice);
+    const inst = window.tvAppInstance || this;
+    const baseList = Array.isArray((_a = inst.hotelData) == null ? void 0 : _a.active_ott) && inst.hotelData.active_ott.length > 0 ? inst.hotelData.active_ott : Array.isArray(this.activeOttList) ? this.activeOttList : [];
+    if (isWebOS && webosDev && typeof webosDev.checkInstalledApps === "function") {
+      try {
+        console.log("[TVApps] Checking webOS installed status for " + baseList.length + " server apps...");
+        const verified = await webosDev.checkInstalledApps(baseList);
+        this.activeOttList = verified;
+        this.hasSyncedInstalled = true;
+        if (window.tvAppInstance) {
+          window.tvAppInstance.activeOttList = verified;
+        }
+        console.log(`[TVApps] Synced with TV: ${verified.length} of ${baseList.length} configured apps are installed`);
+        return;
+      } catch (err) {
+        console.warn("[TVApps] webOS checkInstalledApps error:", err);
+      }
     }
-    try {
-      if (typeof window.flutterBridge.getInstalledApps === "function") {
-        const installed = await window.flutterBridge.getInstalledApps();
-        if (Array.isArray(installed) && installed.length > 0) {
-          const installedPkgSet = /* @__PURE__ */ new Set();
-          installed.forEach((item) => {
-            if (typeof item === "string") {
-              installedPkgSet.add(item.toLowerCase().trim());
-            } else if (item && typeof item === "object") {
-              const pkg = item.package_name || item.packageName || item.package || item.id;
-              if (pkg) installedPkgSet.add(String(pkg).toLowerCase().trim());
-            }
-          });
-          const inst = window.tvAppInstance || this;
-          const baseList = Array.isArray((_c = inst.hotelData) == null ? void 0 : _c.active_ott) && inst.hotelData.active_ott.length > 0 ? inst.hotelData.active_ott : Array.isArray(this.activeOttList) ? this.activeOttList : [];
-          const filtered = baseList.filter((app) => {
-            const appPkg = (app.package_name || app.id || "").toLowerCase().trim();
-            return installedPkgSet.has(appPkg);
-          });
-          if (filtered.length > 0) {
+    if ((_b = window.flutterBridge) == null ? void 0 : (_a2 = _b.isAvailable) == null ? void 0 : _a2.call(_b)) {
+      try {
+        if (typeof window.flutterBridge.getInstalledApps === "function") {
+          const installed = await window.flutterBridge.getInstalledApps();
+          if (Array.isArray(installed)) {
+            const installedPkgSet = /* @__PURE__ */ new Set();
+            installed.forEach((item) => {
+              if (typeof item === "string") {
+                installedPkgSet.add(item.toLowerCase().trim());
+              } else if (item && typeof item === "object") {
+                const pkg = item.package_name || item.packageName || item.package || item.id;
+                if (pkg) installedPkgSet.add(String(pkg).toLowerCase().trim());
+              }
+            });
+            const filtered = baseList.filter((app) => {
+              const appPkg = (app.package_name || app.id || "").toLowerCase().trim();
+              return installedPkgSet.has(appPkg);
+            });
             this.activeOttList = filtered;
+            this.hasSyncedInstalled = true;
             if (window.tvAppInstance) {
               window.tvAppInstance.activeOttList = filtered;
             }
-            console.log(`[TVApps] Synced with TV: ${filtered.length} of ${baseList.length} configured apps are installed`);
+            console.log(`[TVApps] Synced with Flutter TV: ${filtered.length} of ${baseList.length} configured apps are installed`);
           }
         }
+      } catch (e) {
+        console.warn("[TVApps] Error querying installed apps from bridge:", e);
       }
-    } catch (e) {
-      console.warn("[TVApps] Error querying installed apps from bridge:", e);
     }
   },
   getAppIcon(app) {
@@ -130,6 +165,10 @@ window.TVAppsController = {
       window.FlutterBridge.postMessage(JSON.stringify({ method: "launchApp", args: [pkgName], id: Date.now() }));
     } else if ((_c = window.AndroidBridge) == null ? void 0 : _c.launchApp) {
       window.AndroidBridge.launchApp(pkgName);
+    }
+    const webosDev = typeof window !== "undefined" && (window.WebOSDevice || window.parent && window.parent.WebOSDevice);
+    if (webosDev && typeof webosDev.launchApp === "function") {
+      webosDev.launchApp(pkgName);
     }
     this.showToast(`Launching ${app.name}...`);
   },

@@ -87,9 +87,9 @@
             </div>
 
             <!-- Location if Hotel Info -->
-            <template x-if="currentView === 'hotel_info' && (hotelData.hotel ? hotelData.hotel.hotel_location : "")">
+            <template x-if="currentView === 'hotel_info' && (hotelData.hotel ? hotelData.hotel.hotel_location : '')">
                 <div class="text-amber-300 text-[22px] font-bold leading-snug flex-shrink-0"
-                     x-text="(hotelData.hotel ? hotelData.hotel.hotel_location : "")"></div>
+                     x-text="(hotelData.hotel ? hotelData.hotel.hotel_location : '')"></div>
             </template>
 
             <!-- Description & Features Scroll Container (Smooth Remote Scrolling via DOWN / UP Arrows) -->

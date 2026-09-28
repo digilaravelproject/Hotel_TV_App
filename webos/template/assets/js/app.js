@@ -219,12 +219,20 @@ function tvApp() {
         const rtlFiles = window.RTL_LANG_FILES || ["arabic.json", "urdu.json", "hebrew.json"];
         this.isRTL = rtlFiles.includes(langFile);
         try {
-          const res = await fetch(`languages/${langFile}?t=${Date.now()}`);
-          if (res.ok) {
-            this.currentLangTranslations = await res.json();
+          if (typeof window.loadLocalJson === "function") {
+            try {
+              this.currentLangTranslations = await window.loadLocalJson(`languages/${langFile}?t=${Date.now()}`);
+            } catch (localErr) {
+              this.currentLangTranslations = await window.loadLocalJson(`languages/english.json?t=${Date.now()}`);
+            }
           } else {
-            const fallbackRes = await fetch(`languages/english.json?t=${Date.now()}`);
-            if (fallbackRes.ok) this.currentLangTranslations = await fallbackRes.json();
+            const res = await fetch(`languages/${langFile}?t=${Date.now()}`);
+            if (res.ok) {
+              this.currentLangTranslations = await res.json();
+            } else {
+              const fallbackRes = await fetch(`languages/english.json?t=${Date.now()}`);
+              if (fallbackRes.ok) this.currentLangTranslations = await fallbackRes.json();
+            }
           }
         } catch (fetchErr) {
           console.warn("[LanguageEngine] Error fetching language:", langFile, fetchErr);
@@ -643,6 +651,7 @@ function tvApp() {
             this.focusCurrentLanguage();
           } else if (["apps", "applications"].includes(viewId)) {
             this.activeAppFocusIndex = 0;
+            if (typeof this.syncInstalledApps === "function") this.syncInstalledApps();
             this.focusCurrentApp();
           } else if (["screen_cast", "cast"].includes(viewId)) {
             this.openScreenCast();
@@ -1076,7 +1085,7 @@ function tvApp() {
         if (["flights", "flight"].includes(this.currentView)) {
           if (typeof this.handleFlightKeyNavigation === "function" && this.handleFlightKeyNavigation(e)) return;
         }
-        if (TVRemoteManager.matches(e, "BACK")) {
+        if (TVRemoteManager.matches(e, "BACK") || e.keyCode === 461 || e.which === 461) {
           e.preventDefault();
           this.goBack();
           return;

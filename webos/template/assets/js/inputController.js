@@ -127,6 +127,38 @@ window.TVInputController = {
     if (!port) return false;
     return port.id === this.currentActivePortId || port.model === this.currentActivePortId;
   },
+  getActivePortName() {
+    if (this.switchingPortName) return this.switchingPortName;
+    if (!this.currentActivePortId) return "HDMI 1";
+    if (Array.isArray(this.inputPorts) && this.inputPorts.length > 0) {
+      const found = this.inputPorts.find(
+        (p) => p && (p.id === this.currentActivePortId || p.model === this.currentActivePortId || p.name === this.currentActivePortId)
+      );
+      if (found) {
+        return found.label || found.name || "HDMI 1";
+      }
+    }
+    const raw = String(this.currentActivePortId).trim();
+    const matchHdmi = raw.match(/HDMI[-_\s]?([0-9]+)/i);
+    if (matchHdmi) return "HDMI " + matchHdmi[1];
+    const matchHw = raw.match(/^HW([0-9]+)/i);
+    if (matchHw) return "HDMI " + matchHw[1];
+    if (raw.toUpperCase().includes("AV") || raw.toUpperCase().includes("COMPOSITE")) return "AV Input";
+    if (raw.toUpperCase().includes("TUNER") || raw.toUpperCase().includes("DTV") || raw.toUpperCase().includes("ANTENNA")) return "Live TV";
+    if (raw.toUpperCase() === "IPTV") return "IPTV";
+    if (raw.includes("/") || raw.includes(".")) {
+      const parts = raw.split("/");
+      const lastPart = parts[parts.length - 1];
+      if (lastPart) {
+        const hdmiSub = lastPart.match(/HDMI[-_\s]?([0-9]+)/i);
+        if (hdmiSub) return "HDMI " + hdmiSub[1];
+        const hwSub = lastPart.match(/HW([0-9]+)/i);
+        if (hwSub) return "HDMI " + hwSub[1];
+        return lastPart.replace(/_/g, " ");
+      }
+    }
+    return raw.replace(/_/g, " ");
+  },
   getGridCols() {
     const total = this.inputPorts ? this.inputPorts.length : 0;
     if (total <= 1) return 1;
@@ -163,7 +195,23 @@ window.TVInputController = {
       });
     }
     try {
-      if (port.type === "TUNER" && ((_b = window.flutterBridge) == null ? void 0 : _b.launchLiveTv)) {
+      const webosDev = typeof window !== "undefined" && (window.WebOSDevice || window.parent && window.parent.WebOSDevice);
+      if (port.type === "TUNER") {
+        if (webosDev && typeof webosDev.launchLiveTv === "function") {
+          webosDev.launchLiveTv(portId);
+        } else if ((_b = window.flutterBridge) == null ? void 0 : _b.launchLiveTv) {
+          await window.flutterBridge.launchLiveTv(portId);
+        }
+      } else {
+        if (webosDev && typeof webosDev.switchInput === "function") {
+          webosDev.switchInput(portId);
+        } else if ((_c = window.flutterBridge) == null ? void 0 : _c.launchHdmi) {
+          await window.flutterBridge.launchHdmi(portId);
+        } else if ((_d = window.FlutterBridge) == null ? void 0 : _d.postMessage) {
+          window.FlutterBridge.postMessage(JSON.stringify({ method: "launchHdmi", args: [portId], id: Date.now() }));
+        }
+      }
+      if (false) {
         await window.flutterBridge.launchLiveTv(portId);
       } else if ((_c = window.flutterBridge) == null ? void 0 : _c.launchHdmi) {
         await window.flutterBridge.launchHdmi(portId);

@@ -38,6 +38,18 @@
         self.handleKeyDown(e);
       }, { capture: true, passive: false });
 
+      // webOS platform Back event handlers
+      window.addEventListener('webOSBack', function (e) {
+        console.log('[RemoteNav] webOSBack event on window');
+        if (e && e.preventDefault) e.preventDefault();
+        self.triggerBack();
+      });
+      document.addEventListener('webOSBack', function (e) {
+        console.log('[RemoteNav] webOSBack event on document');
+        if (e && e.preventDefault) e.preventDefault();
+        self.triggerBack();
+      });
+
       // Inactivity tracking
       ['mousemove', 'mousedown', 'keydown', 'touchstart'].forEach(function (evt) {
         window.addEventListener(evt, function () {
@@ -124,6 +136,25 @@
         return;
       }
 
+      // If TV Dashboard (template) is active, forward all remote keys to iframe
+      var dashView = document.getElementById('view-dashboard');
+      var frame = document.getElementById('tv-template-frame');
+      if (dashView && dashView.style.display !== 'none' && frame && frame.contentWindow) {
+        try {
+          frame.contentWindow.focus();
+          var evt = new KeyboardEvent('keydown', {
+            key: e.key,
+            code: e.code,
+            keyCode: code,
+            which: code,
+            bubbles: true,
+            cancelable: true
+          });
+          frame.contentWindow.dispatchEvent(evt);
+        } catch (_) {}
+        return;
+      }
+
       // Handle D-pad Navigation
       if (this.KEYS.UP.indexOf(code) !== -1 || e.key === 'ArrowUp') {
         e.preventDefault();
@@ -147,12 +178,33 @@
     },
 
     triggerBack: function () {
+      console.log('[RemoteNav] triggerBack called');
       if (this.onBackHandlers.length > 0) {
         var topHandler = this.onBackHandlers[this.onBackHandlers.length - 1];
         var handled = topHandler();
         if (handled) return;
       }
-      console.log('[RemoteNav] Default back action triggered');
+
+      // Check if template frame is active and forward back navigation
+      var frame = document.getElementById('tv-template-frame');
+      if (frame && frame.contentWindow) {
+        try {
+          frame.contentWindow.postMessage({ type: 'TV_BACK_KEY' }, '*');
+        } catch (_) {}
+
+        try {
+          var appInst = frame.contentWindow.tvAppInstance;
+          if (appInst && typeof appInst.goBack === 'function') {
+            console.log('[RemoteNav] Forwarding back button to template goBack()');
+            appInst.goBack();
+            return;
+          }
+        } catch (e) {
+          console.warn('[RemoteNav] Direct goBack call error:', e);
+        }
+      }
+
+      console.log('[RemoteNav] Default back action prevented');
     },
 
     navigate: function (direction) {

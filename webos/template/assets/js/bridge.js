@@ -1,3 +1,43 @@
+window.loadLocalJson = function(url) {
+  return new Promise(function(resolve, reject) {
+    if (typeof fetch === "function" && window.location.protocol.indexOf("http") === 0) {
+      fetch(url).then(function(res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      }).then(resolve).catch(function() {
+        doXHR();
+      });
+    } else {
+      doXHR();
+    }
+    function doXHR() {
+      try {
+        var xhr = new XMLHttpRequest();
+        xhr.overrideMimeType("application/json");
+        xhr.open("GET", url, true);
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState === 4) {
+            if (xhr.status === 200 || xhr.status === 0) {
+              try {
+                resolve(JSON.parse(xhr.responseText));
+              } catch (parseErr) {
+                reject(parseErr);
+              }
+            } else {
+              reject(new Error("Status " + xhr.status));
+            }
+          }
+        };
+        xhr.onerror = function(err) {
+          reject(err);
+        };
+        xhr.send(null);
+      } catch (e) {
+        reject(e);
+      }
+    }
+  });
+};
 (function() {
   "use strict";
   const PENDING_CALLS = /* @__PURE__ */ new Map();
@@ -6,13 +46,20 @@
     CALL_COUNTER = (CALL_COUNTER + 1) % 1e6;
     return CALL_COUNTER;
   }
+  function getWebOSDevice() {
+    if (typeof window !== "undefined") {
+      if (window.WebOSDevice) return window.WebOSDevice;
+      if (window.parent && window.parent.WebOSDevice) return window.parent.WebOSDevice;
+    }
+    return null;
+  }
   function isFlutterAvailable() {
     return typeof window !== "undefined" && Boolean(window.FlutterBridge && typeof window.FlutterBridge.postMessage === "function");
   }
   function callNative(method, args, timeoutMs) {
     return new Promise((resolve, reject) => {
       try {
-        if (!isFlutterAvailable()) {
+        if (!isFlutterAvailable() && !getWebOSDevice()) {
           return reject(new Error(`FlutterBridge not available (Browser mode: ${method})`));
         }
         const id = generateCallId();
@@ -69,7 +116,7 @@
      */
     isAvailable() {
       try {
-        return isFlutterAvailable();
+        return isFlutterAvailable() || Boolean(getWebOSDevice());
       } catch (e) {
         return false;
       }
@@ -215,6 +262,12 @@
      */
     launchApp(packageName) {
       try {
+        const webos = getWebOSDevice();
+        if (webos && typeof webos.launchApp === "function") {
+          console.log("[Bridge] Routing launchApp to webOS:", packageName);
+          webos.launchApp(packageName);
+          return Promise.resolve({ success: true, platform: "webos" });
+        }
         return callNative("launchApp", [packageName]);
       } catch (e) {
         return Promise.reject(e);
@@ -227,6 +280,12 @@
      */
     launchHdmi(model) {
       try {
+        const webos = getWebOSDevice();
+        if (webos && typeof webos.switchInput === "function") {
+          console.log("[Bridge] Routing launchHdmi to webOS:", model);
+          webos.switchInput(model);
+          return Promise.resolve({ success: true, platform: "webos" });
+        }
         return callNative("launchHdmi", [model]);
       } catch (e) {
         return Promise.reject(e);
@@ -239,6 +298,12 @@
      */
     launchLiveTv(port) {
       try {
+        const webos = getWebOSDevice();
+        if (webos && typeof webos.launchLiveTv === "function") {
+          console.log("[Bridge] Routing launchLiveTv to webOS:", port);
+          webos.launchLiveTv(port);
+          return Promise.resolve({ success: true, platform: "webos" });
+        }
         return callNative("launchLiveTv", port ? [port] : []);
       } catch (e) {
         return Promise.reject(e);
@@ -508,16 +573,26 @@
      */
     async getInstalledApps() {
       try {
-        return await callNative("getInstalledApps", []);
-      } catch (e) {
-        try {
-          const resp = await fetch("admin/tv_apps.json?t=" + Date.now());
-          if (resp.ok) {
-            const data = await resp.json();
-            return data.available_tv_apps || data;
-          }
-        } catch (_) {
+        const webos = getWebOSDevice();
+        if (webos && typeof webos.getInstalledApps === "function") {
+          return new Promise((resolve) => {
+            webos.getInstalledApps((apps) => {
+              const mapped = (apps || []).map((a) => ({
+                id: a.id,
+                name: a.title || a.id,
+                package_name: a.id,
+                packageName: a.id,
+                icon: a.icon || a.largeIcon || ""
+              }));
+              resolve(mapped);
+            });
+          });
         }
+        if (isFlutterAvailable()) {
+          return await callNative("getInstalledApps", []);
+        }
+        return [];
+      } catch (e) {
         return [];
       }
     },
@@ -534,6 +609,15 @@
      */
     async getTvInputs() {
       try {
+        const webos = getWebOSDevice();
+        if (webos) {
+          return [
+            { id: "HDMI_1", label: "HDMI 1", name: "HDMI 1", model: "HDMI_1", type: "HDMI", isConnected: true, badge: "4K HDR 60Hz", description: "Set-top Box / Cable TV" },
+            { id: "HDMI_2", label: "HDMI 2 (eARC)", name: "HDMI 2", model: "HDMI_2", type: "HDMI", isConnected: true, badge: "eARC / ARC", description: "Gaming Console / Soundbar" },
+            { id: "AV", label: "AV Input", name: "AV Input", model: "AV", type: "AV", isConnected: true, badge: "Analog RCA", description: "Composite Video / Audio" },
+            { id: "TUNER", label: "Live TV (Tuner)", name: "Live TV (Tuner)", model: "TUNER", type: "TUNER", isConnected: true, badge: "DTV Antenna", description: "Over-The-Air Digital Channels" }
+          ];
+        }
         return await callNative("getTvInputs", []);
       } catch (e) {
         console.warn("FlutterBridge not available or getTvInputs error:", e);

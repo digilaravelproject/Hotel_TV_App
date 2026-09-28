@@ -33,12 +33,59 @@
         window.RemoteNav.init();
       }
 
-      // 3. Setup Global Remote / Inactivity Watcher
+      // 3. Setup Global Remote / Inactivity Watcher & webOS Window Lifecycle
+      this.setupLifecycleHandlers();
       this.setupGlobalKeyHandlers();
       this.resetInactivityTimer();
 
       // 4. Decide Startup Flow
       this.decideStartup();
+    },
+
+    // ─────────────────────────────────────────────────────────────
+    // WEBOS LIFECYCLE & FOREGROUND ACTIVATION
+    // ─────────────────────────────────────────────────────────────
+    setupLifecycleHandlers: function () {
+      var self = this;
+
+      function bringToForeground() {
+        console.log('[App] Activating window in webOS');
+        try {
+          if (window.webOSSystem && typeof window.webOSSystem.activate === 'function') {
+            window.webOSSystem.activate();
+          } else if (window.PalmSystem && typeof window.PalmSystem.activate === 'function') {
+            window.PalmSystem.activate();
+          }
+        } catch (e) {
+          console.warn('[App] Error activating window:', e);
+        }
+
+        var dashView = document.getElementById('view-dashboard');
+        var frame = document.getElementById('tv-template-frame');
+        if (dashView && dashView.style.display !== 'none' && frame && frame.contentWindow) {
+          try {
+            frame.focus();
+            frame.contentWindow.focus();
+          } catch (_) {}
+        }
+      }
+
+      // 1. webOSRelaunch: when clicked from launcher or relaunched while running in background
+      window.addEventListener('webOSRelaunch', function (e) {
+        console.log('[App] webOSRelaunch received:', e ? e.detail : null);
+        bringToForeground();
+      }, true);
+
+      // 2. visibilitychange: when TV switches back to app from Home dashboard
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) {
+          console.log('[App] visibilitychange: app is now visible');
+          bringToForeground();
+        }
+      }, true);
+
+      // 3. Initial activate call
+      bringToForeground();
     },
 
     // ─────────────────────────────────────────────────────────────
@@ -499,12 +546,17 @@
         console.log('[App] Template frame loaded successfully!');
         try {
           frame.contentWindow.tvLoginData = fullPayload;
+          frame.contentWindow.WebOSDevice = window.WebOSDevice;
           frame.contentWindow.focus();
         } catch (_) {}
 
         // Hide decider and show dashboard
         setTimeout(function () {
           self.showView('dashboard');
+          try {
+            frame.focus();
+            frame.contentWindow.focus();
+          } catch (_) {}
         }, 150);
       };
 

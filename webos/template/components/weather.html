@@ -128,13 +128,13 @@
                     <!-- 5. Sunrise -->
                     <div class="p-4 lg:p-4.5 rounded-2xl bg-[#141419] border border-white/12 flex flex-col justify-center shadow-lg">
                         <span class="text-[11px] lg:text-xs font-extrabold text-slate-400 uppercase tracking-widest block" x-text="t('weather_sunrise', 'Sunrise')">Sunrise</span>
-                        <span class="text-lg lg:text-xl font-black text-[#ffc700] mt-0.5" x-text="formatTimeFromIso((weatherData.daily && weatherData.daily[0] ? weatherData.daily[0].sunrise : ""))"></span>
+                        <span class="text-lg lg:text-xl font-black text-[#ffc700] mt-0.5" x-text="formatTimeFromIso((weatherData.daily && weatherData.daily[0] ? weatherData.daily[0].sunrise : ''))"></span>
                     </div>
 
                     <!-- 6. Sunset -->
                     <div class="p-4 lg:p-4.5 rounded-2xl bg-[#141419] border border-white/12 flex flex-col justify-center shadow-lg">
                         <span class="text-[11px] lg:text-xs font-extrabold text-slate-400 uppercase tracking-widest block" x-text="t('weather_sunset', 'Sunset')">Sunset</span>
-                        <span class="text-lg lg:text-xl font-black text-[#ffc700] mt-0.5" x-text="formatTimeFromIso((weatherData.daily && weatherData.daily[0] ? weatherData.daily[0].sunset : ""))"></span>
+                        <span class="text-lg lg:text-xl font-black text-[#ffc700] mt-0.5" x-text="formatTimeFromIso((weatherData.daily && weatherData.daily[0] ? weatherData.daily[0].sunset : ''))"></span>
                     </div>
 
                 </div>
