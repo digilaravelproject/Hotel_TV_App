@@ -287,7 +287,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
 
   Future<void> _checkEmmConfig() async {
     try {
-      final platform = MethodChannel('com.digiemperor.hotel/emm_config');
+      final platform = MethodChannel('com.paxtv.hospitality/emm_config');
       final Map<dynamic, dynamic>? config = await platform.invokeMethod<Map>('getEmmConfig');
       if (config != null) {
         final String licenseKey = config['license_key']?.toString() ?? '';

@@ -1,4 +1,4 @@
-package com.digiemperor.hotel
+package com.paxtv.hospitality
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent

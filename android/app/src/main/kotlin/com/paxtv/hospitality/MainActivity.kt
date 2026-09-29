@@ -1,4 +1,4 @@
-package com.digiemperor.hotel
+package com.paxtv.hospitality
 
 import android.content.Context
 import android.content.Intent
@@ -28,10 +28,10 @@ import java.util.Collections
 import android.widget.Toast
 
 class MainActivity : FlutterActivity() {
-    private val DEVICE_INFO_CHANNEL = "com.digiemperor.hotel/device_info"
-    private val TV_CONTROL_CHANNEL = "com.digiemperor.hotel/tv_control"
-    private val EMM_CONFIG_CHANNEL = "com.digiemperor.hotel/emm_config"
-    private val ACCESSIBILITY_CHANNEL = "com.digiemperor.hotel/accessibility"
+    private val DEVICE_INFO_CHANNEL = "com.paxtv.hospitality/device_info"
+    private val TV_CONTROL_CHANNEL = "com.paxtv.hospitality/tv_control"
+    private val EMM_CONFIG_CHANNEL = "com.paxtv.hospitality/emm_config"
+    private val ACCESSIBILITY_CHANNEL = "com.paxtv.hospitality/accessibility"
 
     companion object {
         private const val REQUEST_CODE_SET_DEFAULT_HOME = 1001
@@ -440,7 +440,7 @@ class MainActivity : FlutterActivity() {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             if (event.action == KeyEvent.ACTION_DOWN) {
                 flutterEngine?.dartExecutor?.let { executor ->
-                    MethodChannel(executor.binaryMessenger, "com.digiemperor.hotel/back_navigation")
+                    MethodChannel(executor.binaryMessenger, "com.paxtv.hospitality/back_navigation")
                         .invokeMethod("onBackPressed", null)
                 }
             }
@@ -451,7 +451,7 @@ class MainActivity : FlutterActivity() {
         if (keyCode == KeyEvent.KEYCODE_MENU) {
             if (event.action == KeyEvent.ACTION_DOWN) {
                 flutterEngine?.dartExecutor?.let { executor ->
-                    MethodChannel(executor.binaryMessenger, "com.digiemperor.hotel/back_navigation")
+                    MethodChannel(executor.binaryMessenger, "com.paxtv.hospitality/back_navigation")
                         .invokeMethod("onMenuPressed", null)
                 }
             }
@@ -1202,7 +1202,7 @@ class MainActivity : FlutterActivity() {
                     android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
                 )
                 if (services != null) {
-                    val myService1 = "$packageName/com.digiemperor.hotel.TvButtonAccessibilityService"
+                    val myService1 = "$packageName/com.paxtv.hospitality.TvButtonAccessibilityService"
                     val myService2 = "$packageName/.TvButtonAccessibilityService"
                     val myService3 = "$packageName/"
                     return services.contains(myService1, ignoreCase = true) ||

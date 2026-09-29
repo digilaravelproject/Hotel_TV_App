@@ -1,4 +1,4 @@
-package com.digiemperor.hotel
+package com.paxtv.hospitality
 
 import android.app.admin.DeviceAdminReceiver
 import android.content.ComponentName

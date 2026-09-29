@@ -8,12 +8,28 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:901856795489:android:7e1afa6474f5075d6a0320",
+        "mobilesdk_app_id": "1:901856795489:android:91e53de79e3f6ca56a0320",
         "android_client_info": {
-          "package_name": "com.digiemperor.hotel"
+          "package_name": "com.paxtv.hospitality"
         }
       },
       "oauth_client": [
+        {
+          "client_id": "901856795489-05nv8oltuqjbq9qu8g57racocajkgg5b.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.paxtv.hospitality",
+            "certificate_hash": "18d5dadeec7779162d66a6ed7434c0cc06f68adc"
+          }
+        },
+        {
+          "client_id": "901856795489-ml2bri6k3cgcqfqmf6hbdonlueom2arc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.paxtv.hospitality",
+            "certificate_hash": "5095f9afd93bc382d9b381b1ffd7ef2297383445"
+          }
+        },
         {
           "client_id": "901856795489-ek4nbr22o3qsfs3c0grsublasi6l1sdn.apps.googleusercontent.com",
           "client_type": 3
@@ -30,6 +46,13 @@
             {
               "client_id": "901856795489-ek4nbr22o3qsfs3c0grsublasi6l1sdn.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "901856795489-fqimic2v2bmdg4kjik87qhrhent5ohvj.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.paxtv.hospitality"
+              }
             }
           ]
         }

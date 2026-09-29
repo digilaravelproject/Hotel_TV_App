@@ -41,7 +41,7 @@ class _TvNetworkStatusHeaderState extends State<TvNetworkStatusHeader> {
   }
 
   Future<void> _checkStatus() async {
-    const channel = MethodChannel('com.digiemperor.hotel/tv_control');
+    const channel = MethodChannel('com.paxtv.hospitality/tv_control');
     try {
       final dynamic rawData =
           await channel.invokeMethod('getWifiSignalStrength');
@@ -80,7 +80,7 @@ class _TvNetworkStatusHeaderState extends State<TvNetworkStatusHeader> {
   }
 
   Future<void> _openNetworkSettings() async {
-    const channel = MethodChannel('com.digiemperor.hotel/tv_control');
+    const channel = MethodChannel('com.paxtv.hospitality/tv_control');
     try {
       final bool? success =
           await channel.invokeMethod<bool>('openWifiSettings');

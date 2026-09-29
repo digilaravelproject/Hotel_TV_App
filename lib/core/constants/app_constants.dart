@@ -1,9 +1,9 @@
 class AppConstants {
   static const String appName = 'PAX TV Hospitality';
-  static const String baseUrl = 'https://tvapp.digiemperor.com';
+  static const String baseUrl = 'https://paxtvhospitality.paxtvnetwork.com';
   static const String fontFamily = 'Poppins';
   static const String defaultTag = 'Softfix';
-  static const String qrSyncBaseUrl = 'https://pax.hospitality/sync-device?id=';
+  static const String qrSyncBaseUrl = 'https://paxtvhospitality.paxtvnetwork.com/sync-device?id=';
 
   // Storage Keys
   static const String tvLoginDataKey = 'tv_login_data';

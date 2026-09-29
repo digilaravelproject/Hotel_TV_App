@@ -21,7 +21,7 @@ class QrModeWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final qrUrl = 'https://tvapp.digiemperor.com/hotel/devices?code=$pairCode';
+    final qrUrl = 'https://paxtvhospitality.paxtvnetwork.com/hotel/devices?code=$pairCode';
 
     if (isLoading) {
       return Column(
@@ -86,7 +86,7 @@ class QrModeWidget extends StatelessWidget {
             ],
           ),
           child: QrImageView(
-            data: pairCode.isNotEmpty ? qrUrl : 'https://tvapp.digiemperor.com/hotel/devices',
+            data: pairCode.isNotEmpty ? qrUrl : 'https://paxtvhospitality.paxtvnetwork.com/hotel/devices',
             version: QrVersions.auto,
             size: 230.0,
           ),

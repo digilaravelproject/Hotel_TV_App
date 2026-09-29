@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import '../storage/shared_prefs.dart';
 
 class DeviceInfoService {
-  static const _channel = MethodChannel('com.digiemperor.hotel/device_info');
+  static const _channel = MethodChannel('com.paxtv.hospitality/device_info');
   static Map<String, dynamic>? _cachedDeviceInfo;
 
   /// Clears in-memory device info cache

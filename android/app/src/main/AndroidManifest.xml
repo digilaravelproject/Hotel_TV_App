@@ -112,7 +112,7 @@
         </receiver>
         <service
             android:name=".TvButtonAccessibilityService"
-            android:label="Hotel TV Launcher"
+            android:label="PAX TV Hospitality"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
             android:exported="true">
             <intent-filter>

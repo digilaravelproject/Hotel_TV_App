@@ -34,7 +34,7 @@ class TvWebviewScreen extends StatefulWidget {
 class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingObserver {
   WebViewController? _controller;
   final FocusNode _webViewFocusNode = FocusNode();
-  final _backChannel = const MethodChannel('com.digiemperor.hotel/back_navigation');
+  final _backChannel = const MethodChannel('com.paxtv.hospitality/back_navigation');
 
   bool _showBottomUpdating = false;
   double _downloadProgress = 0.0;

@@ -16,7 +16,7 @@ class FlutterBridgeHandler {
   static DateTime? _lastHdmiLaunchTime;
 
   FlutterBridgeHandler(this.controller)
-      : _tvChannel = const MethodChannel('com.digiemperor.hotel/tv_control');
+      : _tvChannel = const MethodChannel('com.paxtv.hospitality/tv_control');
 
   void dispose() {
     _connectivitySub?.cancel();

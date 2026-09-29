@@ -2,7 +2,7 @@ import 'package:flutter/services.dart';
 
 class AccessibilityService {
   static const MethodChannel _channel =
-      MethodChannel('com.digiemperor.hotel/accessibility');
+      MethodChannel('com.paxtv.hospitality/accessibility');
 
   static Future<bool> isAccessibilityEnabled() async {
     try {

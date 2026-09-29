@@ -1,4 +1,4 @@
-package com.digiemperor.hotel
+package com.paxtv.hospitality
 
 import android.os.SystemClock
 
