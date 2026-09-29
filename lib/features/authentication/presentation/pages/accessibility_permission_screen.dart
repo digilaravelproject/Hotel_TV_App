@@ -168,10 +168,10 @@ class _AccessibilityPermissionScreenState
 
             Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 24.0),
+                padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
                 child: Container(
                   width: 620,
-                  padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 24.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 20.0),
                   decoration: BoxDecoration(
                     color: const Color(0xFF1B0F2A).withOpacity(0.75),
                     borderRadius: BorderRadius.circular(22.0),
@@ -195,8 +195,8 @@ class _AccessibilityPermissionScreenState
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Container(
-                            width: 34,
-                            height: 34,
+                            width: 32,
+                            height: 32,
                             clipBehavior: Clip.antiAlias,
                             decoration: const BoxDecoration(
                               shape: BoxShape.circle,
@@ -216,16 +216,16 @@ class _AccessibilityPermissionScreenState
                           ),
                         ],
                       ),
-                      UiSpacer.vSpace(16),
+                      UiSpacer.vSpace(12),
 
                       const CustomAppText(
                         'This app uses Accessibility services',
                         color: Colors.white,
-                        fontSize: 21,
+                        fontSize: 20,
                         fontWeight: FontWeight.w900,
                         textAlign: TextAlign.center,
                       ),
-                      UiSpacer.vSpace(12),
+                      UiSpacer.vSpace(10),
 
                       Text(
                         'Accessibility permissions are used to detect when your device\'s remote control home button is pressed and allows you to remap its action to launch this app conveniently.\n\n'
@@ -233,12 +233,12 @@ class _AccessibilityPermissionScreenState
                         'We do NOT collect or share any personal or sensitive data using accessibility capabilities.',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.8),
-                          fontSize: 12.5,
-                          height: 1.38,
+                          fontSize: 12,
+                          height: 1.35,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      UiSpacer.vSpace(16),
+                      UiSpacer.vSpace(12),
 
                       // Checkbox Row with TvFocusable for TV remote OK key toggle
                       TvFocusable(
@@ -282,32 +282,32 @@ class _AccessibilityPermissionScreenState
                           ),
                         ),
                       ),
-                      UiSpacer.vSpace(12),
+                      UiSpacer.vSpace(10),
 
                       Text(
                         'Please navigate to Settings > Accessibility > Hotel TV Launcher and choose Enable',
                         style: TextStyle(
                           color: const Color(0xFFFB7185),
-                          fontSize: 11.5,
+                          fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      UiSpacer.vSpace(24),
+                      UiSpacer.vSpace(18),
 
                       // Enable Button & Skip Button Row / Column
                       Column(
                         children: [
                           SizedBox(
                             width: 280,
-                            height: 44,
+                            height: 42,
                             child: TvFocusable(
                               autofocus: true,
                               scaleFactor: 1.04,
                               onTap: _isAgreeChecked && !_isChecking ? _handleEnableClicked : () {},
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
-                                height: 44,
+                                height: 42,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
                                   color: _isAgreeChecked ? Colors.white : Colors.white.withOpacity(0.2),
@@ -340,15 +340,15 @@ class _AccessibilityPermissionScreenState
                               ),
                             ),
                           ),
-                          UiSpacer.vSpace(12),
+                          UiSpacer.vSpace(10),
                           SizedBox(
                             width: 280,
-                            height: 40,
+                            height: 38,
                             child: TvFocusable(
                               scaleFactor: 1.04,
                               onTap: widget.onGranted,
                               child: Container(
-                                height: 40,
+                                height: 38,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
                                   color: Colors.white.withOpacity(0.1),
@@ -361,7 +361,7 @@ class _AccessibilityPermissionScreenState
                                 child: const CustomAppText(
                                   'Skip & Continue',
                                   color: Colors.white70,
-                                  fontSize: 14,
+                                  fontSize: 13.5,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),

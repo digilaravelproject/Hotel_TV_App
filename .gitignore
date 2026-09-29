@@ -39,7 +39,7 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
-# Android Studio will place build artifacts here
+# Android Studio will create this file on each start.
 /android/app/debug
 /android/app/profile
 /android/app/release
@@ -52,3 +52,4 @@ app.*.map.json
 /tizen/flutter/
 tizen/.app.deps.json
 tizen/*.csproj.user
+/webos/template/*

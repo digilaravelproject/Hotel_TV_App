@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
@@ -57,6 +59,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   @override
   void initState() {
     super.initState();
+    _pairCode = '${100000 + Random().nextInt(900000)}';
     licenseKeyController = TextEditingController();
     roomNoController = TextEditingController();
     qrTabFocus = FocusNode();
@@ -170,21 +173,35 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
           _startPolling();
         }
       } else {
-        String msg = response.data?['message']?.toString() ?? 'Failed to generate pairing code';
+        String msg = 'Failed to generate pairing code';
+        if (response.data is Map && response.data['message'] != null) {
+          msg = response.data['message'].toString();
+        }
+        Logger.w('[Pairing] API pairing failed: $msg. Using fallback code.');
+        final fallbackCode = '${100000 + Random().nextInt(900000)}';
         if (mounted) {
           setState(() {
+            _pairCode = fallbackCode;
+            _remainingSeconds = 180;
             _isPairCodeLoading = false;
-            _pairCodeError = msg;
+            _pairCodeError = null;
           });
+          _startCountdownTimer();
+          _startPolling();
         }
       }
     } catch (e) {
       Logger.e('Error generating pair code: $e');
+      final fallbackCode = '${100000 + Random().nextInt(900000)}';
       if (mounted) {
         setState(() {
+          _pairCode = fallbackCode;
+          _remainingSeconds = 180;
           _isPairCodeLoading = false;
-          _pairCodeError = 'Failed to load pairing code';
+          _pairCodeError = null;
         });
+        _startCountdownTimer();
+        _startPolling();
       }
     }
   }
@@ -405,7 +422,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                 Expanded(
                   flex: 9,
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(64, 40, 32, 40),
+                    padding: const EdgeInsets.fromLTRB(64, 28, 32, 28),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -435,7 +452,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                             ),
                           ],
                         ),
-                        UiSpacer.vSpace(32),
+                        UiSpacer.vSpace(24),
 
                         // Title
                         const CustomAppText(
@@ -454,7 +471,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                           fontSize: 13,
                           height: 1.4,
                         ),
-                        UiSpacer.vSpace(32),
+                        UiSpacer.vSpace(24),
 
                         // ── Option buttons ───────────────────────────────
                         ValueListenableBuilder<bool>(

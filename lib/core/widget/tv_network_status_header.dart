@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -22,11 +24,15 @@ class _TvNetworkStatusHeaderState extends State<TvNetworkStatusHeader> {
   void initState() {
     super.initState();
     _checkStatus();
-    _subscription = Connectivity()
-        .onConnectivityChanged
-        .listen((List<ConnectivityResult> results) {
-      _checkStatus();
-    });
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      try {
+        _subscription = Connectivity()
+            .onConnectivityChanged
+            .listen((List<ConnectivityResult> results) {
+          _checkStatus();
+        }, onError: (err) {});
+      } catch (_) {}
+    }
 
     _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       _checkStatus();

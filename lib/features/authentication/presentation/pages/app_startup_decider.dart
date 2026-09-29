@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/services/storage/shared_prefs.dart';
@@ -31,29 +33,31 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
   }
 
   Future<void> _checkPermissionsAndProceed() async {
-    final bool isAccSkipped = SharedPrefs.getBool('accessibility_skipped') ?? false;
-    if (!isAccSkipped) {
-      final bool isAccessibilityEnabled = await AccessibilityService.isAccessibilityEnabled();
-      if (!isAccessibilityEnabled) {
-        if (mounted) {
-          setState(() {
-            _needsAccessibilityConsent = true;
-          });
+    if (!kIsWeb && Platform.isAndroid) {
+      final bool isAccSkipped = SharedPrefs.getBool('accessibility_skipped') ?? false;
+      if (!isAccSkipped) {
+        final bool isAccessibilityEnabled = await AccessibilityService.isAccessibilityEnabled();
+        if (!isAccessibilityEnabled) {
+          if (mounted) {
+            setState(() {
+              _needsAccessibilityConsent = true;
+            });
+          }
+          return;
         }
-        return;
       }
-    }
 
-    final bool isLauncherSkipped = SharedPrefs.getBool('launcher_skipped') ?? false;
-    if (!isLauncherSkipped) {
-      final bool isLauncherDefault = await AccessibilityService.isDefaultLauncher();
-      if (!isLauncherDefault) {
-        if (mounted) {
-          setState(() {
-            _needsLauncherConsent = true;
-          });
+      final bool isLauncherSkipped = SharedPrefs.getBool('launcher_skipped') ?? false;
+      if (!isLauncherSkipped) {
+        final bool isLauncherDefault = await AccessibilityService.isDefaultLauncher();
+        if (!isLauncherDefault) {
+          if (mounted) {
+            setState(() {
+              _needsLauncherConsent = true;
+            });
+          }
+          return;
         }
-        return;
       }
     }
 

@@ -1,0 +1,403 @@
+{
+  "status": true,
+  "message": "Template version details fetched successfully.",
+  "data": {
+    "auth": {
+      "token": "lyEbRgvofHcxzjSeJM9B4cCuSOAXkA5oq3EQOfb5027rDFfp6BPVaEa3ZNMgYExCfF9O82JuvlocqsMz"
+    },
+    "template": {
+      "template_id": 2,
+      "latest_version": "2.0.1",
+      "old_version": null,
+      "download_url": "https:\/\/tvapp.digiemperor.com\/storage\/templates\/theme_2_v2_0_1_1788939044.zip",
+      "uploaded_at": "2026-09-09T13:00:54+05:30",
+      "is_update_available": false
+    },
+    "device": {
+      "room_no": "1111",
+      "device_id": "3d761ddf4a5d30a3",
+      "mac_address": "4A:2D:A4:DF:D7:89",
+      "ip_address": "10.0.2.15",
+      "model": "AOSP TV on x86",
+      "brand": "google",
+      "os_version": "16"
+    },
+    "hotel": {
+      "hotel_name": "Taj Mahal Palace, Mumbai",
+      "city": "Mumbai",
+      "hotel_location": "Apollo Bunder, Colaba, Mumbai, Maharashtra 400001, India",
+      "description": "Welcome to Taj Mahal Palace, Mumbai. We are delighted to have you as our guest. Enjoy world-class hospitality, luxurious accommodations, fine dining, and exceptional service. We wish you a comfortable and memorable stay.",
+      "owner_name": "Darshan Kondekar",
+      "email": "darshankondekar01@gmail.com",
+      "phone": "8975845684",
+      "emergency_contacts": {
+        "reception": "Ext. 0 \/ +91 22 6665 3366",
+        "dining": "Ext. 102 (24x7 Available)",
+        "medical_sos": "Ext. 9999 (Emergency Desk)",
+        "email": "reservations.mumbai@tajhotels.com"
+      },
+      "media": {
+        "logo_image": "https:\/\/tvapp.digiemperor.com\/uploads\/hotel_logos\/logo_1787134741_IsCa4jDl.webp",
+        "cover_image": "https:\/\/tvapp.digiemperor.com\/uploads\/hotel_images\/cover_1787134741_N2frsodd.webp",
+        "slider_images": [
+          "https:\/\/tvapp.digiemperor.com\/uploads\/hotel_sliders\/slider_1787134742_7t2R5goL.webp"
+        ]
+      },
+      "active_plan": {
+        "plan_name": "Deluxe Plan",
+        "plan_price": "1999.00",
+        "purchase_date": "2026-07-08T13:25:00+05:30",
+        "expiry_date": "2029-12-31T13:25:00+05:30"
+      }
+    },
+    "guest_info": null,
+    "active_ott": [
+      {
+        "id": "playstore",
+        "name": "Google Play Store",
+        "package_name": "com.android.vending"
+      },
+      {
+        "id": "netflix",
+        "name": "Netflix",
+        "package_name": "com.netflix.mediaclient"
+      },
+      {
+        "id": "hotstar",
+        "name": "Disney+ Hotstar",
+        "package_name": "in.startv.hotstar"
+      },
+      {
+        "id": "prime",
+        "name": "Amazon Prime Video",
+        "package_name": "com.amazon.avod.thirdpartyclient"
+      },
+      {
+        "id": "zee5",
+        "name": "Zee5",
+        "package_name": "com.graymatrix.did"
+      },
+      {
+        "id": "sony-liv",
+        "name": "Sony LIV",
+        "package_name": "com.sony.liv"
+      },
+      {
+        "id": "jiocinema",
+        "name": "JioCinema",
+        "package_name": "com.jio.media.ondemand"
+      },
+      {
+        "id": "aha",
+        "name": "Aha",
+        "package_name": "ka.alua.aha"
+      },
+      {
+        "id": "sun-nxt",
+        "name": "Sun NXT",
+        "package_name": "com.suntv.sunnxt"
+      },
+      {
+        "id": "mx-player",
+        "name": "MX Player",
+        "package_name": "com.mxtech.videoplayer.ad"
+      },
+      {
+        "id": "discovery",
+        "name": "Discovery+",
+        "package_name": "com.discovery.discoveryplus.mobile"
+      },
+      {
+        "id": "altbalaji",
+        "name": "ALTBalaji",
+        "package_name": "com.balaji.alt"
+      },
+      {
+        "id": "eros-now",
+        "name": "Eros Now",
+        "package_name": "com.erosnow"
+      },
+      {
+        "id": "hungama-play",
+        "name": "Hungama Play",
+        "package_name": "com.hungama.myplay.activity"
+      },
+      {
+        "id": "hoichoi",
+        "name": "Hoichoi",
+        "package_name": "com.viewlift.hoichoi"
+      },
+      {
+        "id": "planet-marathi",
+        "name": "Planet Marathi",
+        "package_name": "com.planetmarathi.ott"
+      },
+      {
+        "id": "chaupal",
+        "name": "Chaupal",
+        "package_name": "com.chaupal.app"
+      },
+      {
+        "id": "manoramamax",
+        "name": "ManoramaMAX",
+        "package_name": "com.manoramamax.app"
+      },
+      {
+        "id": "voot",
+        "name": "Voot",
+        "package_name": "com.tv.v18.viola"
+      },
+      {
+        "id": "youtube",
+        "name": "YouTube",
+        "package_name": "com.google.android.youtube.tv"
+      }
+    ],
+    "menus": [
+      {
+        "id": "hotel_menu",
+        "name": "Hotel Menu",
+        "icon": "assets\/images\/icons\/hotelinfo.png",
+        "status": "show",
+        "sub_menus": [
+          {
+            "id": "hotel_info",
+            "name": "Hotel Info",
+            "icon": "assets\/images\/icons\/hotelinfo.png",
+            "status": "show"
+          },
+          {
+            "id": "room_info",
+            "name": "Room Info",
+            "icon": "assets\/images\/icons\/amenities.png",
+            "status": "show"
+          },
+          {
+            "id": "amenities",
+            "name": "Amenities",
+            "icon": "assets\/images\/icons\/roomservice.png",
+            "status": "show"
+          }
+        ]
+      },
+      {
+        "id": "apps",
+        "name": "Applications",
+        "icon": "assets\/images\/icons\/apps.png",
+        "status": "show"
+      },
+      {
+        "id": "language",
+        "name": "Language",
+        "icon": "assets\/images\/icons\/languages.png",
+        "status": "show"
+      },
+      {
+        "id": "livetv",
+        "name": "Live TV",
+        "icon": "assets\/images\/icons\/livetv.png",
+        "status": "show"
+      },
+      {
+        "id": "interactive_services",
+        "name": "Interactive Services",
+        "icon": "assets\/images\/icons\/roomservice.png",
+        "status": "show",
+        "sub_menus": [
+          {
+            "id": "flights",
+            "name": "Flights",
+            "icon": "assets\/images\/icons\/flights.png",
+            "status": "show"
+          },
+          {
+            "id": "weather",
+            "name": "Weather",
+            "icon": "assets\/images\/icons\/weather.png",
+            "status": "show"
+          },
+          {
+            "id": "input",
+            "name": "Input",
+            "icon": "assets\/images\/icons\/input.png",
+            "status": "show"
+          },
+          {
+            "id": "settings",
+            "name": "Settings",
+            "icon": "assets\/images\/icons\/settings.png",
+            "status": "show"
+          }
+        ]
+      },
+      {
+        "id": "ourcity",
+        "name": "Our City",
+        "icon": "assets\/images\/icons\/ourcity.png",
+        "status": "show"
+      },
+      {
+        "id": "screen_cast",
+        "name": "Screen Cast",
+        "icon": "assets\/images\/icons\/cast.png",
+        "status": "show"
+      }
+    ],
+    "hotel_info": [
+      {
+        "sr_no": 1,
+        "title": "Hotel Facility #1",
+        "description": "Experience the beauty of Taj Garden, a peaceful place with lush greenery and a relaxing atmosphere. Experience the beauty of Taj Garden, a peaceful place with lush greenery and a relaxing atmosphere. Experience the beauty of Taj Garden, a peaceful pl",
+        "features": [
+          "fan 1",
+          "fan 2",
+          "fan 3",
+          "fan 4"
+        ],
+        "image_url": "https:\/\/tvapp.digiemperor.com\/uploads\/hotel_gallery\/gallery_1787134743_SmlTeaCv.webp"
+      },
+      {
+        "sr_no": 2,
+        "title": "Facility #2",
+        "description": "",
+        "features": [],
+        "image_url": "https:\/\/tvapp.digiemperor.com\/uploads\/hotel_gallery\/gallery_1787134745_loivNn06.webp"
+      },
+      {
+        "sr_no": 3,
+        "title": "Facility #3",
+        "description": "",
+        "features": [],
+        "image_url": "https:\/\/tvapp.digiemperor.com\/uploads\/hotel_gallery\/gallery_1787134746_nN2XehL0.webp"
+      },
+      {
+        "sr_no": 4,
+        "title": "Facility #4",
+        "description": "",
+        "features": [],
+        "image_url": "https:\/\/tvapp.digiemperor.com\/uploads\/hotel_gallery\/gallery_1787134747_n3LK088H.webp"
+      },
+      {
+        "sr_no": 5,
+        "title": "Facility #5",
+        "description": "",
+        "features": [],
+        "image_url": "https:\/\/tvapp.digiemperor.com\/uploads\/hotel_gallery\/gallery_1787134749_4bXPrlaG.webp"
+      },
+      {
+        "sr_no": 6,
+        "title": "Facility #6",
+        "description": "",
+        "features": [],
+        "image_url": "https:\/\/tvapp.digiemperor.com\/uploads\/hotel_gallery\/gallery_1787134750_0HxEkGJl.webp"
+      },
+      {
+        "sr_no": 7,
+        "title": "Facility #7",
+        "description": "",
+        "features": [],
+        "image_url": "https:\/\/tvapp.digiemperor.com\/uploads\/hotel_gallery\/gallery_1787134751_g86qpxL1.webp"
+      }
+    ],
+    "amenities": [
+      {
+        "sr_no": 2,
+        "title": "Taj Garden",
+        "description": "Experience the beauty of Taj Garden, a peaceful place with lush greenery and a relaxing atmosphere. Experience the beauty of Taj Garden, a peaceful place with lush greenery and a relaxing atmosphere. Experience the beauty of Taj Garden, a peaceful pl",
+        "image_url": "https:\/\/tvapp.digiemperor.com\/storage\/uploads\/amenities\/amenity_1786627121_r330g2CW.webp"
+      },
+      {
+        "sr_no": 5,
+        "title": "Swimming Pool",
+        "description": "Enjoy a refreshing swim in our elegant pool, perfect for relaxation and leisure during stay.",
+        "image_url": "https:\/\/tvapp.digiemperor.com\/storage\/uploads\/amenities\/amenity_1786626925_GF7WBJ83.webp"
+      },
+      {
+        "sr_no": 5,
+        "title": "Fitness Center",
+        "description": "Stay active with modern fitness equipment and a well-equipped gym for your daily workout.",
+        "image_url": "https:\/\/tvapp.digiemperor.com\/storage\/uploads\/amenities\/amenity_1786627101_cbAU4Qli.webp"
+      },
+      {
+        "sr_no": 6,
+        "title": "Fine Dining",
+        "description": "Savor exquisite cuisine and elegant dining in a warm and inviting restaurant setting.",
+        "image_url": "https:\/\/tvapp.digiemperor.com\/storage\/uploads\/amenities\/amenity_1786626998_UyA4Szyn.webp"
+      },
+      {
+        "sr_no": 6,
+        "title": "Lounge & Bar",
+        "description": "Unwind with refreshing beverages and a sophisticated ambience at our elegant lounge and bar.",
+        "image_url": "https:\/\/tvapp.digiemperor.com\/storage\/uploads\/amenities\/amenity_1786627228_EMW6g1P2.webp"
+      },
+      {
+        "sr_no": 7,
+        "title": "Garden View Room",
+        "description": "Garden View Room: Relaxing room with elegant interiors, modern amenities, beautiful garden views.",
+        "image_url": "https:\/\/tvapp.digiemperor.com\/uploads\/amenities\/amenity_1787134822_1vFrHnPk.webp"
+      }
+    ],
+    "room_info": [
+      {
+        "sr_no": 1,
+        "title": "Luxury Bathroom",
+        "description": "Refresh and relax in a premium bathroom featuring modern fixtures, elegant interiors, and quality amenities.",
+        "specifications": [],
+        "image_url": "https:\/\/tvapp.digiemperor.com\/storage\/uploads\/room_infos\/amenity_1786626183_oTSVhfp6.webp"
+      },
+      {
+        "sr_no": 1,
+        "title": "Premium Room Comfort",
+        "description": "Relax in a beautifully designed room with elegant interiors, comfortable furnishings, and a peaceful ambience.",
+        "specifications": [],
+        "image_url": "https:\/\/tvapp.digiemperor.com\/storage\/uploads\/room_infos\/amenity_1786626286_vX5XrTdN.webp"
+      },
+      {
+        "sr_no": 1,
+        "title": "Elegant Living Space",
+        "description": "Unwind in a spacious seating area with comfortable furnishings and beautiful views from your room.",
+        "specifications": [],
+        "image_url": "https:\/\/tvapp.digiemperor.com\/storage\/uploads\/room_infos\/amenity_1786626326_8o2WMzHY.webp"
+      },
+      {
+        "sr_no": 1,
+        "title": "In-Room Dining",
+        "description": "Enjoy delicious meals and refreshments in the comfort and privacy of your room.",
+        "specifications": [],
+        "image_url": "https:\/\/tvapp.digiemperor.com\/storage\/uploads\/room_infos\/amenity_1786626248_PZMo0CLK.webp"
+      },
+      {
+        "sr_no": 1,
+        "title": "Luxury King Room",
+        "description": "Enjoy a spacious and elegantly furnished king room with premium bedding, stylish interiors, and modern comforts. Enjoy a spacious and elegantly furnished king room with premium bedding, stylish interiors, and modern comforts. its demo 250 characters.",
+        "specifications": [
+          "feture 1",
+          "feture 2",
+          "feture 3",
+          "feture 4"
+        ],
+        "image_url": "https:\/\/tvapp.digiemperor.com\/storage\/uploads\/room_infos\/amenity_1786626222_TgqFasce.webp"
+      }
+    ],
+    "our_city": [
+      {
+        "sr_no": 1,
+        "title": "Marine Drive",
+        "description": "abcd",
+        "attractions": [
+          "abcde",
+          "qwo"
+        ],
+        "image_url": "https:\/\/tvapp.digiemperor.com\/uploads\/our_city\/city_place_1789025752_cLHmVVGn.webp"
+      }
+    ],
+    "airports": {
+      "primary": {
+        "name": "Chhatrapati Shivaji Maharaj International Airport",
+        "iata_code": "BOM",
+        "city": "Mumbai"
+      },
+      "secondary": null
+    }
+  }
+}

@@ -1,0 +1,138 @@
+<div class="flex-1 flex flex-col items-center justify-center px-12 py-2 select-none relative z-20 font-sans w-full max-w-6xl mx-auto">
+
+    <!-- Luxury TV Glass Card Container -->
+    <div class="w-full bg-[#121214]/90 backdrop-blur-2xl border-2 border-amber-500/35 rounded-3xl p-6 sm:p-7 max-h-[820px] shadow-[0_20px_60px_rgba(0,0,0,0.9),0_0_40px_rgba(255,215,0,0.15)] flex flex-col items-center text-center relative overflow-hidden">
+
+        <!-- Ambient Golden Glow in background -->
+        <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <!-- Animated Cast Icon -->
+        <div class="relative z-10 mb-3">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 via-[#1e1a12] to-black border-2 border-amber-400/60 flex items-center justify-center shadow-[0_0_30px_rgba(255,215,0,0.4)]">
+                <!-- SVG Cast Wireless Icon -->
+                <svg class="w-8 h-8 text-amber-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+            </div>
+        </div>
+
+        <!-- Title & Subtitle -->
+        <div class="relative z-10">
+            <h2 class="text-2xl sm:text-3xl font-black text-amber-400 tracking-wider uppercase drop-shadow-[0_2px_10px_rgba(255,215,0,0.5)]"
+                x-text="t('icons.screen_cast', 'WIRELESS SCREEN CAST').toUpperCase()">
+                WIRELESS SCREEN CAST
+            </h2>
+            <p class="text-slate-300 text-xs sm:text-sm mt-1 max-w-2xl font-medium tracking-wide"
+               x-text="t('cast_desc', 'Connect your mobile device to the hotel Wi-Fi and cast videos, photos, or presentations directly to this TV.')">
+                Connect your mobile device to the hotel Wi-Fi and cast videos, photos, or presentations directly to this TV.
+            </p>
+        </div>
+
+        <!-- PROMINENT TARGET TV DEVICE NAME BOX (Core Request) -->
+        <div class="w-full max-w-2xl my-4 p-4 rounded-2xl bg-gradient-to-r from-black/90 via-[#1c1810] to-black/90 border-2 border-amber-400/80 shadow-[0_0_35px_rgba(255,215,0,0.3)] relative z-10 flex items-center justify-between">
+            <div class="flex items-center gap-4 text-left">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-black flex items-center justify-center font-black text-2xl shadow-lg flex-shrink-0">
+                    📺
+                </div>
+                <div>
+                    <span class="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 block">
+                        Target TV Device Name
+                    </span>
+                    <span class="text-2xl font-black text-amber-300 tracking-wide drop-shadow-[0_2px_8px_rgba(255,215,0,0.5)]"
+                          x-text="getCastDeviceName()">
+                        Hotel TV
+                    </span>
+                </div>
+            </div>
+
+            <!-- Ready Status Indicator -->
+            <div class="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs font-black tracking-wider flex-shrink-0">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                <span>READY TO CONNECT</span>
+            </div>
+        </div>
+
+        <!-- Two Column Instruction Panels (Android / Windows & Apple iOS) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl relative z-10 text-left my-2">
+
+            <!-- Card 1: Android & Windows -->
+            <div class="p-5 rounded-2xl bg-white/[0.04] border border-white/10 hover:border-amber-500/40 transition-colors">
+                <div class="flex items-center gap-2.5 mb-3">
+                    <span class="text-xl">🤖</span>
+                    <h3 class="text-base font-extrabold text-white tracking-wide">
+                        Android & Windows
+                    </h3>
+                </div>
+                <ul class="space-y-2 text-xs text-slate-300 font-medium leading-relaxed">
+                    <li class="flex items-start gap-2">
+                        <span class="text-amber-400 font-bold">1.</span>
+                        <span>Ensure your device is connected to the hotel Wi-Fi network.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-amber-400 font-bold">2.</span>
+                        <span>Swipe down to open Quick Settings panel.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-amber-400 font-bold">3.</span>
+                        <span>Tap <strong class="text-white">Cast</strong> / <strong class="text-white">Smart View</strong> / <strong class="text-white">Wireless Display</strong>.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-amber-400 font-bold">4.</span>
+                        <span>Select <strong class="text-amber-300" x-text="getCastDeviceName()">Hotel TV</strong> to start mirroring.</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Card 2: Apple iOS & macOS -->
+            <div class="p-5 rounded-2xl bg-white/[0.04] border border-white/10 hover:border-amber-500/40 transition-colors">
+                <div class="flex items-center gap-2.5 mb-3">
+                    <span class="text-xl">🍎</span>
+                    <h3 class="text-base font-extrabold text-white tracking-wide">
+                        Apple iPhone, iPad & Mac
+                    </h3>
+                </div>
+                <ul class="space-y-2 text-xs text-slate-300 font-medium leading-relaxed">
+                    <li class="flex items-start gap-2">
+                        <span class="text-amber-400 font-bold">1.</span>
+                        <span>Connect to the same hotel Wi-Fi network as this TV.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-amber-400 font-bold">2.</span>
+                        <span>Swipe down from top-right to open <strong class="text-white">Control Center</strong>.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-amber-400 font-bold">3.</span>
+                        <span>Tap <strong class="text-white">Screen Mirroring</strong> (<span class="font-bold">AirPlay</span>).</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-amber-400 font-bold">4.</span>
+                        <span>Choose <strong class="text-amber-300" x-text="getCastDeviceName()">Hotel TV</strong> to project your screen.</span>
+                    </li>
+                </ul>
+            </div>
+
+        </div>
+
+        <!-- Bottom Status Bar -->
+        <div class="w-full pt-4 mt-2 border-t border-amber-500/25 flex items-center justify-between text-xs text-slate-400 relative z-10">
+            <p class="font-medium tracking-wide">
+                Press <span class="text-amber-400 font-bold">BACK</span> on TV remote to return to Home screen
+            </p>
+            <div class="flex items-center gap-3">
+                <template x-if="(hotelData && hotelData.device && hotelData.device.ip_address)">
+                    <span class="text-[11px] font-mono text-slate-400">
+                        IP: <strong class="text-amber-400" x-text="hotelData.device.ip_address"></strong>
+                    </span>
+                </template>
+                <template x-if="roomNo">
+                    <span class="text-[11px] font-bold text-slate-300 px-2.5 py-0.5 rounded bg-black/50 border border-white/10">
+                        Room: <strong class="text-amber-400" x-text="roomNo"></strong>
+                    </span>
+                </template>
+            </div>
+        </div>
+
+    </div>
+
+</div>

@@ -1,0 +1,67 @@
+{
+  "project": "PAX Hotel TV for LG webOS",
+  "version": "1.0.0",
+  "package": "com.pax.hospitality.tv_1.0.0_all.ipk",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "name": "Project Setup & Metadata",
+      "description": "Configure appinfo.json with 1920x1080 resolution, permissions, requiredACG, icons and directory layout",
+      "status": "completed"
+    },
+    {
+      "id": "TASK-002",
+      "name": "Assets Mirroring",
+      "description": "Copy icons, logos, weather assets, and background wallpapers from Hotel_TV_App & tv_templates",
+      "status": "completed"
+    },
+    {
+      "id": "TASK-003",
+      "name": "API Client & Storage Service",
+      "description": "Build Laravel API client (/login, /generate-pair-code, /pair-status, /check-version) with retry and localStorage caching",
+      "status": "completed"
+    },
+    {
+      "id": "TASK-004",
+      "name": "webOS Device & Luna Service Adapter",
+      "description": "Integrate webOSTV.js SDK, Luna services for network info, time sync, and app launching with browser fallbacks",
+      "status": "completed"
+    },
+    {
+      "id": "TASK-005",
+      "name": "LG Remote D-Pad Navigation Engine",
+      "description": "Implement complete spatial navigation for webOS remote (Arrows, OK:13, Back:461, Colors:403-406, Numbers:0-9)",
+      "status": "completed"
+    },
+    {
+      "id": "TASK-006",
+      "name": "Screen 1: TV Pairing & Authentication Screen",
+      "description": "1:1 clone of TvLoginScreen with QR Code (180s timer + polling) and Sign In with Remote (Form + on-screen keypad)",
+      "status": "completed"
+    },
+    {
+      "id": "TASK-007",
+      "name": "Screen 2: Main Hotel TV Dashboard",
+      "description": "Top Header (clock, logo, room, weather), ambient wallpaper slider, bottom category menu carousel",
+      "status": "completed"
+    },
+    {
+      "id": "TASK-008",
+      "name": "Screen 3: Sub-Screens & Modals",
+      "description": "Live TV (HLS streaming player), Hotel Info, Amenities, Room Info, Applications (OTT), Flights, Weather, Languages, Settings",
+      "status": "completed"
+    },
+    {
+      "id": "TASK-009",
+      "name": "Screen 4: Inactivity Screensaver",
+      "description": "2-minute idle trigger, animated slide-up, rotating amenity wallpapers, digital clock, wake-on-key",
+      "status": "completed"
+    },
+    {
+      "id": "TASK-010",
+      "name": "Deterministic Verification & Packaging Check",
+      "description": "Zero JS syntax errors, complete remote D-pad focus verification, API contract check, and ares packaging instructions",
+      "status": "completed"
+    }
+  ]
+}

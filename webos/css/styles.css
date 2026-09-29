@@ -1,0 +1,440 @@
+/* PAX TV Hospitality - LG webOS TV Master Stylesheet */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #08030D;
+  font-family: 'Poppins', sans-serif;
+  color: #FFFFFF;
+}
+
+/* Master Full-Viewport Responsive Canvas */
+#tv-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: radial-gradient(circle at 75% 25%, #2D143B 0%, #140722 45%, #08030D 85%, #050208 100%);
+  display: flex;
+  flex-direction: column;
+}
+
+/* TV Focusable High-Visibility Indicator */
+.tv-focusable {
+  outline: none;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.22s ease,
+              background-color 0.22s ease;
+  will-change: transform, box-shadow;
+  cursor: pointer;
+}
+
+.tv-focusable.tv-focused,
+.tv-focusable:focus {
+  outline: none !important;
+  transform: scale(1.04) !important;
+  box-shadow: 0 0 0 3px #f59e0b, 0 10px 30px rgba(245, 158, 11, 0.5) !important;
+  border-color: #f59e0b !important;
+  z-index: 50 !important;
+}
+
+/* Ambient Radial Glow Elements */
+.ambient-glow-red {
+  position: absolute;
+  top: -100px;
+  right: -50px;
+  width: 750px;
+  height: 750px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(225, 29, 72, 0.38) 0%, rgba(147, 51, 234, 0.20) 50%, transparent 75%);
+  pointer-events: none;
+  filter: blur(60px);
+}
+
+.ambient-glow-purple {
+  position: absolute;
+  bottom: -150px;
+  right: 180px;
+  width: 650px;
+  height: 650px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(192, 132, 252, 0.28) 0%, rgba(225, 29, 72, 0.16) 50%, transparent 75%);
+  pointer-events: none;
+  filter: blur(60px);
+}
+
+.ambient-glow-blue {
+  position: absolute;
+  top: -120px;
+  left: -80px;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(79, 70, 229, 0.25) 0%, transparent 70%);
+  pointer-events: none;
+  filter: blur(60px);
+}
+
+/* Glassmorphic Panel */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
+}
+
+/* Unified Balanced 2-Column TV Layout */
+.login-screen-grid {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 9vw;
+  position: relative;
+  z-index: 10;
+}
+
+.login-col-left {
+  flex: 1;
+  max-width: 620px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.login-tabs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 480px;
+  margin-top: 30px;
+  margin-bottom: 30px;
+}
+
+.login-tab-btn {
+  display: flex;
+  align-items: center;
+  padding: 22px 30px;
+  border-radius: 22px;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  border: 1px solid transparent;
+}
+
+.device-id-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 12px 24px;
+  border-radius: 16px;
+  width: fit-content;
+  margin-top: 12px;
+  font-size: 14px;
+}
+
+.login-col-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Premium Top-Right Network Status Header with WiFi */
+.network-header-badge {
+  position: absolute;
+  top: 36px;
+  right: 54px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 10px 22px;
+  border-radius: 9999px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.network-header-badge .wifi-svg {
+  width: 22px;
+  height: 22px;
+  fill: #34D399;
+}
+
+.network-header-badge .dot-indicator {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: #34D399;
+  box-shadow: 0 0 10px #34D399;
+}
+
+.network-header-badge .status-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  letter-spacing: 0.3px;
+}
+
+/* Premium QR Card with Clean Elegant Soft Elevation (No Neon Box Shadow) */
+.qr-clean-card {
+  background: #FFFFFF;
+  padding: 24px;
+  border-radius: 32px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75), 0 6px 20px rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.pair-code-pill {
+  width: 100%;
+  max-width: 380px;
+  background: #DC2626;
+  padding: 12px 24px;
+  border-radius: 20px;
+  box-shadow: 0 10px 28px rgba(220, 38, 38, 0.35);
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.pair-timer-bar {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 22px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Decider Installation Screen Progress Styles */
+#decider-progress-bar {
+  background: linear-gradient(90deg, #F59E0B, #F97316, #EF4444);
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.7);
+}
+
+.decider-progress-track {
+  width: 100%;
+  max-width: 540px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9999px;
+  height: 16px;
+  padding: 2px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
+  margin-bottom: 14px;
+}
+
+/* Horizontal Category Menu Carousel */
+.menu-carousel {
+  display: flex;
+  gap: 24px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  padding: 20px 60px 40px 60px;
+}
+
+.menu-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.menu-card {
+  flex: 0 0 240px;
+  height: 280px;
+  border-radius: 18px;
+  background: rgba(20, 20, 30, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+}
+
+.menu-card.tv-focused {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(20, 20, 30, 0.9));
+  border-color: #f59e0b;
+}
+
+/* Modal Sub-screens */
+.subscreen-modal {
+  position: absolute;
+  inset: 0;
+  background: rgba(9, 4, 14, 0.95);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  z-index: 100;
+  display: none;
+  flex-direction: column;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.subscreen-modal.active {
+  display: flex;
+  opacity: 1;
+}
+
+/* Inactivity Screensaver Overlay */
+#screensaver-overlay {
+  position: absolute;
+  inset: 0;
+  background-color: #000000;
+  z-index: 200;
+  transform: translateY(-100%);
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+#screensaver-overlay.active {
+  transform: translateY(0);
+}
+
+/* Live TV Channel Drawer */
+.channel-list-item {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+  margin-bottom: 12px;
+}
+
+.channel-list-item.tv-focused {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: #f59e0b;
+}
+
+/* Manual Remote Sign-In Card & Form Styling */
+.manual-login-card {
+  background: rgba(20, 10, 30, 0.75);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 32px;
+  padding: 34px 40px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7);
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+}
+
+.manual-form-group {
+  margin-bottom: 22px;
+  display: flex;
+  flex-direction: column;
+}
+
+.manual-form-label {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: rgba(255, 255, 255, 0.75);
+  margin-bottom: 8px;
+}
+
+.manual-form-input {
+  width: 100%;
+  padding: 16px 20px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #FFFFFF;
+  font-family: monospace;
+  font-size: 17px;
+  outline: none;
+}
+
+/* On-Screen Virtual Remote Keypad */
+.keypad-wrapper {
+  margin-top: 8px;
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.keypad-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.keypad-btn {
+  height: 56px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 22px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.keypad-btn.tv-focused {
+  background: #f59e0b !important;
+  color: #000000 !important;
+  border-color: #f59e0b !important;
+}
+
+.manual-submit-btn {
+  width: 100%;
+  padding: 18px 24px;
+  border-radius: 18px;
+  background: #F59E0B;
+  color: #000000;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  border: 1px solid #FCD34D;
+  cursor: pointer;
+  box-shadow: 0 10px 25px rgba(245, 158, 11, 0.35);
+  outline: none;
+}

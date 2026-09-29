@@ -36,7 +36,10 @@ class ApiClient {
           options.headers["Authorization"] = "Bearer $token";
         }
         options.headers["Content-Type"] = "application/json";
-        options.headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+        options.headers["Accept"] = "application/json";
+        if (!kIsWeb) {
+          options.headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+        }
 
         // --- Logging Request ---
         Logger.d('┌─────────────── REQUEST ───────────────');
@@ -134,7 +137,10 @@ class ApiClient {
         return statusCode != null &&
             (statusCode >= 500 || statusCode == 408 || statusCode == 429);
       case DioExceptionType.unknown:
-        return error.error is SocketException || error.error is HttpException;
+        if (!kIsWeb) {
+          return error.error is SocketException || error.error is HttpException;
+        }
+        return false;
       default:
         return false;
     }
