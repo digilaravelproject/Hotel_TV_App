@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest package="com.paxtv.hotel" version="1.0.0" api-version="10.0" xmlns="http://tizen.org/ns/packages">
+<manifest package="com.paxtv.hotel" version="1.0.0" api-version="6.0" xmlns="http://tizen.org/ns/packages">
     <profile name="tv"/>
     <author email="info@paxtv.com" href="http://www.paxtv.com">Pax TV</author>
     <description>Pax TV Hotel Application</description>
