@@ -22,7 +22,7 @@
   };
 
   var ApiService = {
-    baseUrl: 'https://tvapp.digiemperor.com',
+    baseUrl: 'https://paxtvhospitality.paxtvnetwork.com',
     timeoutMs: 8000,
 
     /**
@@ -45,8 +45,8 @@
      */
     getToken: function () {
       return localStorage.getItem(STORAGE_KEYS.TOKEN) ||
-             localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) ||
-             '';
+        localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) ||
+        '';
     },
 
     setToken: function (token) {
@@ -67,7 +67,7 @@
     getLoginData: function () {
       try {
         var str = localStorage.getItem(STORAGE_KEYS.LOGIN_DATA) ||
-                  localStorage.getItem(STORAGE_KEYS.FLUTTER_DATA);
+          localStorage.getItem(STORAGE_KEYS.FLUTTER_DATA);
         return str ? JSON.parse(str) : null;
       } catch (e) {
         console.error('[ApiService] Error parsing stored login data:', e);
@@ -88,11 +88,11 @@
         var dataStr = JSON.stringify(data);
         localStorage.setItem(STORAGE_KEYS.LOGIN_DATA, dataStr);
         localStorage.setItem(STORAGE_KEYS.FLUTTER_DATA, dataStr);
-        
+
         // Extract raw hotel payload for template dataService
         var configPayload = (data.data && (data.data.hotel || data.data.device)) ? (data.data || data) : data;
         localStorage.setItem(STORAGE_KEYS.CACHED_HOTEL_DATA, JSON.stringify(configPayload));
-        
+
         // Set live window variable for instantaneous template consumption
         window.tvLoginData = data;
         if (window.parent) window.parent.tvLoginData = data;

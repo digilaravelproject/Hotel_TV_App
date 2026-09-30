@@ -66,7 +66,7 @@
           try {
             frame.focus();
             frame.contentWindow.focus();
-          } catch (_) {}
+          } catch (_) { }
         }
       }
 
@@ -111,7 +111,7 @@
         if (dashView && dashView.style.display !== 'none' && frame && frame.contentWindow) {
           try {
             frame.contentWindow.focus();
-          } catch (_) {}
+          } catch (_) { }
         }
       }, true);
     },
@@ -297,7 +297,7 @@
             timerEl.innerHTML = 'Code expires in: <span class="text-amber-400 font-bold">' + self.formatDuration(expiresIn) + '</span>';
           }
 
-          var qrUrl = 'https://tvapp.digiemperor.com/hotel/devices?code=' + encodeURIComponent(code);
+          var qrUrl = 'https://paxtvhospitality.paxtvnetwork.com/hotel/devices?code=' + encodeURIComponent(code);
           if (qrBox && window.QRCodeGenerator) {
             qrBox.innerHTML = window.QRCodeGenerator.renderSVG(qrUrl, 320);
           }
@@ -313,7 +313,7 @@
           if (timerEl) {
             timerEl.innerHTML = 'Code expires in: <span class="text-amber-400 font-bold">' + self.formatDuration(180) + '</span>';
           }
-          var qrUrlFallback = 'https://tvapp.digiemperor.com/hotel/devices?code=' + encodeURIComponent(demoCode);
+          var qrUrlFallback = 'https://paxtvhospitality.paxtvnetwork.com/hotel/devices?code=' + encodeURIComponent(demoCode);
           if (qrBox && window.QRCodeGenerator) {
             qrBox.innerHTML = window.QRCodeGenerator.renderSVG(qrUrlFallback, 320);
           }
@@ -548,7 +548,7 @@
           frame.contentWindow.tvLoginData = fullPayload;
           frame.contentWindow.WebOSDevice = window.WebOSDevice;
           frame.contentWindow.focus();
-        } catch (_) {}
+        } catch (_) { }
 
         // Hide decider and show dashboard
         setTimeout(function () {
@@ -556,7 +556,7 @@
           try {
             frame.focus();
             frame.contentWindow.focus();
-          } catch (_) {}
+          } catch (_) { }
         }, 150);
       };
 
