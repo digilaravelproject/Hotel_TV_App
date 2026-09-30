@@ -46,9 +46,14 @@ app.*.map.json
 *.tpk
 *.apk
 *.ipk
+*.wgt
+.tizen-rds/
 /tizen/bin/
 /tizen/obj/
 /tizen/flutter/
 tizen/.app.deps.json
 tizen/*.csproj.user
+tizen_web/author-signature.xml
+tizen_web/signature1.xml
+tizen_web/.manifest.tmp
 /webos/template/*

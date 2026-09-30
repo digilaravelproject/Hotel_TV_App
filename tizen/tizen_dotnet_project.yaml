@@ -6,7 +6,7 @@ profile: tizen
 api_version: "6.0"
 
 # Build type [Debug/ Release/ Test]
-build_type: Release
+build_type: Debug
 
 # Output path for build
 output_path: ""
