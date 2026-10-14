@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <defs>
+    <linearGradient id="amberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FCD34D"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+  </defs>
+  <!-- Smart TV Frame -->
+  <rect x="2" y="3" width="20" height="14" rx="2.5" fill="none" stroke="url(#amberGrad)" stroke-width="2"/>
+  <!-- TV Stand -->
+  <path d="M8 21h8M12 17v4" stroke="url(#amberGrad)" stroke-width="2" stroke-linecap="round"/>
+  <!-- Play Button -->
+  <polygon points="10.5,7 15.5,10 10.5,13" fill="url(#amberGrad)"/>
+</svg>

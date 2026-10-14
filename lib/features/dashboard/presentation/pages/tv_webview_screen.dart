@@ -51,10 +51,15 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
   List<String> _dynamicAmenitiesDescriptions = [];
   String? _localBgFilePath;
 
+  bool _isDemoMode = false;
+  int _demoDaysLeft = 0;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _isDemoMode = SharedPrefs.getBool(AppConstants.isDemoModeKey) ?? false;
+    _demoDaysLeft = SharedPrefs.getInt(AppConstants.demoDaysLeftKey) ?? 0;
     _startInactivityTimer();
     _startScreensaverClock();
     _loadLocalBackgroundFile();
@@ -72,12 +77,14 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initHybridSync();
-      // Prompt Home Set Dialog once web template download completes & screen shows
-      Future.delayed(const Duration(seconds: 1), () {
-        if (mounted) {
-          AccessibilityService.requestDefaultLauncher();
-        }
-      });
+      // Prompt Home Set Dialog once web template download completes & screen shows ONLY if NOT in Demo Mode
+      if (!_isDemoMode) {
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            AccessibilityService.requestDefaultLauncher();
+          }
+        });
+      }
     });
   }
 
@@ -226,6 +233,9 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
         Logger.w('[TvWebviewScreen] Token is unauthenticated! Performing automatic logout...');
         await TokenManager.clearToken();
         await SharedPrefs.remove(AppConstants.tvLoginDataKey);
+        await SharedPrefs.remove(AppConstants.isDemoModeKey);
+        await SharedPrefs.remove(AppConstants.demoExpiresAtKey);
+        await SharedPrefs.remove(AppConstants.demoDaysLeftKey);
         await LocalTemplateServer.stop();
         await TvSyncManager.dispose();
         if (mounted) {
@@ -235,6 +245,67 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
           );
         }
       },
+      onDemoExpired: () async {
+        await _handleDemoExpired();
+      },
+    );
+  }
+
+  Future<void> _handleDemoExpired({String? notice}) async {
+    Logger.w('[TvWebviewScreen] Demo trial expired/ended! Performing clean auto-logout...');
+    await TokenManager.clearToken();
+    await SharedPrefs.remove(AppConstants.tvLoginDataKey);
+    await SharedPrefs.remove(AppConstants.isDemoModeKey);
+    await SharedPrefs.remove(AppConstants.demoExpiresAtKey);
+    await SharedPrefs.remove(AppConstants.demoDaysLeftKey);
+    await LocalTemplateServer.stop();
+    await TvSyncManager.dispose();
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => TvLoginScreen(
+            expiredNotice: notice ?? 'Demo trial period has expired. Please enter a license key to continue.',
+          ),
+        ),
+        (route) => false,
+      );
+    }
+  }
+
+  void _showExitDemoDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1B0F2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Exit Demo Mode?',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Do you want to exit Demo Mode and return to the login screen?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber.shade700,
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await _handleDemoExpired(
+                notice: 'Exited Demo Mode successfully.',
+              );
+            },
+            child: const Text('Exit to Login', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -353,6 +424,10 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
         final hash = uri.fragment;
         print('[BackNavigation] Parsed path: $path, hash: $hash');
         if ((path == '/' || path == '/index.html') && (hash.isEmpty || hash == '/')) {
+          if (_isDemoMode) {
+            _showExitDemoDialog();
+            return;
+          }
           print('[BackNavigation] On home page with no active overlays, ignoring back press to prevent app exit');
           return;
         }
@@ -487,6 +562,47 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
       child: Stack(
         children: [
           WebViewWidget(controller: controller),
+
+          // Dynamic Demo Mode Badge (Top-Center: ensures Room & Clock info are never covered)
+          if (_isDemoMode)
+            Positioned(
+              top: 20,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.82),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.amber.shade600, width: 1.2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.5),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.bolt_rounded, color: Colors.amber.shade500, size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        _demoDaysLeft > 0 ? 'Demo Mode • $_demoDaysLeft days left' : 'Demo Mode',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           
           // Bottom Updating Banner
           if (_showBottomUpdating)

@@ -10,4 +10,7 @@ class AppConstants {
   static const String templateVersionKey = 'template_version';
   static const String userDataPref = 'user_data_pref';
   static const String isLoggedInPref = 'is_logged_in_pref';
+  static const String isDemoModeKey = 'is_demo_mode';
+  static const String demoExpiresAtKey = 'demo_expires_at';
+  static const String demoDaysLeftKey = 'demo_days_left';
 }

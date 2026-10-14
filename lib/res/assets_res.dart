@@ -8,5 +8,8 @@ class AssetsRes {
 
   static const String PROJECT_NAME = 'hotel';
   static const String PROJECT_VERSION = '1.0.0+1';
+  static const String DEMO_ICON = 'assets/demo_icon.svg';
+  static const String DEMO_PREVIEW = 'assets/demo_preview.jpg';
+  static const String DEMO_SHOWCASE_VECTOR = 'assets/demo_showcase_vector.svg';
   static const String LOGO = 'assets/logo.png';
 }

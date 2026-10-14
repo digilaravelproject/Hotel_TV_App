@@ -10,4 +10,5 @@ class ApiConstants {
   static const String generatePairCodeUri = '/api/tv/generate-pair-code';
   static const String pairStatusUri = '/api/tv/pair-status';
   static const String checkTemplateVersionUri = '/api/tv/template/check-version';
+  static const String demoLoginUri = '/api/tv/demo-login';
 }

@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120">
+  <defs>
+    <!-- Background Ambient Glow -->
+    <radialGradient id="backAura" cx="50%" cy="45%" r="50%">
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.3"/>
+      <stop offset="50%" stop-color="#8B5CF6" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- TV Frame Bezel -->
+    <linearGradient id="tvBezel" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2D1A4A"/>
+      <stop offset="100%" stop-color="#140826"/>
+    </linearGradient>
+
+    <!-- TV Screen Depth -->
+    <linearGradient id="screenBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E1238"/>
+      <stop offset="60%" stop-color="#0F061E"/>
+      <stop offset="100%" stop-color="#080210"/>
+    </linearGradient>
+
+    <!-- Gold Accent -->
+    <linearGradient id="goldAcc" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="50%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+
+    <!-- Tile 1: Live TV (Cyan/Blue) -->
+    <linearGradient id="tileLive" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+
+    <!-- Tile 2: Dining (Emerald/Green) -->
+    <linearGradient id="tileDining" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34D399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+
+    <!-- Tile 3: Movies (Rose/Pink) -->
+    <linearGradient id="tileMovies" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FB7185"/>
+      <stop offset="100%" stop-color="#BE123C"/>
+    </linearGradient>
+
+    <!-- Play Badge Glow -->
+    <linearGradient id="playBadge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="100%" stop-color="#EA580C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Ambient Glow Behind TV -->
+  <ellipse cx="80" cy="55" rx="72" ry="48" fill="url(#backAura)"/>
+
+  <!-- TV Outer Casing with Bezel Shadow -->
+  <rect x="18" y="12" width="124" height="78" rx="8" fill="url(#tvBezel)" stroke="url(#goldAcc)" stroke-width="1.6"/>
+
+  <!-- TV Screen Display -->
+  <rect x="22" y="16" width="116" height="70" rx="5" fill="url(#screenBg)"/>
+
+  <!-- Screen Top Bar (Mini Header) -->
+  <rect x="28" y="22" width="30" height="3" rx="1.5" fill="#C084FC" fill-opacity="0.6"/>
+  <circle cx="128" cy="23.5" r="2" fill="#F59E0B"/>
+  <circle cx="122" cy="23.5" r="1.5" fill="#38BDF8" fill-opacity="0.8"/>
+
+  <!-- Mini Interface App Tiles on TV Screen -->
+  <!-- Tile 1: Live TV -->
+  <rect x="28" y="32" width="30" height="36" rx="4" fill="url(#tileLive)" fill-opacity="0.85"/>
+  <rect x="33" y="38" width="20" height="13" rx="2" fill="#FFFFFF" fill-opacity="0.9"/>
+  <polygon points="41,41 47,44.5 41,48" fill="#1D4ED8"/>
+  <rect x="32" y="56" width="22" height="2.5" rx="1" fill="#FFFFFF" fill-opacity="0.8"/>
+  <rect x="35" y="60.5" width="16" height="2" rx="1" fill="#FFFFFF" fill-opacity="0.5"/>
+
+  <!-- Tile 2: Room Dining -->
+  <rect x="65" y="30" width="30" height="40" rx="4" fill="url(#tileDining)" fill-opacity="0.9" stroke="url(#goldAcc)" stroke-width="1.2"/>
+  <path d="M73 48 C73 42 87 42 87 48 Z" fill="#FFFFFF"/>
+  <circle cx="80" cy="41" r="1.5" fill="#FFFFFF"/>
+  <line x1="72" y1="49" x2="88" y2="49" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/>
+  <rect x="69" y="56" width="22" height="2.5" rx="1" fill="#FFFFFF" fill-opacity="0.9"/>
+  <rect x="72" y="60.5" width="16" height="2" rx="1" fill="#FFFFFF" fill-opacity="0.6"/>
+
+  <!-- Tile 3: Movies / Entertainment -->
+  <rect x="102" y="32" width="30" height="36" rx="4" fill="url(#tileMovies)" fill-opacity="0.85"/>
+  <circle cx="117" cy="45" r="8" fill="#FFFFFF" fill-opacity="0.9"/>
+  <polygon points="115,41 121,45 115,49" fill="#BE123C"/>
+  <rect x="106" y="56" width="22" height="2.5" rx="1" fill="#FFFFFF" fill-opacity="0.8"/>
+  <rect x="109" y="60.5" width="16" height="2" rx="1" fill="#FFFFFF" fill-opacity="0.5"/>
+
+  <!-- Floating Center Highlight Play Badge -->
+  <circle cx="80" cy="50" r="13" fill="#1B0F2A" stroke="url(#goldAcc)" stroke-width="2"/>
+  <circle cx="80" cy="50" r="10.5" fill="url(#playBadge)"/>
+  <polygon points="77,44 85,50 77,56" fill="#1B0F2A"/>
+
+  <!-- TV Stand Neck & Base -->
+  <rect x="77" y="90" width="6" height="12" fill="url(#tvBezel)" stroke="url(#goldAcc)" stroke-width="0.8"/>
+  <path d="M56 102 L104 102" stroke="url(#goldAcc)" stroke-width="3" stroke-linecap="round"/>
+  <path d="M64 104 L96 104" stroke="#F59E0B" stroke-opacity="0.4" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Subtle Sparkles -->
+  <path d="M144 14 Q144 20 150 20 Q144 20 144 26 Q144 20 138 20 Q144 20 144 14 Z" fill="url(#goldAcc)"/>
+  <path d="M16 26 Q16 30 20 30 Q16 30 16 34 Q16 30 12 30 Q16 30 16 26 Z" fill="#C084FC"/>
+  <circle cx="140" cy="88" r="2" fill="#FDE047"/>
+</svg>
