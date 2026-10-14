@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="sMhNHqDFpU" version="1.0.1" viewmodes="maximized">
+    <tizen:application id="sMhNHqDFpU.paxtv" package="sMhNHqDFpU" required_version="3.0"/>
+    <tizen:profile name="tv"/>
+    <content src="index.html"/>
+    <icon src="icon.png"/>
+    <name>PAX TV Hospitality</name>
+    <description>PAX TV Hotel Hospitality Application</description>
+    <author email="info@paxtv.com" href="http://www.paxtv.com">PAX Hospitality</author>
+    <license>Proprietary</license>
+
+    <!-- Screen Resolution -->
+    <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="enable" encryption="disable" install-location="auto"/>
+
+    <!-- TV Remote Key Registration -->
+    <tizen:metadata key="http://tizen.org/metadata/functionkey" value="support"/>
+
+    <!-- Privileges & Network Access -->
+    <access origin="*" subdomains="true"/>
+    <tizen:allow-navigation>*</tizen:allow-navigation>
+    <tizen:content-security-policy>default-src 'self' 'unsafe-inline' 'unsafe-eval' * data: blob: https: http:; connect-src * https: http:; img-src * data: blob: https: http:;</tizen:content-security-policy>
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+</widget>

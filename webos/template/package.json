@@ -1,0 +1,11 @@
+{
+  "name": "tv_template_v2.0.1",
+  "version": "2.0.1",
+  "description": "Hotel Luxury TV Template v2.0.1",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "keywords": ["tv", "template"],
+  "author": "",
+  "license": "ISC"
+}

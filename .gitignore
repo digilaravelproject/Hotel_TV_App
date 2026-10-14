@@ -18,10 +18,9 @@ migrate_working_dir/
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+.vscode/
+.kilo/
+devtools_options.yaml
 
 # Flutter/Dart/Pub related
 **/doc/api/
@@ -47,9 +46,14 @@ app.*.map.json
 *.tpk
 *.apk
 *.ipk
+*.wgt
+.tizen-rds/
 /tizen/bin/
 /tizen/obj/
 /tizen/flutter/
 tizen/.app.deps.json
 tizen/*.csproj.user
+tizen_web/author-signature.xml
+tizen_web/signature1.xml
+tizen_web/.manifest.tmp
 /webos/template/*

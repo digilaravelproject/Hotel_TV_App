@@ -44,7 +44,7 @@ window.TVCore = {
         const isInSubfolder = window.location.pathname.indexOf('/') !== window.location.pathname.lastIndexOf('/');
         const basePath = isInSubfolder ? '../' : '';
         const paths = [`${basePath}${filename}`, filename, `${basePath}data.json`, 'data.json'];
-        
+
         let config = null;
         let token = localStorage.getItem('authToken');
 
@@ -69,7 +69,7 @@ window.TVCore = {
         // Step 2: If forceApi is true or if online, hit the check-version remote API using Authorization Bearer token
         if ((forceApi || !config) && navigator.onLine && token) {
             try {
-                const apiRes = await fetch("https://tvapp.digiemperor.com/api/tv/template/check-version", {
+                const apiRes = await fetch("https://paxtvhospitality.paxtvnetwork.com/api/tv/template/check-version", {
                     method: "GET",
                     headers: {
                         "Accept": "application/json",
@@ -87,10 +87,10 @@ window.TVCore = {
                         const payloadStr = JSON.stringify(fullPayload, null, 2);
 
                         localStorage.setItem('cachedHotelData', JSON.stringify(config));
-                        
+
                         // Send to Flutter Native bridge to update & write data.json on device disk
                         if (window.flutterBridge && typeof window.flutterBridge.saveDeviceConfig === 'function') {
-                            window.flutterBridge.saveDeviceConfig(fullPayload).catch(function(err){ console.warn('Bridge save file warn:', err); });
+                            window.flutterBridge.saveDeviceConfig(fullPayload).catch(function (err) { console.warn('Bridge save file warn:', err); });
                         }
 
                         console.log("Successfully fetched fresh data from Remote check-version API");
@@ -131,7 +131,7 @@ window.TVCore = {
 
         if (config && config.hotel && config.hotel.media) {
             if (config.hotel.media.slider_images && config.hotel.media.slider_images.length > 0) {
-                this.bgSlideImages = config.hotel.media.slider_images.map(function(img) {
+                this.bgSlideImages = config.hotel.media.slider_images.map(function (img) {
                     return (img.startsWith('http') || img.startsWith('/')) ? img : basePath + img;
                 });
             } else if (config.hotel.media.cover_image) {
@@ -237,7 +237,7 @@ window.TVCore = {
 
                 const img = document.createElement('img');
                 img.id = 'global-hotel-logo';
-                
+
                 let logoSrc = config.hotel.media.logo_image;
                 if (logoSrc && !logoSrc.startsWith('http') && !logoSrc.startsWith('/')) {
                     const isInSubfolder = window.location.pathname.indexOf('/') !== window.location.pathname.lastIndexOf('/');
@@ -288,7 +288,7 @@ window.TVCore = {
 
 // Automatically inject hotel logo on DOMContentLoaded for all pages loading tv-core.js
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         TVCore.fetchHotelConfig().then(config => {
             if (config) {
                 TVCore.injectHotelLogo(config);
