@@ -807,7 +807,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                                                   ),
                                                 )
                                               : SvgPicture.asset(
-                                                  AssetsRes.DEMO_ICON,
+                                                  AppAssets.demoIcon,
                                                   width: 22,
                                                   height: 22,
                                                   colorFilter: isDemo

@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'firebase_options.dart';
 import 'core/constants/app_constants.dart';
 import 'core/services/storage/shared_prefs.dart';
+import 'core/services/time/tv_time_service.dart';
 import 'features/authentication/presentation/pages/app_startup_decider.dart';
 import 'routes/route_helper.dart';
 
@@ -42,6 +43,7 @@ void main() async {
     debugPrint('Firebase initialization skipped or failed: $e');
   }
   await SharedPrefs.init();
+  TvTimeService.initFromStorage();
 
   // Expose crash errors on screen for easy remote TV troubleshooting via photos/screenshots
   ErrorWidget.builder = (FlutterErrorDetails details) {

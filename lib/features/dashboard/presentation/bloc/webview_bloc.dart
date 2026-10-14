@@ -9,11 +9,13 @@ import '../../../../core/services/template/template_manager_service.dart';
 import '../../../../core/services/template/local_template_server.dart';
 import '../../../../core/services/storage/shared_prefs.dart';
 import '../../../../core/services/device/device_info_service.dart';
+import '../../../../core/services/time/tv_time_service.dart';
 import '../services/flutter_bridge_handler.dart';
 import 'webview_event.dart';
 import 'webview_state.dart';
 
 class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
+  void Function()? onPageStarted;
   void Function()? onPageFinished;
 
   WebViewBloc() : super(WebViewInitial()) {
@@ -80,6 +82,9 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
           NavigationDelegate(
             onPageStarted: (url) {
               _injectLoginData(controller);
+              if (onPageStarted != null) {
+                onPageStarted!();
+              }
             },
             onPageFinished: (url) {
               _injectTvNavigationJs(controller);
@@ -188,6 +193,17 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
     await _injectCastDeviceNamePatch(controller);
     await _injectNetworkFallbackPatch(controller);
     await _injectTvInputsPatch(controller);
+    await _injectClockSyncPatch(controller);
+  }
+
+  /// Injects clock calibration & timezone sync patch into WebView runtime
+  Future<void> _injectClockSyncPatch(WebViewController controller) async {
+    try {
+      final jsPatch = TvTimeService.generateJsClockSyncPatch();
+      await controller.runJavaScript(jsPatch);
+    } catch (e) {
+      Logger.w('[WebViewBloc] Error injecting clock sync patch: $e');
+    }
   }
 
   /// TVScreenCastController ke getCastDeviceName() ko override karta hai

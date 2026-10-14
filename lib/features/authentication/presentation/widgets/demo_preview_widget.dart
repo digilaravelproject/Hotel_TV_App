@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../res/assets_res.dart';
 
 class DemoPreviewWidget extends StatelessWidget {
@@ -68,7 +69,7 @@ class DemoPreviewWidget extends StatelessWidget {
 
             // Colorful Smart TV Vector Artwork
             SvgPicture.asset(
-              AssetsRes.DEMO_SHOWCASE_VECTOR,
+              AppAssets.demoShowcaseVector,
               width: 140,
               height: 105,
             ),

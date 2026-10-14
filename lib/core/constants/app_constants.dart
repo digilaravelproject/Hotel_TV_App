@@ -14,3 +14,11 @@ class AppConstants {
   static const String demoExpiresAtKey = 'demo_expires_at';
   static const String demoDaysLeftKey = 'demo_days_left';
 }
+
+class AppAssets {
+  AppAssets._();
+  static const String logo = 'assets/logo.png';
+  static const String demoIcon = 'assets/demo_icon.svg';
+  static const String demoPreview = 'assets/demo_preview.jpg';
+  static const String demoShowcaseVector = 'assets/demo_showcase_vector.svg';
+}
