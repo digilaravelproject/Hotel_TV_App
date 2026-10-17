@@ -16,6 +16,54 @@ class TemplateManagerService {
   static const String _templateFolderName = 'tv_template';
   static bool _isUpdating = false;
 
+  /// Keys that change on every API call (timestamps, tokens, request ids).
+  /// These must be ignored when deciding whether real template/room data changed,
+  /// otherwise the app treats every poll as an "update" and reloads endlessly.
+  static const Set<String> _volatileKeys = {
+    'server_time', 'serverTime', 'server_timestamp', 'serverTimestamp',
+    'timestamp', 'time', 'now', 'generated_at', 'generatedAt',
+    'token', 'auth_token', 'accessToken', 'access_token',
+    'request_id', 'requestId', 'nonce', 'expires_at', 'expiresAt',
+    'offset', 'tzOffset', 'tz_offset',
+  };
+
+  /// Recursively strips volatile keys so two payloads differing only in
+  /// timestamps/tokens are treated as identical.
+  static dynamic _normalizeForComparison(dynamic node) {
+    if (node is Map) {
+      final out = <String, dynamic>{};
+      node.forEach((k, v) {
+        final key = k.toString();
+        if (_volatileKeys.contains(key)) return;
+        out[key] = _normalizeForComparison(v);
+      });
+      return out;
+    }
+    if (node is List) {
+      return node.map(_normalizeForComparison).toList();
+    }
+    return node;
+  }
+
+  /// Stable, comparable string for an API payload. Accepts either a raw JSON
+  /// string or a parsed object. Volatile fields are removed before encoding.
+  static String stablePayloadString(dynamic payload) {
+    dynamic node = payload;
+    if (payload is String) {
+      if (payload.isEmpty) return '';
+      try {
+        node = jsonDecode(payload);
+      } catch (_) {
+        return payload; // Not JSON — compare verbatim.
+      }
+    }
+    try {
+      return jsonEncode(_normalizeForComparison(node));
+    } catch (_) {
+      return node?.toString() ?? '';
+    }
+  }
+
   /// Gets the directory where the template assets are stored
   static Future<Directory> getTemplateDirectory() async {
     final docDir = await getApplicationDocumentsDirectory();
@@ -288,10 +336,11 @@ class TemplateManagerService {
         final String? latestVersion = templateData?['latest_version']?.toString();
         final String? downloadUrl = templateData?['download_url'];
 
-        // Check if data actually changed
+        // Check if data actually changed (ignore volatile timestamp/token fields)
         final oldDataStr = SharedPrefs.getString(AppConstants.tvLoginDataKey);
         final newDataStr = jsonEncode(response.data);
-        final bool dataChanged = oldDataStr != newDataStr;
+        final bool dataChanged =
+            stablePayloadString(oldDataStr) != stablePayloadString(newDataStr);
 
         // Save the updated response data and regenerate template config
         await SharedPrefs.setString(AppConstants.tvLoginDataKey, newDataStr);

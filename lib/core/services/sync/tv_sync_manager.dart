@@ -213,7 +213,9 @@ class TvSyncManager {
 
       final oldDataStr = SharedPrefs.getString(AppConstants.tvLoginDataKey);
       final newDataStr = jsonEncode(normalizedPayload);
-      final bool dataChanged = oldDataStr != newDataStr;
+      final bool dataChanged =
+          TemplateManagerService.stablePayloadString(oldDataStr) !=
+              TemplateManagerService.stablePayloadString(newDataStr);
 
       await SharedPrefs.setString(AppConstants.tvLoginDataKey, newDataStr);
       await TemplateManagerService.regenerateDataJson();
