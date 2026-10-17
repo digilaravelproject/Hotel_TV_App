@@ -107,9 +107,32 @@ class LocalTemplateServer {
 
           request.response.headers.contentType = ContentType.parse(contentType);
           request.response.headers.add('Access-Control-Allow-Origin', '*');
-          request.response.headers.add('Cache-Control', 'no-cache, no-store, must-revalidate');
-          request.response.headers.add('Pragma', 'no-cache');
-          request.response.headers.add('Expires', '0');
+
+          // Three tiers:
+          // 1. .json (data.json)  → never cached, must always be fresh.
+          // 2. cached_media/      → immutable, long-lived. Filenames come from
+          //    the backend URL and change when the image changes, so these
+          //    are safe to cache hard (this is the offline/speed win).
+          // 3. template assets    → short max-age + revalidate. Same filename
+          //    can be replaced on a template update, so caching hard here
+          //    would serve stale images for days.
+          final isVolatile = ext == '.json';
+          final isOfflineMedia = filePath.startsWith('cached_media/') ||
+              filePath.contains('/cached_media/');
+
+          if (isVolatile) {
+            request.response.headers.add('Cache-Control', 'no-cache, no-store, must-revalidate');
+            request.response.headers.add('Pragma', 'no-cache');
+            request.response.headers.add('Expires', '0');
+          } else if (isOfflineMedia) {
+            request.response.headers.add('Cache-Control', 'public, max-age=604800, immutable');
+            request.response.headers.add('Expires',
+                HttpDate.format(DateTime.now().add(const Duration(days: 7))));
+          } else {
+            request.response.headers.add('Cache-Control', 'public, max-age=60, must-revalidate');
+            request.response.headers.add('Expires',
+                HttpDate.format(DateTime.now().add(const Duration(seconds: 60))));
+          }
           request.response.statusCode = 200;
           await file.openRead().pipe(request.response);
         } catch (e) {

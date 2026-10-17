@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:archive/archive.dart';
@@ -88,28 +89,62 @@ class TemplateManagerService {
     return p.join(dir.path, 'index.html');
   }
 
-  static Future<String> _downloadAndGetLocalPath(String url, Directory cacheDir, Dio dio) async {
+  /// A cache file is only usable if it exists and is non-empty.
+  /// Guards against truncated leftovers from an interrupted download.
+  static Future<bool> _isValidCacheFile(File f) async {
     try {
-      final uri = Uri.parse(url);
-      final fileName = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'image_${url.hashCode}';
-      final localFile = File(p.join(cacheDir.path, fileName));
-      
-      if (await localFile.exists()) {
-        Logger.i('[TemplateManager] Offline media already cached: $fileName');
-        return 'cached_media/$fileName';
-      }
-      
+      if (!await f.exists()) return false;
+      return await f.length() > 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<String> _downloadAndGetLocalPath(String url, Directory cacheDir, Dio dio) async {
+    final uri = Uri.tryParse(url);
+    final fileName =
+        (uri != null && uri.pathSegments.isNotEmpty) ? uri.pathSegments.last : 'image_${url.hashCode}';
+    final localFile = File(p.join(cacheDir.path, fileName));
+
+    // Already cached AND valid → reuse. Unchanged images are never re-downloaded.
+    if (await _isValidCacheFile(localFile)) {
+      Logger.i('[TemplateManager] Offline media already cached: $fileName');
+      return 'cached_media/$fileName';
+    }
+
+    // Drop corrupt/zero-byte leftovers, else they'd keep rendering as broken.
+    if (await localFile.exists()) {
+      try {
+        await localFile.delete();
+      } catch (_) {}
+    }
+
+    final tempFile = File('${localFile.path}.part');
+    try {
       Logger.i('[TemplateManager] Downloading offline media: $url');
-      await dio.download(url, localFile.path);
+      await _withDownloadSlot(() => dio.download(url, tempFile.path));
+
+      if (!await _isValidCacheFile(tempFile)) {
+        throw Exception('download produced an empty file');
+      }
+
+      // Publish only a fully downloaded file (no partial image is ever served).
+      if (await localFile.exists()) {
+        try {
+          await localFile.delete();
+        } catch (_) {}
+      }
+      await tempFile.rename(localFile.path);
       Logger.i('[TemplateManager] Offline media cached at: ${localFile.path}');
-      
+
       return 'cached_media/$fileName';
     } catch (e) {
       Logger.w('[TemplateManager] Failed to cache offline media ($url): $e');
-      final uri = Uri.parse(url);
-      final fileName = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'image_${url.hashCode}';
-      final localFile = File(p.join(cacheDir.path, fileName));
-      if (await localFile.exists()) {
+      try {
+        if (await tempFile.exists()) await tempFile.delete();
+      } catch (_) {}
+      // Prefer any previously valid cache over the remote URL (offline-safe).
+      if (await _isValidCacheFile(localFile)) {
         return 'cached_media/$fileName';
       }
       return url;
@@ -119,28 +154,26 @@ class TemplateManagerService {
   static Future<dynamic> _cacheAllUrls(dynamic node, Directory cacheDir, Dio dio) async {
     if (node is Map) {
       final Map<String, dynamic> result = {};
-      for (final entry in node.entries) {
-        result[entry.key] = await _cacheAllUrls(entry.value, cacheDir, dio);
+      // Process sibling keys concurrently (bounded) instead of one-by-one.
+      final entries = node.entries.toList();
+      final values = await Future.wait(
+        entries.map((e) => _cacheAllUrls(e.value, cacheDir, dio)),
+        eagerError: false,
+      );
+      for (var i = 0; i < entries.length; i++) {
+        result[entries[i].key] = values[i];
       }
       return result;
     } else if (node is List) {
-      final List<dynamic> result = [];
-      for (final item in node) {
-        result.add(await _cacheAllUrls(item, cacheDir, dio));
-      }
-      return result;
+      // Images inside one array download in parallel — big speed win.
+      return await Future.wait(
+        node.map((item) => _cacheAllUrls(item, cacheDir, dio)),
+        eagerError: false,
+      );
     } else if (node is String) {
       final String val = node.trim();
       // Detect image URLs (ends with typical extensions or contains uploads/storage)
-      if (val.startsWith('http') && 
-          !val.endsWith('.zip') &&
-          (val.contains('.png') || 
-           val.contains('.jpg') || 
-           val.contains('.jpeg') || 
-           val.contains('.webp') || 
-           val.contains('.gif') || 
-           val.contains('/uploads/') || 
-           val.contains('/storage/'))) {
+      if (val.startsWith('http') && _isCacheableUrl(val)) {
         return await _downloadAndGetLocalPath(val, cacheDir, dio);
       }
       return node;
@@ -152,6 +185,43 @@ class TemplateManagerService {
     connectTimeout: const Duration(seconds: 8),
     receiveTimeout: const Duration(seconds: 15),
   ));
+
+  /// Limits concurrent image downloads so a large gallery doesn't hammer
+  /// the network (or exhaust sockets) all at once.
+  ///
+  /// FIFO waiter queue — no busy-wait polling. A waiting download is woken
+  /// only when a slot actually frees up.
+  static const int _maxConcurrentDownloads = 5;
+  static int _activeDownloads = 0;
+  static final List<Completer<void>> _waitQueue = [];
+
+  static Future<void> _acquireDownloadSlot() {
+    if (_activeDownloads < _maxConcurrentDownloads) {
+      _activeDownloads++;
+      return Future.value();
+    }
+    final completer = Completer<void>();
+    _waitQueue.add(completer);
+    return completer.future;
+  }
+
+  static void _releaseDownloadSlot() {
+    if (_waitQueue.isNotEmpty) {
+      // Hand the slot straight to the oldest waiter (count stays the same).
+      _waitQueue.removeAt(0).complete();
+    } else {
+      _activeDownloads--;
+    }
+  }
+
+  static Future<T> _withDownloadSlot<T>(Future<T> Function() task) async {
+    await _acquireDownloadSlot();
+    try {
+      return await task();
+    } finally {
+      _releaseDownloadSlot();
+    }
+  }
 
   static Future<String?> _cacheOfflineMediaAndGetJson() async {
     try {
@@ -273,6 +343,70 @@ class TemplateManagerService {
       Logger.e('[TemplateManager] Error caching offline media: $e');
       return SharedPrefs.getString(AppConstants.tvLoginDataKey);
     }
+  }
+
+  /// Returns true when every image URL in the stored login data is already
+  /// downloaded into cached_media/. Used to decide if startup can skip blocking.
+  static Future<bool> isOfflineMediaReady() async {
+    try {
+      final loginDataStr = SharedPrefs.getString(AppConstants.tvLoginDataKey);
+      if (loginDataStr == null || loginDataStr.isEmpty) return false;
+
+      final dir = await getTemplateDirectory();
+      final cacheDir = Directory(p.join(dir.path, 'cached_media'));
+
+      final List<String> pending = [];
+      await _collectPendingUrls(jsonDecode(loginDataStr), pending);
+
+      if (pending.isEmpty) return true;
+
+      // Every pending URL must exist locally AND be non-empty.
+      // Using exists() alone would let a 0-byte crash leftover count as
+      // "ready", so the page would render a broken image instead of waiting.
+      for (final url in pending) {
+        final uri = Uri.tryParse(url);
+        final fileName = (uri != null && uri.pathSegments.isNotEmpty)
+            ? uri.pathSegments.last
+            : 'image_${url.hashCode}';
+        if (!await _isValidCacheFile(File(p.join(cacheDir.path, fileName)))) {
+          return false;
+        }
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Collects remote image URLs that still need caching (skips ones already
+  /// rewritten to cached_media/).
+  static Future<void> _collectPendingUrls(dynamic node, List<String> out) async {
+    if (node is Map) {
+      for (final v in node.values) {
+        await _collectPendingUrls(v, out);
+      }
+    } else if (node is List) {
+      for (final v in node) {
+        await _collectPendingUrls(v, out);
+      }
+    } else if (node is String) {
+      final val = node.trim();
+      if (val.startsWith('http') && _isCacheableUrl(val)) {
+        out.add(val);
+      }
+    }
+  }
+
+  /// Single source of truth for which remote strings are cacheable images.
+  static bool _isCacheableUrl(String val) {
+    if (val.endsWith('.zip')) return false;
+    return val.contains('.png') ||
+        val.contains('.jpg') ||
+        val.contains('.jpeg') ||
+        val.contains('.webp') ||
+        val.contains('.gif') ||
+        val.contains('/uploads/') ||
+        val.contains('/storage/');
   }
 
   /// Regenerates data.json in the template directory from stored login data
@@ -467,7 +601,35 @@ class TemplateManagerService {
       }
 
       final finalTemplateDir = await getTemplateDirectory();
-      
+
+      // Preserve offline media cache across template updates.
+      // cached_media/ is NOT part of the template ZIP — it is device-local,
+      // so wiping it would force every image to be re-downloaded.
+      final cachedMediaDir = Directory(p.join(finalTemplateDir.path, 'cached_media'));
+      Directory? preservedCache;
+      if (await cachedMediaDir.exists()) {
+        final preservePath = p.join(docDir.path, 'cached_media_preserve');
+        final preserveDir = Directory(preservePath);
+        try {
+          if (await preserveDir.exists()) {
+            await preserveDir.delete(recursive: true);
+          }
+          try {
+            await cachedMediaDir.rename(preservePath);
+          } catch (renameErr) {
+            // Cross-device/lock rename can fail — fall back to copy so the
+            // cache still survives the template directory wipe below.
+            Logger.w('[TemplateManager] Preserve rename failed ($renameErr). Copying...');
+            await _copyDirectory(cachedMediaDir, preserveDir);
+          }
+          preservedCache = preserveDir;
+          Logger.i('[TemplateManager] Offline media cache preserved before template swap.');
+        } catch (e) {
+          Logger.w('[TemplateManager] Failed to preserve cached_media: $e');
+          preservedCache = null;
+        }
+      }
+
       // Clean target directory and copy extracted files safely
       if (await finalTemplateDir.exists()) {
         await finalTemplateDir.delete(recursive: true);
@@ -480,6 +642,33 @@ class TemplateManagerService {
           await entity.copy(destPath);
         } else if (entity is Directory) {
           await _copyDirectory(entity, Directory(destPath));
+        }
+      }
+
+      // Restore preserved offline media cache.
+      if (preservedCache != null && await preservedCache.exists()) {
+        final dest = Directory(p.join(finalTemplateDir.path, 'cached_media'));
+        try {
+          // ZIP may itself ship a cached_media/ dir — never let it shadow
+          // (or cause loss of) the device-local cache we just preserved.
+          if (await dest.exists()) {
+            await dest.delete(recursive: true);
+          }
+          await preservedCache.rename(dest.path);
+          Logger.i('[TemplateManager] Offline media cache restored after template swap.');
+        } catch (e) {
+          Logger.w('[TemplateManager] Rename restore failed ($e). Falling back to copy...');
+          try {
+            if (!await dest.exists()) {
+              await _copyDirectory(preservedCache, dest);
+            }
+            await preservedCache.delete(recursive: true);
+            Logger.i('[TemplateManager] Offline media cache restored (copy) after template swap.');
+          } catch (e2) {
+            // Keep the preserved copy on disk rather than deleting it —
+            // a later run can still recover it, and images must not vanish.
+            Logger.e('[TemplateManager] Could not restore cached_media: $e2');
+          }
         }
       }
 

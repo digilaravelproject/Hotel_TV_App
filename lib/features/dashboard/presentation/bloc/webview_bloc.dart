@@ -7,6 +7,7 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/services/template/template_manager_service.dart';
 import '../../../../core/services/template/local_template_server.dart';
+import '../../../../core/services/network/network_info.dart';
 import '../../../../core/services/storage/shared_prefs.dart';
 import '../../../../core/services/device/device_info_service.dart';
 import '../../../../core/services/time/tv_time_service.dart';
@@ -29,13 +30,33 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
     Emitter<WebViewState> emit,
   ) async {
     try {
-      // Only block UI with regeneration if data.json doesn't exist yet
+      // data.json missing OR offline media not fully cached → block until ready.
+      // This guarantees the page never renders remote/broken images on first load.
       final dir = await TemplateManagerService.getTemplateDirectory();
       final dataJsonFile = File('${dir.path}/data.json');
-      if (!await dataJsonFile.exists()) {
-        await TemplateManagerService.regenerateDataJson();
+      final bool dataJsonExists = await dataJsonFile.exists();
+      final bool mediaReady = await TemplateManagerService.isOfflineMediaReady();
+
+      if (!dataJsonExists || !mediaReady) {
+        // Offline → downloading would just burn connect/receive timeouts
+        // (up to 23s per image) and hang startup. Skip blocking entirely;
+        // cached images still render, remote ones retry on next online sync.
+        final bool online = await NetworkInfo.checkConnectivity();
+        if (online) {
+          // Bounded wait: if some URLs are permanently broken (404) or the
+          // network stalls, we must not hang startup indefinitely.
+          await TemplateManagerService.regenerateDataJson()
+              .timeout(const Duration(seconds: 45), onTimeout: () {});
+        } else {
+          Logger.w('[WebViewBloc] Offline and media cache incomplete — skipping blocking cache fill.');
+          if (!dataJsonExists) {
+            // data.json is required to render anything at all — write it from
+            // whatever is stored, without network access.
+            await TemplateManagerService.regenerateDataJson();
+          }
+        }
       } else {
-        // Otherwise, regenerate in the background to avoid blocking startup (especially when offline)
+        // Everything cached → regenerate in the background (non-blocking).
         TemplateManagerService.regenerateDataJson().catchError((e) {
           Logger.e('[WebViewBloc] Background regenerateDataJson failed: $e');
         });
