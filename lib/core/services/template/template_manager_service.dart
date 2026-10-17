@@ -410,7 +410,20 @@ class TemplateManagerService {
   }
 
   /// Regenerates data.json in the template directory from stored login data
-  static Future<void> regenerateDataJson() async {
+  /// Prevents concurrent regenerate passes. Multiple callers (startup,
+  /// demo-login, sync poll, bridge refresh) can fire at once; without this
+  /// each pass re-reads the raw URLs and re-downloads the same images,
+  /// serialising them behind the 5-slot queue (60s+ per image).
+  static Future<void>? _regenerateInFlight;
+
+  static Future<void> regenerateDataJson() {
+    // A pass is already running → coalesce instead of starting a duplicate.
+    if (_regenerateInFlight != null) return _regenerateInFlight!;
+    _regenerateInFlight = _regenerateDataJsonInternal();
+    return _regenerateInFlight!;
+  }
+
+  static Future<void> _regenerateDataJsonInternal() async {
     try {
       final jsonToWrite = await _cacheOfflineMediaAndGetJson();
       if (jsonToWrite == null || jsonToWrite.isEmpty) return;
@@ -421,6 +434,10 @@ class TemplateManagerService {
       Logger.i('[TemplateManager] data.json regenerated successfully.');
     } catch (e) {
       Logger.e('[TemplateManager] Error regenerating data.json: $e');
+    } finally {
+      // Always release the coalescing latch (delayed one microtask so a
+      // caller awaiting this exact future still sees it completed first).
+      scheduleMicrotask(() => _regenerateInFlight = null);
     }
   }
 
