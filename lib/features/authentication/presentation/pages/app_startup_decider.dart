@@ -22,45 +22,12 @@ class AppStartupDecider extends StatefulWidget {
 
 class _AppStartupDeciderState extends State<AppStartupDecider> {
   String _statusMessage = 'Initializing Hotel TV...';
-  bool _showLoader = true;
   bool _needsAccessibilityConsent = false;
   bool _needsLauncherConsent = false;
 
   @override
   void initState() {
     super.initState();
-    _checkPermissionsAndProceed();
-  }
-
-  Future<void> _checkPermissionsAndProceed() async {
-    if (!kIsWeb && Platform.isAndroid) {
-      final bool isAccSkipped = SharedPrefs.getBool('accessibility_skipped') ?? false;
-      if (!isAccSkipped) {
-        final bool isAccessibilityEnabled = await AccessibilityService.isAccessibilityEnabled();
-        if (!isAccessibilityEnabled) {
-          if (mounted) {
-            setState(() {
-              _needsAccessibilityConsent = true;
-            });
-          }
-          return;
-        }
-      }
-
-      final bool isLauncherSkipped = SharedPrefs.getBool('launcher_skipped') ?? false;
-      if (!isLauncherSkipped) {
-        final bool isLauncherDefault = await AccessibilityService.isDefaultLauncher();
-        if (!isLauncherDefault) {
-          if (mounted) {
-            setState(() {
-              _needsLauncherConsent = true;
-            });
-          }
-          return;
-        }
-      }
-    }
-
     _decideStartupFlow();
   }
 
@@ -69,26 +36,71 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
       final token = await TokenManager.getToken();
       final hasLoginData = SharedPrefs.containsKey(AppConstants.tvLoginDataKey);
 
+      // 1. Fresh Install / Logged Out: NEVER ask for any permissions. Go straight to login screen!
       if (token.isEmpty || !hasLoginData) {
         _navigateToLogin();
         return;
       }
 
+      // 2. User IS logged in: Check if Demo Mode or Paid Mode
+      final bool isDemo = SharedPrefs.getBool(AppConstants.isDemoModeKey) ?? false;
+      if (isDemo) {
+        // ❌ STRICT RULE: Skip Accessibility and Default Launcher consents in Demo Mode
+        await _proceedToTemplateFlow();
+        return;
+      }
+
+      // 3. Paid Mode (QR / Manual License Login): Ask for permissions if not already enabled/skipped
+      if (!kIsWeb && Platform.isAndroid) {
+        final bool isAccSkipped = SharedPrefs.getBool('accessibility_skipped') ?? false;
+        if (!isAccSkipped) {
+          final bool isAccessibilityEnabled = await AccessibilityService.isAccessibilityEnabled();
+          if (!isAccessibilityEnabled) {
+            if (mounted) {
+              setState(() {
+                _needsAccessibilityConsent = true;
+              });
+            }
+            return;
+          }
+        }
+
+        final bool isLauncherSkipped = SharedPrefs.getBool('launcher_skipped') ?? false;
+        if (!isLauncherSkipped) {
+          final bool isLauncherDefault = await AccessibilityService.isDefaultLauncher();
+          if (!isLauncherDefault) {
+            if (mounted) {
+              setState(() {
+                _needsLauncherConsent = true;
+              });
+            }
+            return;
+          }
+        }
+      }
+
+      // 4. Permissions verified/granted -> proceed to template download / webview
+      await _proceedToTemplateFlow();
+    } catch (_) {
+      _navigateToLogin();
+    }
+  }
+
+  Future<void> _proceedToTemplateFlow() async {
+    try {
       final isDownloaded = await TemplateManagerService.isTemplateDownloaded();
       if (isDownloaded) {
-        // We DO NOT await regenerateDataJson() here because it blocks startup if TV is offline.
-        // It is already handled safely (in background) by WebViewBloc.
-        
         // Android device name set karo (mobile cast list mein dikhne ke liye)
         _applyTvDeviceName();
         _navigateToWebview();
         return;
       }
 
-      setState(() {
-        _showLoader = true;
-        _statusMessage = 'Downloading template...';
-      });
+      if (mounted) {
+        setState(() {
+          _statusMessage = 'Downloading template...';
+        });
+      }
 
       await TemplateManagerService.downloadTemplateFromSavedData(
         onProgress: (progress) {
@@ -146,7 +158,7 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
             setState(() {
               _needsAccessibilityConsent = false;
             });
-            _checkPermissionsAndProceed();
+            _decideStartupFlow();
           }
         },
       );

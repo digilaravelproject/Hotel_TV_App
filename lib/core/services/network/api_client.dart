@@ -6,6 +6,7 @@ import 'package:path/path.dart';
 import '../../constants/app_constants.dart';
 import '../../utils/logger.dart';
 import '../storage/token_manger.dart';
+import '../time/tv_time_service.dart';
 import 'api_checker.dart';
 import 'multipart.dart';
 import 'network_info.dart';
@@ -60,8 +61,14 @@ class ApiClient {
         Logger.d('│ Method      : ${response.requestOptions.method}');
         Logger.d('│ URL         : ${response.requestOptions.baseUrl}${response.requestOptions.path}');
         Logger.d('│ Status Code : ${response.statusCode}');
-        Logger.d('│ Response    : ${response.data}');
-        Logger.d('└───────────────────────────────────────');
+        // --- Calibrate Server Time & Timezone ---
+        try {
+          final dateHeader = response.headers.value('date');
+          TvTimeService.recordFromHttpHeader(dateHeader);
+          if (response.data is Map<String, dynamic>) {
+            TvTimeService.recordFromApiResponse(response.data as Map<String, dynamic>);
+          }
+        } catch (_) {}
 
         return handler.next(response);
       },

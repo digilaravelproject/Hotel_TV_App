@@ -267,6 +267,14 @@ class TemplateManagerService {
         return -1;
       }
 
+      if (response.statusCode == 403 || 
+          (response.data is Map && 
+           (response.data['error_code'] == 'DEMO_EXPIRED' || 
+            response.data['message']?.toString().toLowerCase().contains('expired') == true))) {
+        Logger.w('[TemplateManager] Demo expired! 403 received from server.');
+        return -3;
+      }
+
       if (response.statusCode == 200 && response.data != null && response.data['status'] == true) {
         final dataMap = response.data['data'] as Map<String, dynamic>?;
         final token = dataMap?['auth']?['token']?.toString() ??
@@ -336,8 +344,14 @@ class TemplateManagerService {
       }
     } catch (e) {
       Logger.e('[TemplateManager] Error checking template updates: $e');
-      if (e is DioException && e.response?.statusCode == 401) {
-        return -1;
+      if (e is DioException) {
+        if (e.response?.statusCode == 401) {
+          return -1;
+        }
+        if (e.response?.statusCode == 403 ||
+            (e.response?.data is Map && e.response?.data['error_code'] == 'DEMO_EXPIRED')) {
+          return -3;
+        }
       }
     } finally {
       _isUpdating = false;

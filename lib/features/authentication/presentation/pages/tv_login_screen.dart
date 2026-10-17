@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
@@ -18,16 +17,21 @@ import '../../../../core/utils/custom_snackbar.dart';
 import '../../../../core/services/device/device_info_service.dart';
 import '../../../../core/services/network/api_client.dart';
 import '../../../../core/services/storage/shared_prefs.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/services/storage/token_manger.dart';
 import '../../../../core/services/template/template_manager_service.dart';
-import '../../../dashboard/presentation/pages/tv_webview_screen.dart';
 import 'app_startup_decider.dart';
 import '../widgets/qr_mode_widget.dart';
 import '../widgets/manual_mode_widget.dart';
+import '../widgets/demo_preview_widget.dart';
+import '../../../../res/assets_res.dart';
 import '../../../../core/widget/tv_network_status_header.dart';
 
+enum TvLoginTab { qr, manual, demo }
+
 class TvLoginScreen extends StatefulWidget {
-  const TvLoginScreen({Key? key}) : super(key: key);
+  final String? expiredNotice;
+  const TvLoginScreen({Key? key, this.expiredNotice}) : super(key: key);
 
   @override
   State<TvLoginScreen> createState() => _TvLoginScreenState();
@@ -38,15 +42,17 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   late final TextEditingController licenseKeyController;
   late final TextEditingController roomNoController;
   bool _isLoading = false;
+  bool _isDemoLoading = false;
 
   late final FocusNode qrTabFocus;
   late final FocusNode manualTabFocus;
+  late final FocusNode demoTabFocus;
   late final FocusNode licenseKeyFocus;
   late final FocusNode roomNoFocus;
   late final FocusNode submitFocus;
 
-  // ValueNotifier to track tab state
-  late final ValueNotifier<bool> isQrModeNotifier;
+  // ValueNotifier to track active login tab (QR, Manual, Demo)
+  late final ValueNotifier<TvLoginTab> selectedTabNotifier;
 
   // Pairing state variables
   String _pairCode = '';
@@ -64,10 +70,21 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     roomNoController = TextEditingController();
     qrTabFocus = FocusNode();
     manualTabFocus = FocusNode();
+    demoTabFocus = FocusNode();
     licenseKeyFocus = FocusNode();
     roomNoFocus = FocusNode();
     submitFocus = FocusNode();
-    isQrModeNotifier = ValueNotifier<bool>(true);
+    selectedTabNotifier = ValueNotifier<TvLoginTab>(TvLoginTab.qr);
+
+    demoTabFocus.onKeyEvent = (node, event) {
+      if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          manualTabFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+      }
+      return KeyEventResult.ignored;
+    };
 
     // D-Pad navigation: attach onKeyEvent directly to focus nodes
     // Using new API (onKeyEvent + KeyDownEvent) instead of deprecated onKey + RawKeyDownEvent
@@ -120,6 +137,9 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     };
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.expiredNotice != null && widget.expiredNotice!.isNotEmpty) {
+        CustomSnackbar.showError(message: widget.expiredNotice!);
+      }
       _checkEmmConfig();
       _generatePairCode();
     });
@@ -279,6 +299,13 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
       if (token.isNotEmpty) {
         await TokenManager.saveToken(token);
       }
+      // Reset demo mode on successful paid login
+      await SharedPrefs.setBool(AppConstants.isDemoModeKey, false);
+      await SharedPrefs.remove(AppConstants.demoExpiresAtKey);
+      await SharedPrefs.remove(AppConstants.demoDaysLeftKey);
+      await SharedPrefs.remove('accessibility_skipped');
+      await SharedPrefs.remove('launcher_skipped');
+
       await SharedPrefs.setString(AppConstants.tvLoginDataKey, jsonEncode(responseData));
       await TemplateManagerService.regenerateDataJson();
 
@@ -289,11 +316,119 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => AppStartupDecider()),
+          MaterialPageRoute(builder: (_) => const AppStartupDecider()),
         );
       }
     } catch (e) {
       Logger.e('Error handling login success: $e');
+    }
+  }
+
+  Future<void> _performDemoLogin() async {
+    if (_isDemoLoading) return;
+    Logger.i('[Demo] Initiating demo registration & login...');
+    setState(() {
+      _isDemoLoading = true;
+    });
+
+    try {
+      final info = await DeviceInfoService.getFullDeviceInfo(forceRefresh: true);
+      final Map<String, dynamic> requestData = {
+        'deviceId': info['deviceId'] ?? '',
+        'macAddress': info['macAddress'] ?? '',
+        'room_no': 'DEMO-001',
+        'model': info['model'] ?? '',
+        'brand': info['brand'] ?? '',
+        'osVersion': info['osVersion'] ?? '',
+        'ipAddress': info['ipAddress'] ?? '',
+        'distributor_code': '',
+      };
+
+      final ApiClient apiClient = ApiClient();
+      final response = await apiClient.post(
+        ApiConstants.demoLoginUri,
+        data: requestData,
+      );
+
+      setState(() {
+        _isDemoLoading = false;
+      });
+
+      if (response.data != null && response.data is Map && response.data['status'] == true) {
+        _stopPairingTimers();
+        final dataMap = response.data['data'] as Map<String, dynamic>?;
+        final authMap = dataMap?['auth'] as Map<String, dynamic>?;
+        final token = authMap?['token']?.toString() ??
+            dataMap?['token']?.toString() ??
+            response.data['token']?.toString() ??
+            '';
+
+        if (token.isNotEmpty) {
+          await TokenManager.saveToken(token);
+        }
+
+        final demoExpiresAt = authMap?['demo_expires_at']?.toString() ?? '';
+        final demoDaysLeft = (authMap?['demo_days_left'] as num?)?.toInt() ?? 0;
+
+        await SharedPrefs.setBool(AppConstants.isDemoModeKey, true);
+        await SharedPrefs.setString(AppConstants.demoExpiresAtKey, demoExpiresAt);
+        await SharedPrefs.setInt(AppConstants.demoDaysLeftKey, demoDaysLeft);
+
+        await SharedPrefs.setString(AppConstants.tvLoginDataKey, jsonEncode(response.data));
+        await TemplateManagerService.regenerateDataJson();
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const AppStartupDecider()),
+          );
+        }
+      } else {
+        String msg = 'Failed to activate demo mode';
+        if (response.data is Map) {
+          msg = response.data['message']?.toString() ?? response.data['msg']?.toString() ?? msg;
+        }
+        CustomSnackbar.showError(message: msg);
+
+        // If demo expired, automatically shift focus to manual license input
+        if (response.statusCode == 403 ||
+            (response.data is Map && response.data['error_code'] == 'DEMO_EXPIRED')) {
+          selectedTabNotifier.value = TvLoginTab.manual;
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted) licenseKeyFocus.requestFocus();
+          });
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isDemoLoading = false;
+      });
+
+      String errorMsg = 'Failed to activate demo mode';
+      bool isExpired = false;
+      if (e is DioException) {
+        final res = e.response;
+        if (res != null && res.data != null) {
+          final data = res.data;
+          if (data is Map) {
+            errorMsg = (data['message'] ?? data['msg'] ?? errorMsg).toString();
+            if (data['error_code'] == 'DEMO_EXPIRED') {
+              isExpired = true;
+            }
+          }
+        }
+        if (res?.statusCode == 403) {
+          isExpired = true;
+        }
+      }
+      CustomSnackbar.showError(message: errorMsg);
+
+      if (isExpired) {
+        selectedTabNotifier.value = TvLoginTab.manual;
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted) licenseKeyFocus.requestFocus();
+        });
+      }
     }
   }
 
@@ -328,10 +463,11 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     roomNoController.dispose();
     qrTabFocus.dispose();
     manualTabFocus.dispose();
+    demoTabFocus.dispose();
     licenseKeyFocus.dispose();
     roomNoFocus.dispose();
     submitFocus.dispose();
-    isQrModeNotifier.dispose();
+    selectedTabNotifier.dispose();
     super.dispose();
   }
 
@@ -474,9 +610,13 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                         UiSpacer.vSpace(24),
 
                         // ── Option buttons ───────────────────────────────
-                        ValueListenableBuilder<bool>(
-                          valueListenable: isQrModeNotifier,
-                          builder: (context, isQrMode, child) {
+                        ValueListenableBuilder<TvLoginTab>(
+                          valueListenable: selectedTabNotifier,
+                          builder: (context, selectedTab, child) {
+                            final isQr = selectedTab == TvLoginTab.qr;
+                            final isManual = selectedTab == TvLoginTab.manual;
+                            final isDemo = selectedTab == TvLoginTab.demo;
+
                             return Column(
                               children: [
                                 // Option 1: Pair with QR Code
@@ -494,19 +634,19 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                                     focusNode: qrTabFocus,
                                     autofocus: true,
                                     onFocusChange: (focused) {
-                                      if (focused) isQrModeNotifier.value = true;
+                                      if (focused) selectedTabNotifier.value = TvLoginTab.qr;
                                     },
-                                    onTap: () => isQrModeNotifier.value = true,
+                                    onTap: () => selectedTabNotifier.value = TvLoginTab.qr,
                                     child: Container(
                                       height: 52,
                                       width: double.infinity,
                                       padding: const EdgeInsets.symmetric(horizontal: 20),
                                       decoration: BoxDecoration(
-                                        color: isQrMode
+                                        color: isQr
                                             ? Colors.white
                                             : Colors.white.withOpacity(0.06),
                                         borderRadius: BorderRadius.circular(14),
-                                        boxShadow: isQrMode
+                                        boxShadow: isQr
                                             ? [
                                                 BoxShadow(
                                                   color: Colors.white.withOpacity(0.2),
@@ -520,13 +660,13 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                                         children: [
                                           Icon(
                                             Icons.qr_code_scanner_rounded,
-                                            color: isQrMode ? Colors.black : Colors.white70,
+                                            color: isQr ? Colors.black : Colors.white70,
                                             size: 22,
                                           ),
                                           const SizedBox(width: 16),
                                           CustomAppText(
                                             "Pair with QR Code",
-                                            color: isQrMode ? Colors.black : Colors.white,
+                                            color: isQr ? Colors.black : Colors.white,
                                             fontWeight: FontWeight.bold,
                                             fontSize: 14,
                                           ),
@@ -545,8 +685,12 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                                         qrTabFocus.requestFocus();
                                         return KeyEventResult.handled;
                                       }
+                                      if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                                        demoTabFocus.requestFocus();
+                                        return KeyEventResult.handled;
+                                      }
                                       if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-                                        isQrModeNotifier.value = false;
+                                        selectedTabNotifier.value = TvLoginTab.manual;
                                         // Delay so AnimatedSwitcher can mount the widget
                                         Future.delayed(const Duration(milliseconds: 300), () {
                                           licenseKeyFocus.requestFocus();
@@ -559,19 +703,19 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                                   child: TvFocusable(
                                     focusNode: manualTabFocus,
                                     onFocusChange: (focused) {
-                                      if (focused) isQrModeNotifier.value = false;
+                                      if (focused) selectedTabNotifier.value = TvLoginTab.manual;
                                     },
-                                    onTap: () => isQrModeNotifier.value = false,
+                                    onTap: () => selectedTabNotifier.value = TvLoginTab.manual,
                                     child: Container(
                                       height: 52,
                                       width: double.infinity,
                                       padding: const EdgeInsets.symmetric(horizontal: 20),
                                       decoration: BoxDecoration(
-                                        color: !isQrMode
+                                        color: isManual
                                             ? Colors.white
                                             : Colors.white.withOpacity(0.06),
                                         borderRadius: BorderRadius.circular(14),
-                                        boxShadow: !isQrMode
+                                        boxShadow: isManual
                                             ? [
                                                 BoxShadow(
                                                   color: Colors.white.withOpacity(0.2),
@@ -585,13 +729,95 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                                         children: [
                                           Icon(
                                             Icons.keyboard_alt_outlined,
-                                            color: !isQrMode ? Colors.black : Colors.white70,
+                                            color: isManual ? Colors.black : Colors.white70,
                                             size: 22,
                                           ),
                                           const SizedBox(width: 16),
                                           CustomAppText(
                                             "Sign in with Remote",
-                                            color: !isQrMode ? Colors.black : Colors.white,
+                                            color: isManual ? Colors.black : Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                UiSpacer.vSpace(12),
+
+                                // Option 3: Try Free Demo
+                                Focus(
+                                  onKeyEvent: (node, event) {
+                                    if (event is KeyDownEvent) {
+                                      if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                                        manualTabFocus.requestFocus();
+                                        return KeyEventResult.handled;
+                                      }
+                                    }
+                                    return KeyEventResult.ignored;
+                                  },
+                                  child: TvFocusable(
+                                    focusNode: demoTabFocus,
+                                    onFocusChange: (focused) {
+                                      if (focused) selectedTabNotifier.value = TvLoginTab.demo;
+                                    },
+                                    onTap: () {
+                                      selectedTabNotifier.value = TvLoginTab.demo;
+                                      if (!_isDemoLoading) {
+                                        _performDemoLogin();
+                                      }
+                                    },
+                                    child: Container(
+                                      height: 52,
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                                      decoration: BoxDecoration(
+                                        color: isDemo
+                                            ? Colors.amber.shade400
+                                            : Colors.white.withOpacity(0.06),
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: isDemo
+                                            ? null
+                                            : Border.all(
+                                                color: Colors.amber.shade600.withOpacity(0.4),
+                                                width: 1.2,
+                                              ),
+                                        boxShadow: isDemo
+                                            ? [
+                                                BoxShadow(
+                                                  color: Colors.amber.withOpacity(0.35),
+                                                  blurRadius: 16,
+                                                  spreadRadius: 1,
+                                                )
+                                              ]
+                                            : null,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          _isDemoLoading
+                                              ? SizedBox(
+                                                  width: 22,
+                                                  height: 22,
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 2.2,
+                                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                                      isDemo ? Colors.black : Colors.amber,
+                                                    ),
+                                                  ),
+                                                )
+                                              : SvgPicture.asset(
+                                                  AppAssets.demoIcon,
+                                                  width: 22,
+                                                  height: 22,
+                                                  colorFilter: isDemo
+                                                      ? const ColorFilter.mode(Colors.black, BlendMode.srcIn)
+                                                      : null,
+                                                ),
+                                          const SizedBox(width: 16),
+                                          CustomAppText(
+                                            _isDemoLoading ? "Activating Demo..." : "Try Free Demo",
+                                            color: isDemo ? Colors.black : Colors.white,
                                             fontWeight: FontWeight.bold,
                                             fontSize: 14,
                                           ),
@@ -650,37 +876,48 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                   child: Container(
                     alignment: Alignment.center,
                     padding: const EdgeInsets.fromLTRB(16, 32, 64, 32),
-                    child: ValueListenableBuilder<bool>(
-                      valueListenable: isQrModeNotifier,
-                      builder: (context, isQrMode, child) {
+                    child: ValueListenableBuilder<TvLoginTab>(
+                      valueListenable: selectedTabNotifier,
+                      builder: (context, selectedTab, child) {
+                        Widget content;
+                        switch (selectedTab) {
+                          case TvLoginTab.qr:
+                            content = QrModeWidget(
+                              pairCode: _pairCode,
+                              remainingSeconds: _remainingSeconds,
+                              isLoading: _isPairCodeLoading,
+                              errorMessage: _pairCodeError,
+                              onRefresh: _generatePairCode,
+                            );
+                            break;
+                          case TvLoginTab.manual:
+                            content = ManualModeWidget(
+                              formKey: formKey,
+                              licenseKeyController: licenseKeyController,
+                              roomNoController: roomNoController,
+                              licenseKeyFocus: licenseKeyFocus,
+                              roomNoFocus: roomNoFocus,
+                              submitFocus: submitFocus,
+                              manualTabFocus: manualTabFocus,
+                              onSaveAndStart: () {
+                                if (formKey.currentState!.validate()) {
+                                  _performRegistration(
+                                    context,
+                                    licenseKeyController.text,
+                                    roomNoController.text,
+                                  );
+                                }
+                              },
+                            );
+                            break;
+                          case TvLoginTab.demo:
+                            content = const DemoPreviewWidget();
+                            break;
+                        }
+
                         return AnimatedSwitcher(
                           duration: const Duration(milliseconds: 250),
-                          child: isQrMode
-                              ? QrModeWidget(
-                                  pairCode: _pairCode,
-                                  remainingSeconds: _remainingSeconds,
-                                  isLoading: _isPairCodeLoading,
-                                  errorMessage: _pairCodeError,
-                                  onRefresh: _generatePairCode,
-                                )
-                              : ManualModeWidget(
-                                  formKey: formKey,
-                                  licenseKeyController: licenseKeyController,
-                                  roomNoController: roomNoController,
-                                  licenseKeyFocus: licenseKeyFocus,
-                                  roomNoFocus: roomNoFocus,
-                                  submitFocus: submitFocus,
-                                  manualTabFocus: manualTabFocus,
-                                  onSaveAndStart: () {
-                                    if (formKey.currentState!.validate()) {
-                                      _performRegistration(
-                                        context,
-                                        licenseKeyController.text,
-                                        roomNoController.text,
-                                      );
-                                    }
-                                  },
-                                ),
+                          child: content,
                         );
                       },
                     ),

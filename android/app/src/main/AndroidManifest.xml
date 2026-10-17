@@ -44,7 +44,7 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:logo="@mipmap/ic_launcher"
-        android:banner="@mipmap/ic_launcher"
+        android:banner="@drawable/banner"
         android:largeHeap="true"
         android:hardwareAccelerated="true"
         android:enableOnBackInvokedCallback="true"
@@ -52,6 +52,8 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:banner="@drawable/banner"
+            android:icon="@mipmap/ic_launcher"
             android:launchMode="singleTask"
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"

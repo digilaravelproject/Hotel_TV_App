@@ -21,6 +21,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../authentication/presentation/pages/tv_login_screen.dart';
 
 import '../../../../core/services/device/accessibility_service.dart';
+import '../../../../core/services/time/tv_time_service.dart';
 import '../../../../core/widget/custom_image_widget.dart';
 
 class TvWebviewScreen extends StatefulWidget {
@@ -39,6 +40,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
   bool _showBottomUpdating = false;
   double _downloadProgress = 0.0;
   bool _showCenterLoading = false;
+  bool _isWebViewLoaded = false;
 
   Timer? _inactivityTimer;
   Timer? _screensaverClockTimer;
@@ -51,10 +53,15 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
   List<String> _dynamicAmenitiesDescriptions = [];
   String? _localBgFilePath;
 
+  bool _isDemoMode = false;
+  int _demoDaysLeft = 0;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _isDemoMode = SharedPrefs.getBool(AppConstants.isDemoModeKey) ?? false;
+    _demoDaysLeft = SharedPrefs.getInt(AppConstants.demoDaysLeftKey) ?? 0;
     _startInactivityTimer();
     _startScreensaverClock();
     _loadLocalBackgroundFile();
@@ -72,12 +79,14 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initHybridSync();
-      // Prompt Home Set Dialog once web template download completes & screen shows
-      Future.delayed(const Duration(seconds: 1), () {
-        if (mounted) {
-          AccessibilityService.requestDefaultLauncher();
-        }
-      });
+      // Prompt Home Set Dialog once web template download completes & screen shows ONLY if NOT in Demo Mode
+      if (!_isDemoMode) {
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            AccessibilityService.requestDefaultLauncher();
+          }
+        });
+      }
     });
   }
 
@@ -157,7 +166,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
   }
 
   void _updateClockStr() {
-    final now = DateTime.now();
+    final now = TvTimeService.getCalibratedNow();
     final h = now.hour.toString().padLeft(2, '0');
     final m = now.minute.toString().padLeft(2, '0');
     if (mounted) {
@@ -226,6 +235,9 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
         Logger.w('[TvWebviewScreen] Token is unauthenticated! Performing automatic logout...');
         await TokenManager.clearToken();
         await SharedPrefs.remove(AppConstants.tvLoginDataKey);
+        await SharedPrefs.remove(AppConstants.isDemoModeKey);
+        await SharedPrefs.remove(AppConstants.demoExpiresAtKey);
+        await SharedPrefs.remove(AppConstants.demoDaysLeftKey);
         await LocalTemplateServer.stop();
         await TvSyncManager.dispose();
         if (mounted) {
@@ -235,6 +247,67 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
           );
         }
       },
+      onDemoExpired: () async {
+        await _handleDemoExpired();
+      },
+    );
+  }
+
+  Future<void> _handleDemoExpired({String? notice}) async {
+    Logger.w('[TvWebviewScreen] Demo trial expired/ended! Performing clean auto-logout...');
+    await TokenManager.clearToken();
+    await SharedPrefs.remove(AppConstants.tvLoginDataKey);
+    await SharedPrefs.remove(AppConstants.isDemoModeKey);
+    await SharedPrefs.remove(AppConstants.demoExpiresAtKey);
+    await SharedPrefs.remove(AppConstants.demoDaysLeftKey);
+    await LocalTemplateServer.stop();
+    await TvSyncManager.dispose();
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => TvLoginScreen(
+            expiredNotice: notice ?? 'Demo trial period has expired. Please enter a license key to continue.',
+          ),
+        ),
+        (route) => false,
+      );
+    }
+  }
+
+  void _showExitDemoDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1B0F2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Exit Demo Mode?',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Do you want to exit Demo Mode and return to the login screen?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber.shade700,
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await _handleDemoExpired(
+                notice: 'Exited Demo Mode successfully.',
+              );
+            },
+            child: const Text('Exit to Login', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -256,9 +329,17 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
     return BlocProvider<WebViewBloc>(
       create: (context) {
         final bloc = WebViewBloc();
+        bloc.onPageStarted = () {
+          if (mounted) {
+            setState(() {
+              _isWebViewLoaded = false;
+            });
+          }
+        };
         bloc.onPageFinished = () {
           if (mounted) {
             setState(() {
+              _isWebViewLoaded = true;
               _showCenterLoading = false;
             });
             // Pure Flutter-side DOM override: Fix static '6.0' version in web template automatically
@@ -353,6 +434,10 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
         final hash = uri.fragment;
         print('[BackNavigation] Parsed path: $path, hash: $hash');
         if ((path == '/' || path == '/index.html') && (hash.isEmpty || hash == '/')) {
+          if (_isDemoMode) {
+            _showExitDemoDialog();
+            return;
+          }
           print('[BackNavigation] On home page with no active overlays, ignoring back press to prevent app exit');
           return;
         }
@@ -487,6 +572,49 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
       child: Stack(
         children: [
           WebViewWidget(controller: controller),
+
+          // Dynamic Demo Mode Badge (Positioned below Room & Location/Weather in Top-Right)
+          // ONLY visible when the webview has finished loading and is not obscured
+          if (_isDemoMode && _isWebViewLoaded && !_showCenterLoading && !_showScreensaver)
+            Positioned(
+              top: 68,
+              right: 32,
+              child: AnimatedOpacity(
+                opacity: _isWebViewLoaded ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 300),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.85),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.amber.shade500, width: 1.0),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.4),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.bolt_rounded, color: Colors.amber.shade400, size: 14),
+                      const SizedBox(width: 5),
+                      Text(
+                        _demoDaysLeft > 0 ? 'Demo Mode • $_demoDaysLeft days left' : 'Demo Mode',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           
           // Bottom Updating Banner
           if (_showBottomUpdating)

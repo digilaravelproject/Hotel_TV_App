@@ -10,6 +10,7 @@ import '../../utils/logger.dart';
 
 typedef OnSyncDataUpdated = void Function(int updateType);
 typedef OnUnauthenticated = void Function();
+typedef OnDemoExpired = void Function();
 
 class TvSyncManager {
   static StreamSubscription<DocumentSnapshot>? _firestoreSubscription;
@@ -23,6 +24,7 @@ class TvSyncManager {
     required String deviceId,
     required OnSyncDataUpdated onDataUpdated,
     required OnUnauthenticated onUnauthenticated,
+    OnDemoExpired? onDemoExpired,
   }) async {
     bool hasFirebase = false;
     try {
@@ -38,6 +40,7 @@ class TvSyncManager {
           deviceId: deviceId,
           onDataUpdated: onDataUpdated,
           onUnauthenticated: onUnauthenticated,
+          onDemoExpired: onDemoExpired,
         );
         return;
       } catch (e) {
@@ -48,6 +51,7 @@ class TvSyncManager {
     _startHttpFallback(
       onDataUpdated: onDataUpdated,
       onUnauthenticated: onUnauthenticated,
+      onDemoExpired: onDemoExpired,
     );
   }
 
@@ -59,6 +63,7 @@ class TvSyncManager {
     required String deviceId,
     required OnSyncDataUpdated onDataUpdated,
     required OnUnauthenticated onUnauthenticated,
+    OnDemoExpired? onDemoExpired,
   }) {
     final String cleanHotelId = hotelId.startsWith('hotel_') ? hotelId.replaceFirst('hotel_', '') : hotelId;
     final String cleanDeviceId = deviceId.startsWith('device_') ? deviceId.replaceFirst('device_', '') : deviceId;
@@ -103,13 +108,21 @@ class TvSyncManager {
         } else {
           print("⚠️ [Firestore Sync] Document $docId not found in Firestore. Starting HTTP Fallback...");
           Logger.w('[TvSyncManager] Document $docId not found in Firestore. Starting HTTP Fallback...');
-          _startHttpFallback(onDataUpdated: onDataUpdated, onUnauthenticated: onUnauthenticated);
+          _startHttpFallback(
+            onDataUpdated: onDataUpdated,
+            onUnauthenticated: onUnauthenticated,
+            onDemoExpired: onDemoExpired,
+          );
         }
       },
       onError: (error) {
         print("❌ [Firestore Sync] STREAM ERROR / DISCONNECTED: $error");
         Logger.e('[TvSyncManager] ❌ Firebase Stream Disconnected/Failed: $error');
-        _startHttpFallback(onDataUpdated: onDataUpdated, onUnauthenticated: onUnauthenticated);
+        _startHttpFallback(
+          onDataUpdated: onDataUpdated,
+          onUnauthenticated: onUnauthenticated,
+          onDemoExpired: onDemoExpired,
+        );
       },
     );
   }
@@ -120,6 +133,7 @@ class TvSyncManager {
   static void _startHttpFallback({
     required OnSyncDataUpdated onDataUpdated,
     required OnUnauthenticated onUnauthenticated,
+    OnDemoExpired? onDemoExpired,
   }) {
     if (_fallbackHttpTimer != null && _fallbackHttpTimer!.isActive) {
       return;
@@ -128,17 +142,18 @@ class TvSyncManager {
     Logger.w('[TvSyncManager] 🔄 Switching to BACKUP MODE: HTTP Polling (Every 60s)...');
 
     // Run immediate check once
-    _executeHttpPollingCheck(onDataUpdated, onUnauthenticated);
+    _executeHttpPollingCheck(onDataUpdated, onUnauthenticated, onDemoExpired);
 
     // Schedule timer every 60 seconds
     _fallbackHttpTimer = Timer.periodic(const Duration(seconds: 60), (_) {
-      _executeHttpPollingCheck(onDataUpdated, onUnauthenticated);
+      _executeHttpPollingCheck(onDataUpdated, onUnauthenticated, onDemoExpired);
     });
   }
 
   static Future<void> _executeHttpPollingCheck(
     OnSyncDataUpdated onDataUpdated,
     OnUnauthenticated onUnauthenticated,
+    OnDemoExpired? onDemoExpired,
   ) async {
     if (_isSyncing) return;
     _isSyncing = true;
@@ -150,6 +165,13 @@ class TvSyncManager {
       if (updateType == -1) {
         Logger.w('[TvSyncManager] Token unauthenticated! Triggering logout callback.');
         onUnauthenticated();
+      } else if (updateType == -3) {
+        Logger.w('[TvSyncManager] Demo trial expired! Triggering demo expired callback.');
+        if (onDemoExpired != null) {
+          onDemoExpired();
+        } else {
+          onUnauthenticated();
+        }
       } else {
         onDataUpdated(updateType);
       }
