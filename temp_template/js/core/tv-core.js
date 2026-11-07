@@ -69,7 +69,7 @@ window.TVCore = {
         // Step 2: If forceApi is true or if online, hit the check-version remote API using Authorization Bearer token
         if ((forceApi || !config) && navigator.onLine && token) {
             try {
-                const apiRes = await fetch("https://paxtvhospitality.paxtvnetwork.com/api/tv/template/check-version", {
+                const apiRes = await fetch("https://app.paxtvlauncher.com/api/tv/template/check-version", {
                     method: "GET",
                     headers: {
                         "Accept": "application/json",

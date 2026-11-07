@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/widget/custom_app_text.dart';
 import '../../../../core/utils/ui_spacer.dart';
 
@@ -21,7 +22,7 @@ class QrModeWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final qrUrl = 'https://paxtvhospitality.paxtvnetwork.com/hotel/devices?code=$pairCode';
+    final qrUrl = AppConstants.getQrUrl(pairCode);
 
     if (isLoading) {
       return Column(
@@ -86,7 +87,7 @@ class QrModeWidget extends StatelessWidget {
             ],
           ),
           child: QrImageView(
-            data: pairCode.isNotEmpty ? qrUrl : 'https://paxtvhospitality.paxtvnetwork.com/hotel/devices',
+            data: qrUrl,
             version: QrVersions.auto,
             size: 230.0,
           ),

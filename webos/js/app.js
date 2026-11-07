@@ -297,7 +297,7 @@
             timerEl.innerHTML = 'Code expires in: <span class="text-amber-400 font-bold">' + self.formatDuration(expiresIn) + '</span>';
           }
 
-          var qrUrl = 'https://paxtvhospitality.paxtvnetwork.com/hotel/devices?code=' + encodeURIComponent(code);
+          var qrUrl = 'https://app.paxtvlauncher.com/hotel/devices?code=' + encodeURIComponent(code);
           if (qrBox && window.QRCodeGenerator) {
             qrBox.innerHTML = window.QRCodeGenerator.renderSVG(qrUrl, 320);
           }
@@ -313,7 +313,7 @@
           if (timerEl) {
             timerEl.innerHTML = 'Code expires in: <span class="text-amber-400 font-bold">' + self.formatDuration(180) + '</span>';
           }
-          var qrUrlFallback = 'https://paxtvhospitality.paxtvnetwork.com/hotel/devices?code=' + encodeURIComponent(demoCode);
+          var qrUrlFallback = 'https://app.paxtvlauncher.com/hotel/devices?code=' + encodeURIComponent(demoCode);
           if (qrBox && window.QRCodeGenerator) {
             qrBox.innerHTML = window.QRCodeGenerator.renderSVG(qrUrlFallback, 320);
           }

@@ -298,7 +298,7 @@ window.TVFlightsController = {
     this.isFlightLoading = false;
   },
   /**
-   * Fetch flight schedule from live production backend API (https://tvapp.digiemperor.com).
+   * Fetch flight schedule from live production backend API (https://app.paxtvlauncher.com).
    * @param {string} iata - 3-letter IATA code
    * @param {boolean} force - Whether to trigger upstream refresh
    * @returns {Promise<Object|null>}
@@ -320,7 +320,7 @@ window.TVFlightsController = {
       token = localStorage.getItem("authToken") || localStorage.getItem("tv_api_token");
     }
     if (!token) return null;
-    const host = "https://tvapp.digiemperor.com";
+    const host = "https://app.paxtvlauncher.com";
     const endpoint = force ? `${host}/api/tv/flights/refresh?airport=${encodeURIComponent(iata)}` : `${host}/api/tv/flights?airport=${encodeURIComponent(iata)}`;
     try {
       const controller = new AbortController();

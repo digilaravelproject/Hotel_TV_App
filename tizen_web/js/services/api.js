@@ -22,7 +22,7 @@
   };
 
   var ApiService = {
-    baseUrl: 'https://paxtvhospitality.paxtvnetwork.com',
+    baseUrl: 'https://app.paxtvlauncher.com',
     timeoutMs: 8000,
 
     /**
