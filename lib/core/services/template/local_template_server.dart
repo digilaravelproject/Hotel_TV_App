@@ -31,17 +31,25 @@ class LocalTemplateServer {
 
       try {
         _server = await HttpServer.bind(
-          InternetAddress.loopbackIPv4,
+          InternetAddress.anyIPv4,
           40441,
           shared: true,
         );
       } catch (e) {
-        Logger.w('[LocalServer] Port 40441 busy, binding to dynamic port: $e');
-        _server = await HttpServer.bind(
-          InternetAddress.loopbackIPv4,
-          0,
-          shared: true,
-        );
+        try {
+          _server = await HttpServer.bind(
+            InternetAddress.loopbackIPv4,
+            40441,
+            shared: true,
+          );
+        } catch (_) {
+          Logger.w('[LocalServer] Port 40441 busy, binding to dynamic port: $e');
+          _server = await HttpServer.bind(
+            InternetAddress.anyIPv4,
+            0,
+            shared: true,
+          );
+        }
       }
       _port = _server!.port;
 

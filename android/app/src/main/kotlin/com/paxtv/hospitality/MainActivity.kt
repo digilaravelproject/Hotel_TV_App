@@ -272,15 +272,27 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private var isDemoModeInMemory: Boolean? = null
+
+    private fun isDemoMode(): Boolean {
+        if (isDemoModeInMemory != null) return isDemoModeInMemory == true
+        return try {
+            val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            prefs.getBoolean("flutter.is_demo_mode", false)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     /**
-     * Re-engage Kiosk (Lock Task) mode on every resume.
+     * Re-engage Kiosk (Lock Task) mode on every resume (only in Kiosk/Paid mode, NOT Demo mode).
      * Prevents users from escaping back to the TV launcher even if the app
      * was temporarily suspended.
      */
     override fun onResume() {
         super.onResume()
         try {
-            if (!ExternalLaunchTracker.isRecentlyLaunchedExternal()) {
+            if (!isDemoMode() && !ExternalLaunchTracker.isRecentlyLaunchedExternal()) {
                 val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
                 if (dpm.isDeviceOwnerApp(packageName)) {
                     startLockTask()
@@ -407,6 +419,24 @@ class MainActivity : FlutterActivity() {
                 "clearConfig" -> {
                     result.success(true)
                 }
+                "exitToTvHome" -> {
+                    prepareForExternalLaunch()
+                    try {
+                        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                            addCategory(Intent.CATEGORY_HOME)
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        startActivity(homeIntent)
+                    } catch (_: Exception) {
+                        moveTaskToBack(true)
+                    }
+                    result.success(true)
+                }
+                "setDemoMode" -> {
+                    val enabled = call.argument<Boolean>("enabled") ?: false
+                    isDemoModeInMemory = enabled
+                    result.success(true)
+                }
                 else -> {
                     result.notImplemented()
                 }
@@ -423,20 +453,31 @@ class MainActivity : FlutterActivity() {
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val keyCode = event.keyCode
+        val isDemo = isDemoMode()
 
-        // HOME / TV button: block TV launcher from opening, keep our app in foreground
+        // HOME / TV button:
         if (keyCode == KeyEvent.KEYCODE_HOME || keyCode == KeyEvent.KEYCODE_TV) {
             if (event.action == KeyEvent.ACTION_DOWN) {
-                // Bring our app to front if it somehow went to background
-                val intent = Intent(this, MainActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                if (isDemo) {
+                    // In Demo Mode: notify Flutter to handle home navigation (return to app home view or exit to TV launcher)
+                    flutterEngine?.dartExecutor?.let { executor ->
+                        MethodChannel(executor.binaryMessenger, "com.paxtv.hospitality/back_navigation")
+                            .invokeMethod("onHomePressed", null)
+                    }
+                    return true
+                } else {
+                    // Kiosk mode: block TV launcher from opening, keep our app in foreground
+                    val intent = Intent(this, MainActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    }
+                    startActivity(intent)
+                    return true
                 }
-                startActivity(intent)
             }
-            return true // consume the event - prevents TV launcher
+            return true // consume the event - prevents TV launcher in kiosk mode
         }
 
-        // BACK button: send to JS WebView bridge, do NOT exit app
+        // BACK button: send to JS WebView bridge, do NOT exit app directly
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             if (event.action == KeyEvent.ACTION_DOWN) {
                 flutterEngine?.dartExecutor?.let { executor ->
@@ -444,7 +485,7 @@ class MainActivity : FlutterActivity() {
                         .invokeMethod("onBackPressed", null)
                 }
             }
-            return true // consume - prevents app from exiting
+            return true // consume - prevents app from exiting directly
         }
 
         // MENU button: forward to JS for custom menu handling

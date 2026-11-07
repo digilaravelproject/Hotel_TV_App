@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../bloc/webview_bloc.dart';
 import '../bloc/webview_event.dart';
 import '../bloc/webview_state.dart';
@@ -67,16 +69,11 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
     _loadLocalBackgroundFile();
     _loadAmenitiesWallpapers();
 
-    _backChannel.setMethodCallHandler((call) async {
-      if (call.method == 'onBackPressed') {
-        if (_showScreensaver) {
-          _resetInactivityTimer();
-          return;
-        }
-        final ctrl = _controller;
-        if (ctrl != null) await _handleBackNavigation(ctrl);
-      }
-    });
+    _setupBackChannel();
+    const MethodChannel('com.paxtv.hospitality/tv_control')
+        .invokeMethod('setDemoMode', {'enabled': _isDemoMode})
+        .catchError((_) => null);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initHybridSync();
       // Prompt Home Set Dialog once web template download completes & screen shows ONLY if NOT in Demo Mode
@@ -86,6 +83,26 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
             AccessibilityService.requestDefaultLauncher();
           }
         });
+      }
+    });
+  }
+
+  void _setupBackChannel() {
+    _backChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onBackPressed') {
+        if (_showScreensaver) {
+          _resetInactivityTimer();
+          return;
+        }
+        final ctrl = _controller;
+        if (ctrl != null) await _handleBackNavigation(ctrl);
+      } else if (call.method == 'onHomePressed') {
+        if (_showScreensaver) {
+          _resetInactivityTimer();
+          return;
+        }
+        final ctrl = _controller;
+        if (ctrl != null) await _handleHomeNavigation(ctrl);
       }
     });
   }
@@ -113,16 +130,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
         if (mounted) {
           _webViewFocusNode.requestFocus();
           // Back channel handler re-register karo (defensive)
-          _backChannel.setMethodCallHandler((call) async {
-            if (call.method == 'onBackPressed') {
-              if (_showScreensaver) {
-                _resetInactivityTimer();
-                return;
-              }
-              final ctrl = _controller;
-              if (ctrl != null) await _handleBackNavigation(ctrl);
-            }
-          });
+          _setupBackChannel();
         }
       });
     }
@@ -260,6 +268,9 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
     await SharedPrefs.remove(AppConstants.isDemoModeKey);
     await SharedPrefs.remove(AppConstants.demoExpiresAtKey);
     await SharedPrefs.remove(AppConstants.demoDaysLeftKey);
+    const MethodChannel('com.paxtv.hospitality/tv_control')
+        .invokeMethod('setDemoMode', {'enabled': false})
+        .catchError((_) => null);
     await LocalTemplateServer.stop();
     await TvSyncManager.dispose();
     if (mounted) {
@@ -274,24 +285,51 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
     }
   }
 
+  Future<void> _exitToTvLauncher() async {
+    try {
+      const platform = MethodChannel('com.paxtv.hospitality/tv_control');
+      await platform.invokeMethod('exitToTvHome');
+    } catch (e) {
+      Logger.w('[HomeNavigation] exitToTvHome failed, falling back to SystemNavigator.pop(): $e');
+      SystemNavigator.pop();
+    }
+  }
+
   void _showExitDemoDialog() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1B0F2A),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Exit Demo Mode?',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: const Row(
+          children: [
+            Icon(Icons.tv, color: Colors.amber, size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Exit Demo Mode?',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
         content: const Text(
-          'Do you want to exit Demo Mode and return to the login screen?',
+          'Choose an action to exit Demo Mode:',
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+          ),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: Colors.white30),
+            ),
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await _exitToTvLauncher();
+            },
+            child: const Text('TV Home (Launcher)'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -360,6 +398,84 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
                     }
                   }
                 } catch(e) {}
+
+                // Injected TV navigation runtime helpers
+                try {
+                  window.triggerTVBack = function() {
+                    try {
+                      if (window.tvAppInstance && typeof window.tvAppInstance.goBack === 'function') {
+                        return window.tvAppInstance.goBack() === true;
+                      }
+                      if (typeof window.onTVBack === 'function') {
+                        return window.onTVBack() === true;
+                      }
+                      if (typeof window.TVNavigation === 'object' && typeof window.TVNavigation.goBack === 'function') {
+                        window.TVNavigation.goBack();
+                        return true;
+                      }
+                    } catch(e) {}
+                    return false;
+                  };
+
+                  window.triggerTVHome = function() {
+                    try {
+                      if (window.tvAppInstance) {
+                        if (typeof window.tvAppInstance.stopInfoAutoSlide === 'function') {
+                          window.tvAppInstance.stopInfoAutoSlide();
+                        }
+                        var wasNotHome = (window.tvAppInstance.currentView !== 'home') ||
+                          (window.tvAppInstance.menuStack && window.tvAppInstance.menuStack.length > 0);
+                        window.tvAppInstance.currentView = 'home';
+                        window.tvAppInstance.menuStack = [];
+                        if (window.tvAppInstance.menuItems) {
+                          window.tvAppInstance.currentMenuList = window.tvAppInstance.menuItems;
+                        }
+                        window.tvAppInstance.activeMenuIndex = 0;
+                        return wasNotHome;
+                      }
+                    } catch(e) {}
+                    return false;
+                  };
+
+                  window.isTVAtHome = function() {
+                    try {
+                      if (window.tvAppInstance) {
+                        return window.tvAppInstance.currentView === 'home' &&
+                          (!window.tvAppInstance.menuStack || window.tvAppInstance.menuStack.length === 0);
+                      }
+                    } catch(e) {}
+                    return true;
+                  };
+
+                  // Force dismiss any stuck black loading overlays in index.html, ensure isLoaded is true, and enforce canvas scale
+                  var fixLayoutAndOverlay = function() {
+                    try {
+                      if (window.tvAppInstance) {
+                        window.tvAppInstance.isLoaded = true;
+                      }
+                      var stuckOverlays = document.querySelectorAll('.z-50.bg-black, [class*="z-50"][class*="bg-black"]');
+                      stuckOverlays.forEach(function(el) {
+                        el.style.display = 'none';
+                        el.style.opacity = '0';
+                      });
+                      var canvas = document.getElementById('tv-canvas');
+                      if (canvas) {
+                        var w = window.innerWidth || (document.documentElement && document.documentElement.clientWidth) || window.screen.width || 1920;
+                        var h = window.innerHeight || (document.documentElement && document.documentElement.clientHeight) || window.screen.height || 1080;
+                        if (w > 0 && h > 0) {
+                          var scale = Math.min(w / 1920, h / 1080);
+                          if (scale > 0) {
+                            canvas.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
+                          }
+                        }
+                      }
+                    } catch(e) {}
+                  };
+                  fixLayoutAndOverlay();
+                  setTimeout(fixLayoutAndOverlay, 300);
+                  setTimeout(fixLayoutAndOverlay, 1000);
+                  setTimeout(fixLayoutAndOverlay, 2500);
+                } catch(e) {}
               })();
             ''');
           }
@@ -404,62 +520,159 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
   bool _isBackHandling = false;
 
   Future<void> _handleBackNavigation(WebViewController controller) async {
-    print('[BackNavigation] onBackPressed triggered');
+    Logger.i('[BackNavigation] onBackPressed triggered (isDemoMode=$_isDemoMode)');
     if (_isBackHandling) {
-      print('[BackNavigation] Already handling back, ignoring');
+      Logger.i('[BackNavigation] Already handling back, ignoring');
       return;
     }
     _isBackHandling = true;
     try {
-      // 1. Check if JavaScript triggerTVBack handles closing an active overlay/popup first
+      // 1. Check if JavaScript can navigate back within sub-view, sub-menu, or active overlay
+      bool jsHandled = false;
       try {
-        final Object? isTVBackHandled = await controller.runJavaScriptReturningResult(
-          "typeof window.triggerTVBack === 'function' ? window.triggerTVBack() : false"
-        );
-        print('[BackNavigation] isTVBackHandled result: $isTVBackHandled');
-        if (isTVBackHandled == true || isTVBackHandled == 'true' || isTVBackHandled == 1 || isTVBackHandled == '1') {
-          print('[BackNavigation] Back press handled successfully by JS overlay/page');
-          return;
-        }
+        final Object? result = await controller.runJavaScriptReturningResult('''
+          (function() {
+            try {
+              if (window.tvAppInstance) {
+                if (window.tvAppInstance.currentView !== 'home') {
+                  if (typeof window.tvAppInstance.goBack === 'function') {
+                    window.tvAppInstance.goBack();
+                  } else {
+                    window.tvAppInstance.currentView = 'home';
+                  }
+                  return true;
+                }
+                if (window.tvAppInstance.menuStack && window.tvAppInstance.menuStack.length > 0) {
+                  if (typeof window.tvAppInstance.goBack === 'function') {
+                    window.tvAppInstance.goBack();
+                  } else {
+                    window.tvAppInstance.menuStack = [];
+                  }
+                  return true;
+                }
+                return false;
+              }
+              if (typeof window.triggerTVBack === 'function') {
+                var r = window.triggerTVBack();
+                if (r === true || r === 1 || r === 'true') return true;
+              }
+              if (typeof window.TVNavigation === 'object' && typeof window.TVNavigation.goBack === 'function') {
+                window.TVNavigation.goBack();
+                return true;
+              }
+            } catch (e) {
+              console.error('[BackNavigation] JS error:', e);
+            }
+            return false;
+          })();
+        ''');
+
+        jsHandled = (result == true || result == 'true' || result == 1 || result == '1');
       } catch (e) {
-        print('[BackNavigation] Error checking triggerTVBack: $e');
+        Logger.e('[BackNavigation] Error checking JS back: $e');
       }
 
-      // 2. Fallback to path check: if we are on index/home page and no overlay was closed, ignore back to prevent exit.
-      final currentUrl = await controller.currentUrl() ?? '';
-      print('[BackNavigation] currentUrl: $currentUrl');
-      final uri = Uri.tryParse(currentUrl);
-      if (uri != null) {
-        final path = uri.path;
-        final hash = uri.fragment;
-        print('[BackNavigation] Parsed path: $path, hash: $hash');
-        if ((path == '/' || path == '/index.html') && (hash.isEmpty || hash == '/')) {
-          if (_isDemoMode) {
-            _showExitDemoDialog();
+      if (jsHandled) {
+        Logger.i('[BackNavigation] Successfully handled back within JS subview/menu');
+        return;
+      }
+
+      // 2. Fallback to browser history if not on root URL
+      try {
+        final canGoBack = await controller.canGoBack();
+        if (canGoBack) {
+          final currentUrl = await controller.currentUrl() ?? '';
+          final uri = Uri.tryParse(currentUrl);
+          final path = uri?.path ?? '';
+          if (path != '/' && path != '/index.html') {
+            await controller.goBack();
             return;
           }
-          print('[BackNavigation] On home page with no active overlays, ignoring back press to prevent app exit');
-          return;
         }
-      }
+      } catch (_) {}
 
-      // 3. Fallback to TVNavigation.goBack() or browser history.back() redirection
-      print('[BackNavigation] Executing TVNavigation.goBack fallback redirection');
-      await controller.runJavaScript('''
-        (function() {
-          if (typeof window.TVNavigation === 'object' && typeof window.TVNavigation.goBack === 'function') {
-            window.TVNavigation.goBack();
-          } else {
-            window.history.back();
-          }
-        })();
-      ''');
+      // 3. User is at Home!
+      if (_isDemoMode) {
+        Logger.i('[BackNavigation] At Home in Demo Mode -> Showing Exit Demo Dialog');
+        _showExitDemoDialog();
+      } else {
+        Logger.i('[BackNavigation] On home page in Kiosk mode -> Ignoring back press to stay in hotel app');
+      }
     } catch (e) {
-      print('[BackNavigation] Error in back navigation: $e');
+      Logger.e('[BackNavigation] Error in back navigation: $e');
     } finally {
       _isBackHandling = false;
-      print('[BackNavigation] Reset _isBackHandling');
     }
+  }
+
+  Future<void> _handleHomeNavigation(WebViewController controller) async {
+    Logger.i('[HomeNavigation] onHomePressed triggered (isDemoMode=$_isDemoMode)');
+    try {
+      // 1. Check if we are currently at home view or in a sub-view
+      bool isAtHome = true;
+      try {
+        final Object? result = await controller.runJavaScriptReturningResult('''
+          (function() {
+            try {
+              if (window.tvAppInstance) {
+                var isSubView = (window.tvAppInstance.currentView !== 'home');
+                var isSubMenu = (window.tvAppInstance.menuStack && window.tvAppInstance.menuStack.length > 0);
+                if (isSubView || isSubMenu) {
+                  if (typeof window.tvAppInstance.stopInfoAutoSlide === 'function') {
+                    window.tvAppInstance.stopInfoAutoSlide();
+                  }
+                  window.tvAppInstance.currentView = 'home';
+                  window.tvAppInstance.menuStack = [];
+                  if (window.tvAppInstance.menuItems) {
+                    window.tvAppInstance.currentMenuList = window.tvAppInstance.menuItems;
+                  }
+                  window.tvAppInstance.activeMenuIndex = 0;
+                  return false; // was on a subview, returned to home
+                }
+                return true; // already at home
+              }
+              if (typeof window.isTVAtHome === 'function') {
+                return window.isTVAtHome();
+              }
+            } catch (e) {
+              console.error('[HomeNavigation] JS error:', e);
+            }
+            return true;
+          })();
+        ''');
+
+        isAtHome = (result == true || result == 'true' || result == 1 || result == '1');
+      } catch (e) {
+        Logger.e('[HomeNavigation] Error in JS home check: $e');
+      }
+
+      if (!isAtHome) {
+        Logger.i('[HomeNavigation] Sub-view was open; returned to TV App Home screen');
+        return;
+      }
+
+      // 2. Already at Home screen
+      if (_isDemoMode) {
+        Logger.i('[HomeNavigation] Already at Home in Demo Mode -> Exiting to Android TV Home Launcher');
+        await _exitToTvLauncher();
+      } else {
+        Logger.i('[HomeNavigation] At Home in Kiosk Mode -> Staying on Hotel App Home');
+      }
+    } catch (e) {
+      Logger.e('[HomeNavigation] Error in home navigation: $e');
+    }
+  }
+
+  Widget _buildPlatformWebViewWidget(WebViewController controller) {
+    if (!kIsWeb && Platform.isAndroid && controller.platform is AndroidWebViewController) {
+      return WebViewWidget.fromPlatformCreationParams(
+        params: AndroidWebViewWidgetCreationParams(
+          controller: controller.platform,
+          displayWithHybridComposition: true,
+        ),
+      );
+    }
+    return WebViewWidget(controller: controller);
   }
 
   Widget _buildWebView(WebViewController controller) {
@@ -531,9 +744,12 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
               key == LogicalKeyboardKey.escape ||
               key == LogicalKeyboardKey.backspace ||
               keyId == 0x00070029) {
-            controller.runJavaScript(
-              "if (typeof window.triggerTVBack === 'function') { window.triggerTVBack(); } else { history.back(); }"
-            );
+            _handleBackNavigation(controller);
+            return KeyEventResult.handled;
+          }
+          // 7. HOME Key (External Keyboard / USB Remote Home)
+          else if (key == LogicalKeyboardKey.home) {
+            _handleHomeNavigation(controller);
             return KeyEventResult.handled;
           }
           // 7. NUMERIC DIGITS 0-9 (Direct Channel / Number Input)
@@ -571,7 +787,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
       },
       child: Stack(
         children: [
-          WebViewWidget(controller: controller),
+          _buildPlatformWebViewWidget(controller),
 
           // Dynamic Demo Mode Badge (Positioned below Room & Location/Weather in Top-Right)
           // ONLY visible when the webview has finished loading and is not obscured

@@ -732,27 +732,26 @@ function tvApp() {
         }
         if ((_a = document.activeElement) == null ? void 0 : _a.blur) document.activeElement.blur();
         if (this.currentView !== "home") {
-          this.currentView = this.viewHistory.pop() || "home";
-          return;
+          this.currentView = (this.viewHistory && this.viewHistory.pop()) || "home";
+          return true;
         }
-        if (this.menuStack.length > 0) {
+        if (this.menuStack && this.menuStack.length > 0) {
           this.isMenuFlipping = true;
+          try {
+            const prev = this.menuStack.pop();
+            this.currentMenuList = prev.list;
+            this.activeMenuIndex = prev.index;
+            this.currentMenuTitle = prev.title;
+          } catch (_) {}
           setTimeout(() => {
-            try {
-              const prev = this.menuStack.pop();
-              this.currentMenuList = prev.list;
-              this.activeMenuIndex = prev.index;
-              this.currentMenuTitle = prev.title;
-              setTimeout(() => {
-                this.isMenuFlipping = false;
-              }, 150);
-            } catch (_) {
-              this.isMenuFlipping = false;
-            }
-          }, 200);
+            this.isMenuFlipping = false;
+          }, 150);
+          return true;
         }
+        return false;
       } catch (e) {
         console.warn("[TVApp] goBack error:", e);
+        return false;
       }
     },
     // --- HEADER NAVIGATION HANDLERS ---
@@ -1178,22 +1177,42 @@ function tvApp() {
   };
 }
 window.triggerTVBack = () => {
-  var _a, _b;
   try {
-    (_b = (_a = window.tvAppInstance) == null ? void 0 : _a.goBack) == null ? void 0 : _b.call(_a);
+    if (window.tvAppInstance && typeof window.tvAppInstance.goBack === "function") {
+      return window.tvAppInstance.goBack() === true;
+    }
   } catch (e) {
     console.warn("[Global] triggerTVBack error:", e);
   }
+  return false;
 };
 window.triggerTVHome = () => {
   try {
     if (window.tvAppInstance) {
+      if (typeof window.tvAppInstance.stopInfoAutoSlide === "function") {
+        window.tvAppInstance.stopInfoAutoSlide();
+      }
+      var wasNotAtHome = window.tvAppInstance.currentView !== "home" || 
+        (window.tvAppInstance.menuStack && window.tvAppInstance.menuStack.length > 0);
       window.tvAppInstance.currentView = "home";
       window.tvAppInstance.menuStack = [];
-      window.tvAppInstance.currentMenuList = window.tvAppInstance.menuItems;
+      if (window.tvAppInstance.menuItems) {
+        window.tvAppInstance.currentMenuList = window.tvAppInstance.menuItems;
+      }
       window.tvAppInstance.activeMenuIndex = 0;
+      return wasNotAtHome;
     }
   } catch (e) {
     console.warn("[Global] triggerTVHome error:", e);
   }
+  return false;
+};
+window.isTVAtHome = () => {
+  try {
+    if (window.tvAppInstance) {
+      return window.tvAppInstance.currentView === "home" &&
+        (!window.tvAppInstance.menuStack || window.tvAppInstance.menuStack.length === 0);
+    }
+  } catch (e) {}
+  return true;
 };

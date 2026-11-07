@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui';
 import '../../../../core/utils/logger.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -74,6 +75,7 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
       final bridgeHandler = FlutterBridgeHandler(controller);
       controller
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(const Color(0x00000000))
         ..addJavaScriptChannel('FlutterBridge',
             onMessageReceived: (message) {
           bridgeHandler.handleMessage(message.message);
@@ -120,6 +122,7 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
           await androidController.setAllowFileAccess(true);
           await androidController.setAllowContentAccess(true);
           await androidController.setTextZoom(100);
+          await androidController.setMixedContentMode(MixedContentMode.alwaysAllow);
         } catch (_) {}
       }
 

@@ -1,6 +1,7 @@
 package com.paxtv.hospitality
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.SystemClock
@@ -111,10 +112,24 @@ class TvButtonAccessibilityService : AccessibilityService() {
         // Handle interrupt
     }
 
+    private fun isDemoMode(): Boolean {
+        return try {
+            val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            prefs.getBoolean("flutter.is_demo_mode", false)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     override fun onKeyEvent(event: KeyEvent?): Boolean {
         if (event == null) return false
 
-        // Intercept Home button or TV key events to bring Hotel TV App to front
+        // In Demo Mode, do not intercept or swallow keys so TV remote works normally!
+        if (isDemoMode()) {
+            return super.onKeyEvent(event)
+        }
+
+        // Intercept Home button or TV key events to bring Hotel TV App to front (Kiosk mode only)
         if (event.keyCode == KeyEvent.KEYCODE_HOME || event.keyCode == KeyEvent.KEYCODE_TV) {
             if (event.action == KeyEvent.ACTION_DOWN) {
                 bringAppToFront()
