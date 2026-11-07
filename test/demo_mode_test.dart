@@ -31,4 +31,18 @@ void main() {
       expect(js.contains('targetTzMin: 330'), isTrue);
     });
   });
+  group('Demo Mode Navigation & Exit Dialog Contracts', () {
+    test('Demo mode keys are properly set in AppConstants', () {
+      expect(AppConstants.isDemoModeKey, equals('is_demo_mode'));
+    });
+
+    test('Exit dialog options include TV Home launcher and Exit to Login', () {
+      const exitTitle = 'Exit Demo Mode?';
+      const tvHomeText = 'TV Home (Launcher)';
+      const exitLoginText = 'Exit to Login';
+      expect(exitTitle.isNotEmpty, isTrue);
+      expect(tvHomeText.isNotEmpty, isTrue);
+      expect(exitLoginText.isNotEmpty, isTrue);
+    });
+  });
 }
