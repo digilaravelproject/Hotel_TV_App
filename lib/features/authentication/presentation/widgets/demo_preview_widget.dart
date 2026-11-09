@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/constants/app_constants.dart';
-import '../../../../res/assets_res.dart';
+import '../../../../core/widget/tv_focusable.dart';
 
 class DemoPreviewWidget extends StatelessWidget {
-  const DemoPreviewWidget({super.key});
+  final VoidCallback? onStartDemo;
+  final bool isLoading;
+  final FocusNode? demoActionFocus;
+
+  const DemoPreviewWidget({
+    super.key,
+    this.onStartDemo,
+    this.isLoading = false,
+    this.demoActionFocus,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -12,7 +21,7 @@ class DemoPreviewWidget extends StatelessWidget {
       child: Container(
         key: const ValueKey('demo_mode_preview'),
         width: 410,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         decoration: BoxDecoration(
           color: const Color(0xFF190D2D).withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(24),
@@ -65,15 +74,15 @@ class DemoPreviewWidget extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
 
             // Colorful Smart TV Vector Artwork
             SvgPicture.asset(
               AppAssets.demoShowcaseVector,
-              width: 140,
-              height: 105,
+              width: 130,
+              height: 95,
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
             // Title
             const Text(
@@ -81,12 +90,12 @@ class DemoPreviewWidget extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 18,
+                fontSize: 17,
                 fontWeight: FontWeight.w900,
                 letterSpacing: -0.3,
               ),
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: 4),
 
             // Subtitle Description
             const Padding(
@@ -97,13 +106,13 @@ class DemoPreviewWidget extends StatelessWidget {
                 style: TextStyle(
                   color: Colors.white70,
                   fontSize: 11,
-                  height: 1.4,
+                  height: 1.35,
                 ),
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
-            // Feature Highlights Tags using Wrap to guarantee NO overflow
+            // Feature Highlights Tags
             Wrap(
               alignment: WrapAlignment.center,
               spacing: 8,
@@ -114,47 +123,52 @@ class DemoPreviewWidget extends StatelessWidget {
                 _buildTag(Icons.auto_awesome_rounded, "Zero Setup"),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
 
-            // Remote Action Cue
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7.5),
-              decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: Colors.amber.shade400.withValues(alpha: 0.32),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.shade400,
-                      borderRadius: BorderRadius.circular(4),
+            // Interactive Remote Action Button
+            TvFocusable(
+              focusNode: demoActionFocus,
+              onTap: onStartDemo ?? () {},
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 9),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade400,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.amber.withOpacity(0.35),
+                      blurRadius: 14,
+                      spreadRadius: 1,
                     ),
-                    child: const Text(
-                      "OK",
-                      style: TextStyle(
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isLoading) ...[
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ] else ...[
+                      const Icon(Icons.play_arrow_rounded, color: Colors.black, size: 18),
+                      const SizedBox(width: 6),
+                    ],
+                    Text(
+                      isLoading ? "Activating Demo..." : "Start Free Demo",
+                      style: const TextStyle(
                         color: Colors.black,
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    "Press OK on remote to start demo",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],

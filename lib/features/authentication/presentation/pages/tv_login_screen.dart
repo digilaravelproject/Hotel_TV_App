@@ -7,24 +7,21 @@ import 'package:dio/dio.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/api_constents.dart';
 import '../../../../core/constants/app_text.dart';
-import '../../../../core/widget/tv_focusable.dart';
 import '../../../../core/widget/custom_app_text.dart';
 import '../../../../core/widget/custom_base_widget.dart';
 import '../../../../core/widget/loading_widget.dart';
-import '../../../../core/utils/ui_spacer.dart';
 import '../../../../core/utils/logger.dart';
 import '../../../../core/utils/custom_snackbar.dart';
 import '../../../../core/services/device/device_info_service.dart';
 import '../../../../core/services/network/api_client.dart';
 import '../../../../core/services/storage/shared_prefs.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/services/storage/token_manger.dart';
 import '../../../../core/services/template/template_manager_service.dart';
 import 'app_startup_decider.dart';
+import 'tv_register_screen.dart';
 import '../widgets/qr_mode_widget.dart';
 import '../widgets/manual_mode_widget.dart';
 import '../widgets/demo_preview_widget.dart';
-import '../../../../res/assets_res.dart';
 import '../../../../core/widget/tv_network_status_header.dart';
 
 enum TvLoginTab { qr, manual, demo }
@@ -47,9 +44,11 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   late final FocusNode qrTabFocus;
   late final FocusNode manualTabFocus;
   late final FocusNode demoTabFocus;
+  late final FocusNode signUpFocus;
   late final FocusNode licenseKeyFocus;
   late final FocusNode roomNoFocus;
   late final FocusNode submitFocus;
+  late final FocusNode demoActionFocus;
 
   // ValueNotifier to track active login tab (QR, Manual, Demo)
   late final ValueNotifier<TvLoginTab> selectedTabNotifier;
@@ -68,17 +67,83 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     _pairCode = '${100000 + Random().nextInt(900000)}';
     licenseKeyController = TextEditingController();
     roomNoController = TextEditingController();
+
     qrTabFocus = FocusNode();
     manualTabFocus = FocusNode();
     demoTabFocus = FocusNode();
+    signUpFocus = FocusNode();
     licenseKeyFocus = FocusNode();
     roomNoFocus = FocusNode();
     submitFocus = FocusNode();
+    demoActionFocus = FocusNode();
+
     selectedTabNotifier = ValueNotifier<TvLoginTab>(TvLoginTab.qr);
 
+    // ── D-PAD NAVIGATION FOR TOP TABS ──────────────────────────────────
+    // Tab 1: Use Phone (QR Mode)
+    qrTabFocus.onKeyEvent = (node, event) {
+      if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+          manualTabFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          signUpFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+      }
+      return KeyEventResult.ignored;
+    };
+
+    // Tab 2: Use Remote (Manual Mode)
+    manualTabFocus.onKeyEvent = (node, event) {
+      if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+          qrTabFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+          demoTabFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          selectedTabNotifier.value = TvLoginTab.manual;
+          Future.delayed(const Duration(milliseconds: 100), () {
+            if (mounted) licenseKeyFocus.requestFocus();
+          });
+          return KeyEventResult.handled;
+        }
+      }
+      return KeyEventResult.ignored;
+    };
+
+    // Tab 3: Try Free Demo (Demo Mode)
     demoTabFocus.onKeyEvent = (node, event) {
       if (event is KeyDownEvent) {
-        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+          manualTabFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          selectedTabNotifier.value = TvLoginTab.demo;
+          Future.delayed(const Duration(milliseconds: 100), () {
+            if (mounted) demoActionFocus.requestFocus();
+          });
+          return KeyEventResult.handled;
+        }
+      }
+      return KeyEventResult.ignored;
+    };
+
+    // Sign up button in QR mode
+    signUpFocus.onKeyEvent = (node, event) {
+      if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowUp ||
+            event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+          qrTabFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
           manualTabFocus.requestFocus();
           return KeyEventResult.handled;
         }
@@ -86,17 +151,15 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
       return KeyEventResult.ignored;
     };
 
-    // D-Pad navigation: attach onKeyEvent directly to focus nodes
-    // Using new API (onKeyEvent + KeyDownEvent) instead of deprecated onKey + RawKeyDownEvent
+    // ── D-PAD NAVIGATION FOR MANUAL FORM ──────────────────────────────
     licenseKeyFocus.onKeyEvent = (node, event) {
       if (event is KeyDownEvent) {
-        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-          roomNoFocus.requestFocus();
+        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          manualTabFocus.requestFocus();
           return KeyEventResult.handled;
         }
-        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-          licenseKeyFocus.unfocus();
-          manualTabFocus.requestFocus();
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          roomNoFocus.requestFocus();
           return KeyEventResult.handled;
         }
       }
@@ -113,11 +176,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
           submitFocus.requestFocus();
           return KeyEventResult.handled;
         }
-        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-          roomNoFocus.unfocus();
-          manualTabFocus.requestFocus();
-          return KeyEventResult.handled;
-        }
       }
       return KeyEventResult.ignored;
     };
@@ -128,8 +186,15 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
           roomNoFocus.requestFocus();
           return KeyEventResult.handled;
         }
-        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-          manualTabFocus.requestFocus();
+      }
+      return KeyEventResult.ignored;
+    };
+
+    // ── D-PAD NAVIGATION FOR DEMO ACTION ──────────────────────────────
+    demoActionFocus.onKeyEvent = (node, event) {
+      if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          demoTabFocus.requestFocus();
           return KeyEventResult.handled;
         }
       }
@@ -249,69 +314,63 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
 
   void _startPolling() {
     _pollingTimer?.cancel();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
-      await _checkPairStatus();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (timer) async {
+      if (_pairCode.isEmpty || _remainingSeconds <= 0) return;
+
+      try {
+        final ApiClient apiClient = ApiClient();
+        final response = await apiClient.post(
+          ApiConstants.pairStatusUri,
+          data: {'pair_code': _pairCode},
+        );
+
+        if (response.data != null && response.data is Map && response.data['status'] == true) {
+          final data = response.data['data'] as Map<String, dynamic>?;
+          final isPaired = data?['paired'] == true;
+
+          if (isPaired) {
+            _stopPairingTimers();
+            Logger.i('[Pairing] Device successfully paired via phone!');
+            await _handleLoginSuccess(data);
+          }
+        }
+      } catch (e) {
+        Logger.e('Error polling pair status: $e');
+      }
     });
   }
 
-  Future<void> _checkPairStatus() async {
-    if (_pairCode.isEmpty) return;
-
+  Future<void> _handleLoginSuccess(Map<String, dynamic>? data) async {
     try {
-      final info = await DeviceInfoService.getFullDeviceInfo(forceRefresh: true);
-      final Map<String, dynamic> requestData = {
-        'pair_code': _pairCode,
-        'deviceId': info['deviceId'] ?? '',
-      };
-
-      final ApiClient apiClient = ApiClient();
-      final response = await apiClient.post(
-        ApiConstants.pairStatusUri,
-        data: requestData,
-      );
-
-      if (response.data != null && response.data is Map) {
-        final state = response.data['state']?.toString();
-        final status = response.data['status'];
-
-        if (state == 'expired' || status == false && state != 'pending') {
-          _stopPairingTimers();
-          _generatePairCode();
-        } else if (state == 'paired' || (status == true && response.data['data'] != null && response.data['data']['auth'] != null)) {
-          _stopPairingTimers();
-          await _handleLoginSuccess(response.data);
+      if (data != null) {
+        String token = '';
+        if (data.containsKey('token') && data['token'] != null) {
+          token = data['token'].toString();
+        } else if (data.containsKey('auth') && data['auth'] is Map) {
+          token = (data['auth'] as Map)['token']?.toString() ?? '';
+        } else if (data.containsKey('data') && data['data'] is Map) {
+          final inner = data['data'] as Map;
+          if (inner.containsKey('token') && inner['token'] != null) {
+            token = inner['token'].toString();
+          } else if (inner.containsKey('auth') && inner['auth'] is Map) {
+            token = (inner['auth'] as Map)['token']?.toString() ?? '';
+          }
         }
+
+        if (token.isNotEmpty) {
+          await TokenManager.saveToken(token);
+        }
+
+        final fullPayload = {
+          'status': true,
+          'message': 'Logged in successfully.',
+          'data': data.containsKey('data') ? data['data'] : data,
+        };
+        await SharedPrefs.setString(AppConstants.tvLoginDataKey, jsonEncode(fullPayload));
+        await SharedPrefs.setBool(AppConstants.isDemoModeKey, false);
       }
-    } catch (e) {
-      Logger.e('Error checking pair status: $e');
-    }
-  }
 
-  Future<void> _handleLoginSuccess(dynamic responseData) async {
-    if (!mounted) return;
-    try {
-      final dataMap = responseData['data'] as Map<String, dynamic>?;
-      final token = dataMap?['auth']?['token']?.toString() ??
-          dataMap?['token']?.toString() ??
-          responseData['token']?.toString() ??
-          '';
-
-      if (token.isNotEmpty) {
-        await TokenManager.saveToken(token);
-      }
-      // Reset demo mode on successful paid login
-      await SharedPrefs.setBool(AppConstants.isDemoModeKey, false);
-      await SharedPrefs.remove(AppConstants.demoExpiresAtKey);
-      await SharedPrefs.remove(AppConstants.demoDaysLeftKey);
-      await SharedPrefs.remove('accessibility_skipped');
-      await SharedPrefs.remove('launcher_skipped');
-
-      await SharedPrefs.setString(AppConstants.tvLoginDataKey, jsonEncode(responseData));
       await TemplateManagerService.regenerateDataJson();
-
-      // CustomSnackbar.showSuccess(
-      //   message: responseData['message'] ?? 'TV Paired and logged in successfully!',
-      // );
 
       if (mounted) {
         Navigator.pushReplacement(
@@ -390,7 +449,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
         }
         CustomSnackbar.showError(message: msg);
 
-        // If demo expired, automatically shift focus to manual license input
         if (response.statusCode == 403 ||
             (response.data is Map && response.data['error_code'] == 'DEMO_EXPIRED')) {
           selectedTabNotifier.value = TvLoginTab.manual;
@@ -464,11 +522,161 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     qrTabFocus.dispose();
     manualTabFocus.dispose();
     demoTabFocus.dispose();
+    signUpFocus.dispose();
     licenseKeyFocus.dispose();
     roomNoFocus.dispose();
     submitFocus.dispose();
+    demoActionFocus.dispose();
     selectedTabNotifier.dispose();
     super.dispose();
+  }
+
+  void _openRegisterScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TvRegisterScreen()),
+    );
+  }
+
+  // ── SEGMENTED TOP TAB BAR (NETFLIX STYLE) ──────────────────────────
+  Widget _buildTopTabBar(TvLoginTab selectedTab) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.12),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildTabItem(
+            tab: TvLoginTab.qr,
+            label: "Use Phone",
+            isSelected: selectedTab == TvLoginTab.qr,
+            focusNode: qrTabFocus,
+            autofocus: true,
+          ),
+          const SizedBox(width: 3),
+          _buildTabItem(
+            tab: TvLoginTab.manual,
+            label: "Use Remote",
+            isSelected: selectedTab == TvLoginTab.manual,
+            focusNode: manualTabFocus,
+          ),
+          const SizedBox(width: 3),
+          _buildTabItem(
+            tab: TvLoginTab.demo,
+            label: "Try Free Demo",
+            isSelected: selectedTab == TvLoginTab.demo,
+            focusNode: demoTabFocus,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabItem({
+    required TvLoginTab tab,
+    required String label,
+    required bool isSelected,
+    required FocusNode focusNode,
+    bool autofocus = false,
+  }) {
+    return Focus(
+      focusNode: focusNode,
+      autofocus: autofocus,
+      onFocusChange: (focused) {
+        if (focused) {
+          selectedTabNotifier.value = tab;
+        }
+      },
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.select ||
+              event.logicalKey == LogicalKeyboardKey.space) {
+            selectedTabNotifier.value = tab;
+            if (tab == TvLoginTab.manual) {
+              Future.delayed(const Duration(milliseconds: 100), () {
+                if (mounted) licenseKeyFocus.requestFocus();
+              });
+            } else if (tab == TvLoginTab.demo) {
+              if (!_isDemoLoading) _performDemoLogin();
+            }
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Builder(
+        builder: (context) {
+          final isFocused = Focus.of(context).hasFocus;
+
+          Color bgColor;
+          Color textColor;
+          if (isSelected) {
+            bgColor = Colors.white;
+            textColor = Colors.black;
+          } else if (isFocused) {
+            bgColor = Colors.white.withOpacity(0.20);
+            textColor = Colors.white;
+          } else {
+            bgColor = Colors.transparent;
+            textColor = Colors.white.withOpacity(0.80);
+          }
+
+          return GestureDetector(
+            onTap: () {
+              focusNode.requestFocus();
+              selectedTabNotifier.value = tab;
+              if (tab == TvLoginTab.demo && !_isDemoLoading) {
+                _performDemoLogin();
+              }
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(20),
+                border: isFocused && !isSelected
+                    ? Border.all(color: Colors.white70, width: 1.2)
+                    : null,
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: Colors.white.withOpacity(0.22),
+                          blurRadius: 12,
+                          spreadRadius: 0.5,
+                        ),
+                      ]
+                    : (isFocused
+                        ? [
+                            BoxShadow(
+                              color: Colors.white.withOpacity(0.12),
+                              blurRadius: 8,
+                            ),
+                          ]
+                        : null),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -544,338 +752,68 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                 ),
               ),
             ),
+
+            // Top Left Branding
             Positioned(
-              top: 24,
-              right: 32,
+              top: 20,
+              left: 36,
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    alignment: Alignment.center,
+                    child: Image.asset('assets/logo.png', fit: BoxFit.contain),
+                  ),
+                  const SizedBox(width: 10),
+                  const CustomAppText(
+                    AppConstants.appName,
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ],
+              ),
+            ),
+
+            // Top Right Network Header
+            Positioned(
+              top: 20,
+              right: 36,
               child: const TvNetworkStatusHeader(),
             ),
 
-            // Main layout
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // ─── LEFT PANEL ───────────────────────────────────────
-                Expanded(
-                  flex: 9,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(64, 28, 32, 28),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Branding
-                        Row(
-                          children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              clipBehavior: Clip.antiAlias,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                              ),
-                              child: Image.asset(
-                                'assets/logo.png',
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                            UiSpacer.hSpace(12),
-                            CustomAppText(
-                              AppConstants.appName,
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                            ),
-                          ],
-                        ),
-                        UiSpacer.vSpace(24),
-
-                        // Title
-                        const CustomAppText(
-                          "Pair Your TV",
-                          color: Colors.white,
-                          fontSize: 38,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.5,
-                        ),
-                        UiSpacer.vSpace(10),
-
-                        // Subtitle
-                        CustomAppText(
-                          "Scan the QR code with your phone/admin dashboard or sign in manually using your remote.",
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 13,
-                          height: 1.4,
-                        ),
-                        UiSpacer.vSpace(24),
-
-                        // ── Option buttons ───────────────────────────────
-                        ValueListenableBuilder<TvLoginTab>(
-                          valueListenable: selectedTabNotifier,
-                          builder: (context, selectedTab, child) {
-                            final isQr = selectedTab == TvLoginTab.qr;
-                            final isManual = selectedTab == TvLoginTab.manual;
-                            final isDemo = selectedTab == TvLoginTab.demo;
-
-                            return Column(
-                              children: [
-                                // Option 1: Pair with QR Code
-                                Focus(
-                                  onKeyEvent: (node, event) {
-                                    if (event is KeyDownEvent) {
-                                      if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-                                        manualTabFocus.requestFocus();
-                                        return KeyEventResult.handled;
-                                      }
-                                    }
-                                    return KeyEventResult.ignored;
-                                  },
-                                  child: TvFocusable(
-                                    focusNode: qrTabFocus,
-                                    autofocus: true,
-                                    onFocusChange: (focused) {
-                                      if (focused) selectedTabNotifier.value = TvLoginTab.qr;
-                                    },
-                                    onTap: () => selectedTabNotifier.value = TvLoginTab.qr,
-                                    child: Container(
-                                      height: 52,
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                                      decoration: BoxDecoration(
-                                        color: isQr
-                                            ? Colors.white
-                                            : Colors.white.withOpacity(0.06),
-                                        borderRadius: BorderRadius.circular(14),
-                                        boxShadow: isQr
-                                            ? [
-                                                BoxShadow(
-                                                  color: Colors.white.withOpacity(0.2),
-                                                  blurRadius: 16,
-                                                  spreadRadius: 1,
-                                                )
-                                              ]
-                                            : null,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.qr_code_scanner_rounded,
-                                            color: isQr ? Colors.black : Colors.white70,
-                                            size: 22,
-                                          ),
-                                          const SizedBox(width: 16),
-                                          CustomAppText(
-                                            "Pair with QR Code",
-                                            color: isQr ? Colors.black : Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                UiSpacer.vSpace(12),
-
-                                // Option 2: Sign in with Remote
-                                Focus(
-                                  onKeyEvent: (node, event) {
-                                    if (event is KeyDownEvent) {
-                                      if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-                                        qrTabFocus.requestFocus();
-                                        return KeyEventResult.handled;
-                                      }
-                                      if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-                                        demoTabFocus.requestFocus();
-                                        return KeyEventResult.handled;
-                                      }
-                                      if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-                                        selectedTabNotifier.value = TvLoginTab.manual;
-                                        // Delay so AnimatedSwitcher can mount the widget
-                                        Future.delayed(const Duration(milliseconds: 300), () {
-                                          licenseKeyFocus.requestFocus();
-                                        });
-                                        return KeyEventResult.handled;
-                                      }
-                                    }
-                                    return KeyEventResult.ignored;
-                                  },
-                                  child: TvFocusable(
-                                    focusNode: manualTabFocus,
-                                    onFocusChange: (focused) {
-                                      if (focused) selectedTabNotifier.value = TvLoginTab.manual;
-                                    },
-                                    onTap: () => selectedTabNotifier.value = TvLoginTab.manual,
-                                    child: Container(
-                                      height: 52,
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                                      decoration: BoxDecoration(
-                                        color: isManual
-                                            ? Colors.white
-                                            : Colors.white.withOpacity(0.06),
-                                        borderRadius: BorderRadius.circular(14),
-                                        boxShadow: isManual
-                                            ? [
-                                                BoxShadow(
-                                                  color: Colors.white.withOpacity(0.2),
-                                                  blurRadius: 16,
-                                                  spreadRadius: 1,
-                                                )
-                                              ]
-                                            : null,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.keyboard_alt_outlined,
-                                            color: isManual ? Colors.black : Colors.white70,
-                                            size: 22,
-                                          ),
-                                          const SizedBox(width: 16),
-                                          CustomAppText(
-                                            "Sign in with Remote",
-                                            color: isManual ? Colors.black : Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                UiSpacer.vSpace(12),
-
-                                // Option 3: Try Free Demo
-                                Focus(
-                                  onKeyEvent: (node, event) {
-                                    if (event is KeyDownEvent) {
-                                      if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-                                        manualTabFocus.requestFocus();
-                                        return KeyEventResult.handled;
-                                      }
-                                    }
-                                    return KeyEventResult.ignored;
-                                  },
-                                  child: TvFocusable(
-                                    focusNode: demoTabFocus,
-                                    onFocusChange: (focused) {
-                                      if (focused) selectedTabNotifier.value = TvLoginTab.demo;
-                                    },
-                                    onTap: () {
-                                      selectedTabNotifier.value = TvLoginTab.demo;
-                                      if (!_isDemoLoading) {
-                                        _performDemoLogin();
-                                      }
-                                    },
-                                    child: Container(
-                                      height: 52,
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                                      decoration: BoxDecoration(
-                                        color: isDemo
-                                            ? Colors.amber.shade400
-                                            : Colors.white.withOpacity(0.06),
-                                        borderRadius: BorderRadius.circular(14),
-                                        border: isDemo
-                                            ? null
-                                            : Border.all(
-                                                color: Colors.amber.shade600.withOpacity(0.4),
-                                                width: 1.2,
-                                              ),
-                                        boxShadow: isDemo
-                                            ? [
-                                                BoxShadow(
-                                                  color: Colors.amber.withOpacity(0.35),
-                                                  blurRadius: 16,
-                                                  spreadRadius: 1,
-                                                )
-                                              ]
-                                            : null,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          _isDemoLoading
-                                              ? SizedBox(
-                                                  width: 22,
-                                                  height: 22,
-                                                  child: CircularProgressIndicator(
-                                                    strokeWidth: 2.2,
-                                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                                      isDemo ? Colors.black : Colors.amber,
-                                                    ),
-                                                  ),
-                                                )
-                                              : SvgPicture.asset(
-                                                  AppAssets.demoIcon,
-                                                  width: 22,
-                                                  height: 22,
-                                                  colorFilter: isDemo
-                                                      ? const ColorFilter.mode(Colors.black, BlendMode.srcIn)
-                                                      : null,
-                                                ),
-                                          const SizedBox(width: 16),
-                                          CustomAppText(
-                                            _isDemoLoading ? "Activating Demo..." : "Try Free Demo",
-                                            color: isDemo ? Colors.black : Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-
-                        UiSpacer.vSpace(32),
-
-                        // Device ID Badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.04),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.08),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CustomAppText(
-                                "Device ID: ",
-                                color: Colors.white38,
-                                fontSize: 11,
-                              ),
-                              FutureBuilder<String>(
-                                future: DeviceInfoService.getDeviceId(),
-                                builder: (context, snapshot) {
-                                  return CustomAppText(
-                                    snapshot.data ?? '...',
-                                    color: Colors.white70,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+            // Main Content Area (Netflix Style)
+            Positioned.fill(
+              top: 48,
+              bottom: 40,
+              left: 36,
+              right: 36,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Center Title
+                  const CustomAppText(
+                    "Choose how to sign in",
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.4,
                   ),
-                ),
+                  const SizedBox(height: 14),
 
-                // ─── RIGHT PANEL ──────────────────────────────────────
-                Expanded(
-                  flex: 11,
-                  child: Container(
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.fromLTRB(16, 32, 64, 32),
+                  // 3-tab pill switcher
+                  ValueListenableBuilder<TvLoginTab>(
+                    valueListenable: selectedTabNotifier,
+                    builder: (context, selectedTab, child) {
+                      return _buildTopTabBar(selectedTab);
+                    },
+                  ),
+                  const SizedBox(height: 22),
+
+                  // Center Selected View
+                  Expanded(
                     child: ValueListenableBuilder<TvLoginTab>(
                       valueListenable: selectedTabNotifier,
                       builder: (context, selectedTab, child) {
@@ -888,30 +826,40 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                               isLoading: _isPairCodeLoading,
                               errorMessage: _pairCodeError,
                               onRefresh: _generatePairCode,
+                              onSignUpNow: _openRegisterScreen,
+                              signUpFocus: signUpFocus,
                             );
                             break;
                           case TvLoginTab.manual:
-                            content = ManualModeWidget(
-                              formKey: formKey,
-                              licenseKeyController: licenseKeyController,
-                              roomNoController: roomNoController,
-                              licenseKeyFocus: licenseKeyFocus,
-                              roomNoFocus: roomNoFocus,
-                              submitFocus: submitFocus,
-                              manualTabFocus: manualTabFocus,
-                              onSaveAndStart: () {
-                                if (formKey.currentState!.validate()) {
-                                  _performRegistration(
-                                    context,
-                                    licenseKeyController.text,
-                                    roomNoController.text,
-                                  );
-                                }
-                              },
+                            content = Center(
+                              child: ManualModeWidget(
+                                formKey: formKey,
+                                licenseKeyController: licenseKeyController,
+                                roomNoController: roomNoController,
+                                licenseKeyFocus: licenseKeyFocus,
+                                roomNoFocus: roomNoFocus,
+                                submitFocus: submitFocus,
+                                manualTabFocus: manualTabFocus,
+                                onSaveAndStart: () {
+                                  if (formKey.currentState!.validate()) {
+                                    _performRegistration(
+                                      context,
+                                      licenseKeyController.text,
+                                      roomNoController.text,
+                                    );
+                                  }
+                                },
+                              ),
                             );
                             break;
                           case TvLoginTab.demo:
-                            content = const DemoPreviewWidget();
+                            content = Center(
+                              child: DemoPreviewWidget(
+                                onStartDemo: _performDemoLogin,
+                                isLoading: _isDemoLoading,
+                                demoActionFocus: demoActionFocus,
+                              ),
+                            );
                             break;
                         }
 
@@ -922,12 +870,48 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                       },
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
 
+            // Bottom Left Device ID Badge
+            Positioned(
+              bottom: 16,
+              left: 36,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.08),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CustomAppText(
+                      "Device ID: ",
+                      color: Colors.white38,
+                      fontSize: 11,
+                    ),
+                    FutureBuilder<String>(
+                      future: DeviceInfoService.getDeviceId(),
+                      builder: (context, snapshot) {
+                        return CustomAppText(
+                          snapshot.data ?? '...',
+                          color: Colors.white70,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
-
+            // Loading Overlay
             if (_isLoading)
               Positioned.fill(
                 child: Container(

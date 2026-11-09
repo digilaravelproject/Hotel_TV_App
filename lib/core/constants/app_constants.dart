@@ -6,6 +6,8 @@ class AppConstants {
   static const String qrSyncBaseUrl = '$baseUrl/sync-device?id=';
   static const String qrDeviceUrl = '$baseUrl/hotel/devices';
   static const String qrPairCodeUrl = '$baseUrl/hotel/devices?code=';
+  static const String hotelRegisterUrl = '$baseUrl/hotel/register';
+  static const String helpUrl = 'https://paxtvlauncher.com/';
 
   static String getQrUrl([String? pairCode]) {
     if (pairCode != null && pairCode.isNotEmpty) {

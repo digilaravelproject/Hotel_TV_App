@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import '../features/authentication/presentation/pages/tv_login_screen.dart';
+import '../features/authentication/presentation/pages/tv_register_screen.dart';
 import '../features/dashboard/presentation/pages/tv_webview_screen.dart';
 
 class RouteHelper {
   // Route Names
   static const String tvLogin = '/tv-login';
   static const String tvWebview = '/tv-dashboard';
+  static const String tvRegister = '/tv-register';
 
   // Route Getters
   static String getTvLoginRoute() => tvLogin;
   static String getTvWebviewRoute() => tvWebview;
+  static String getTvRegisterRoute() => tvRegister;
 
   // Route Generator
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -21,6 +24,10 @@ class RouteHelper {
       case tvWebview:
         return MaterialPageRoute(
           builder: (_) => const TvWebviewScreen(),
+        );
+      case tvRegister:
+        return MaterialPageRoute(
+          builder: (_) => const TvRegisterScreen(),
         );
 
       default:
