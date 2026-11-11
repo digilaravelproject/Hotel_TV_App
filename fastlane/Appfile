@@ -1,0 +1,3 @@
+# PAX TV Hospitality - Fastlane Appfile
+json_key_file("") # Path to the Google Play service account json key file (e.g., "./play-store-key.json")
+package_name("com.paxtv.hospitality") # Your Android package name from build.gradle.kts

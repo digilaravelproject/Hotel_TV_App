@@ -1,0 +1,36 @@
+PAX TV Hospitality is an intelligent, cloud-managed interactive TV launcher designed specifically for luxury hotels, resorts, serviced apartments, and hospitality venues.
+
+Transform ordinary in-room guest televisions into a personalized digital concierge, high-definition entertainment hub, and interactive service portal.
+
+KEY FEATURES AND GUEST SERVICES
+
+1. Personalized Guest Welcome & Hotel Home Screen
+- Displays dynamic guest greetings, localized time, live weather, and room identifiers.
+- Showcase hotel amenities, restaurant recommendations, and daily events directly upon TV startup.
+- Cloud-managed themes with seamless brand customization.
+
+2. In-Room Guest Services & Digital Concierge
+- Interactive hotel facility showcase (Spa, Pool, Gym, Dining, Room Service, City Tours).
+- Digital food & beverage menus, concierge request shortcuts, and front desk assistance.
+- Multi-language navigation support for international travelers.
+
+3. Live TV & Premium Streaming Integration
+- High-definition Live TV channels with fast remote control channel surfing.
+- Easy access to popular streaming and entertainment apps (Netflix, Prime Video, YouTube, Disney+ Hotstar, ZEE5, Sony LIV).
+- Automatic privacy management ensuring guest credentials and viewing history are wiped upon check-out.
+
+4. Wireless Screen Casting
+- Built-in wireless mobile screen mirroring allowing guests to cast their favorite movies, music, and photos directly from Android and iOS smartphones.
+
+5. Cloud CMS & Hotel Fleet Management
+- Centralized hotel administrator dashboard to push firmware updates, announcements, and advertisements in real-time.
+- Quick setup and pairing via on-screen QR Code or remote pairing code.
+- Remote device health monitoring and diagnostic telemetry.
+
+IDEAL FOR
+- Luxury & Boutique Hotels
+- Resorts & Vacation Rentals
+- Corporate Guest Houses & Serviced Suites
+- Hospitals & VIP Healthcare Lounges
+
+For deployment inquiries and cloud management subscriptions, visit: https://paxtvlauncher.com

@@ -1,0 +1,42 @@
+default_platform(:android)
+
+platform :android do
+  desc "Build Flutter Android App Bundle (AAB)"
+  lane :build do
+    sh("flutter build appbundle --release")
+  end
+
+  desc "Build Flutter Android Release APK"
+  lane :build_apk do
+    sh("flutter build apk --release")
+  end
+
+  desc "Upload metadata, screenshots, and graphics to Google Play Store"
+  lane :upload_metadata do
+    supply(
+      package_name: "com.paxtv.hospitality",
+      skip_upload_aab: true,
+      skip_upload_apk: true
+    )
+  end
+
+  desc "Build and upload Release App Bundle to Google Play Internal Testing"
+  lane :deploy_internal do
+    build
+    supply(
+      package_name: "com.paxtv.hospitality",
+      track: "internal",
+      aab: "../build/app/outputs/bundle/release/app-release.aab"
+    )
+  end
+
+  desc "Build and upload Release App Bundle to Google Play Production"
+  lane :deploy_production do
+    build
+    supply(
+      package_name: "com.paxtv.hospitality",
+      track: "production",
+      aab: "../build/app/outputs/bundle/release/app-release.aab"
+    )
+  end
+end
