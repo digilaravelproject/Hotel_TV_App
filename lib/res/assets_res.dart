@@ -7,7 +7,7 @@ class AssetsRes {
   AssetsRes._();
 
   static const String PROJECT_NAME = 'hotel';
-  static const String PROJECT_VERSION = '1.0.1+38';
+  static const String PROJECT_VERSION = '1.0.3+40';
   static const String BANNER = 'assets/banner.png';
   static const String DEMO_ICON = 'assets/demo_icon.svg';
   static const String DEMO_PREVIEW = 'assets/demo_preview.jpg';
