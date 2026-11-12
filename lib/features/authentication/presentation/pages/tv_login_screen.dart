@@ -60,7 +60,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   String? _pairCodeError;
   Timer? _countdownTimer;
   Timer? _pollingTimer;
-  bool _isPairingSuccess = false;
 
   @override
   void initState() {
@@ -213,7 +212,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
 
   Future<void> _generatePairCode() async {
     _stopPairingTimers();
-    _isPairingSuccess = false;
     if (!mounted) return;
 
     // Check if already logged in
@@ -316,8 +314,8 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
 
   void _startPolling() {
     _pollingTimer?.cancel();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
-      if (_pairCode.isEmpty || _remainingSeconds <= 0 || _isPairingSuccess) return;
+    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (timer) async {
+      if (_pairCode.isEmpty || _remainingSeconds <= 0) return;
 
       try {
         final ApiClient apiClient = ApiClient();
@@ -327,32 +325,13 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
         );
 
         if (response.data != null && response.data is Map && response.data['status'] == true) {
-          final respMap = response.data as Map<String, dynamic>;
-          final state = respMap['state']?.toString().toLowerCase();
+          final data = response.data['data'] as Map<String, dynamic>?;
+          final isPaired = data?['paired'] == true;
 
-          // Still waiting for pairing from phone/web
-          if (state == 'pending') {
-            return;
-          }
-
-          final data = respMap['data'] as Map<String, dynamic>?;
-
-          // Check if successfully paired:
-          // Backend returns data with auth/token or full profile when paired!
-          final hasToken = data != null && (
-            (data['auth'] is Map && (data['auth'] as Map)['token'] != null) ||
-            data['token'] != null
-          );
-          final isPaired = hasToken ||
-              data?['paired'] == true ||
-              state == 'paired' ||
-              (state != 'pending' && data != null && data.isNotEmpty);
-
-          if (isPaired && data != null && !_isPairingSuccess) {
-            _isPairingSuccess = true;
+          if (isPaired) {
             _stopPairingTimers();
-            Logger.i('[Pairing] Device successfully paired via phone! Logging in...');
-            await _handleLoginSuccess(data, fullResponse: respMap);
+            Logger.i('[Pairing] Device successfully paired via phone!');
+            await _handleLoginSuccess(data);
           }
         }
       } catch (e) {
@@ -361,7 +340,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     });
   }
 
-  Future<void> _handleLoginSuccess(Map<String, dynamic>? data, {Map<String, dynamic>? fullResponse}) async {
+  Future<void> _handleLoginSuccess(Map<String, dynamic>? data) async {
     try {
       if (data != null) {
         String token = '';
@@ -382,7 +361,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
           await TokenManager.saveToken(token);
         }
 
-        final fullPayload = fullResponse ?? {
+        final fullPayload = {
           'status': true,
           'message': 'Logged in successfully.',
           'data': data.containsKey('data') ? data['data'] : data,
