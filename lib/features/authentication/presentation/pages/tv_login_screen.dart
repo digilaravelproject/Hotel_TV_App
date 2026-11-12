@@ -60,6 +60,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   String? _pairCodeError;
   Timer? _countdownTimer;
   Timer? _pollingTimer;
+  bool _isPairingSuccess = false;
 
   @override
   void initState() {
@@ -212,6 +213,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
 
   Future<void> _generatePairCode() async {
     _stopPairingTimers();
+    _isPairingSuccess = false;
     if (!mounted) return;
 
     // Check if already logged in
@@ -314,8 +316,8 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
 
   void _startPolling() {
     _pollingTimer?.cancel();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (timer) async {
-      if (_pairCode.isEmpty || _remainingSeconds <= 0) return;
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      if (_pairCode.isEmpty || _remainingSeconds <= 0 || _isPairingSuccess) return;
 
       try {
         final ApiClient apiClient = ApiClient();
@@ -324,13 +326,22 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
           data: {'pair_code': _pairCode},
         );
 
-        if (response.data != null && response.data is Map && response.data['status'] == true) {
-          final data = response.data['data'] as Map<String, dynamic>?;
-          final isPaired = data?['paired'] == true;
+        if (response.data != null && response.data is Map) {
+          final respMap = response.data as Map<String, dynamic>;
+          final state = respMap['state']?.toString().toLowerCase();
+          final status = respMap['status'];
 
-          if (isPaired) {
+          if (state == 'expired' || (status == false && state != 'pending')) {
+            _stopPairingTimers();
+            _generatePairCode();
+          } else if (state == 'paired' ||
+              (status == true &&
+                  respMap['data'] != null &&
+                  (respMap['data']['auth'] != null || respMap['data']['paired'] == true))) {
+            _isPairingSuccess = true;
             _stopPairingTimers();
             Logger.i('[Pairing] Device successfully paired via phone!');
+            final data = respMap['data'] as Map<String, dynamic>?;
             await _handleLoginSuccess(data);
           }
         }
