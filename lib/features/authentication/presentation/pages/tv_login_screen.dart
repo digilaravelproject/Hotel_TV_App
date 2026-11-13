@@ -61,6 +61,8 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   Timer? _countdownTimer;
   Timer? _pollingTimer;
   bool _isPairingSuccess = false;
+  bool _isGeneratingCode = false;
+  bool _isPolling = false;
 
   @override
   void initState() {
@@ -212,15 +214,24 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   }
 
   Future<void> _generatePairCode() async {
+    if (_isGeneratingCode) {
+      Logger.d('[Pairing] Pair code generation already in progress. Ignoring duplicate call.');
+      return;
+    }
+    _isGeneratingCode = true;
     _stopPairingTimers();
     _isPairingSuccess = false;
-    if (!mounted) return;
+    if (!mounted) {
+      _isGeneratingCode = false;
+      return;
+    }
 
     // Check if already logged in
     final token = await TokenManager.getToken();
     final hasLoginData = SharedPrefs.containsKey(AppConstants.tvLoginDataKey);
     if (token.isNotEmpty && hasLoginData) {
       Logger.i('[Pairing] Already logged in. Aborting pair code generation and polling.');
+      _isGeneratingCode = false;
       return;
     }
     setState(() {
@@ -290,6 +301,8 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
         _startCountdownTimer();
         _startPolling();
       }
+    } finally {
+      _isGeneratingCode = false;
     }
   }
 
@@ -317,24 +330,31 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   void _startPolling() {
     _pollingTimer?.cancel();
     _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
-      if (_pairCode.isEmpty || _remainingSeconds <= 0 || _isPairingSuccess) return;
+      if (_pairCode.isEmpty || _remainingSeconds <= 0 || _isPairingSuccess || _isPolling || _isGeneratingCode) {
+        return;
+      }
+
+      _isPolling = true;
+      final codeBeingPolled = _pairCode;
 
       try {
         final ApiClient apiClient = ApiClient();
         final response = await apiClient.post(
           ApiConstants.pairStatusUri,
-          data: {'pair_code': _pairCode},
+          data: {'pair_code': codeBeingPolled},
         );
+
+        // Guard: Discard stale response if code changed, screen unmounted, or pairing already succeeded
+        if (!mounted || _pairCode != codeBeingPolled || _isPairingSuccess) {
+          return;
+        }
 
         if (response.data != null && response.data is Map) {
           final respMap = response.data as Map<String, dynamic>;
           final state = respMap['state']?.toString().toLowerCase();
           final status = respMap['status'];
 
-          if (state == 'expired' || (status == false && state != 'pending')) {
-            _stopPairingTimers();
-            _generatePairCode();
-          } else if (state == 'paired' ||
+          if (state == 'paired' ||
               (status == true &&
                   respMap['data'] != null &&
                   (respMap['data']['auth'] != null || respMap['data']['paired'] == true))) {
@@ -343,10 +363,18 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
             Logger.i('[Pairing] Device successfully paired via phone!');
             final data = respMap['data'] as Map<String, dynamic>?;
             await _handleLoginSuccess(data);
+          } else if (state == 'expired') {
+            Logger.w('[Pairing] Active pairing code expired on server.');
+            _stopPairingTimers();
+            _generatePairCode();
           }
+          // Do not regenerate on pending or transient invalid/404.
+          // The countdown timer (_startCountdownTimer) handles natural expiry when _remainingSeconds reaches 0.
         }
       } catch (e) {
         Logger.e('Error polling pair status: $e');
+      } finally {
+        _isPolling = false;
       }
     });
   }
@@ -503,7 +531,9 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
 
   void _stopPairingTimers() {
     _countdownTimer?.cancel();
+    _countdownTimer = null;
     _pollingTimer?.cancel();
+    _pollingTimer = null;
   }
 
   Future<void> _checkEmmConfig() async {
