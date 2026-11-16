@@ -33,5 +33,11 @@ IDEAL FOR
 - Corporate Guest Houses & Serviced Suites
 - Hospitals & VIP Healthcare Lounges
 
+ACCESSIBILITY SERVICE API DISCLOSURE
+PAX TV Hospitality uses the Android AccessibilityService API strictly to provide dedicated hotel TV launcher and kiosk navigation features:
+• Remote Control Home Button & Launcher Management: Detects when the TV remote control Home button is pressed or when the system default launcher appears in the foreground, ensuring that PAX TV Hospitality remains the active interactive guest portal on in-room televisions.
+• TV Navigation Assistance: Facilitates smooth remote control navigation across hotel services, streaming apps, dining menus, and TV amenities.
+• User Privacy Protection: PAX TV Hospitality does NOT collect, read, store, or share any personal user data, keystrokes, credentials, or sensitive information through the AccessibilityService API. The permission is utilized strictly on-device for TV window state monitoring and remote control navigation.
+
 For deployment inquiries and cloud management subscriptions, visit: https://paxtvlauncher.com
 
