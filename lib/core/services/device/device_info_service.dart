@@ -179,7 +179,10 @@ class DeviceInfoService {
       if (!kIsWeb && Platform.isAndroid) {
         final List? inputs = await _channel.invokeMethod<List>('getTvInputs');
         if (inputs != null) {
-          tvInputs = inputs.map((e) => e.toString()).toList();
+          tvInputs = inputs
+              .map((e) => e.toString())
+              .where((name) => name.toUpperCase().contains('HDMI'))
+              .toList();
         }
       }
     } catch (_) {}

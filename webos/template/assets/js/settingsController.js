@@ -242,7 +242,12 @@ window.TVSettingsController = {
   openHdmiMenu() {
     try {
       this.inputSelectionState = "hdmi";
-      this.dashboardFocus = "hdmi_0";
+      const ports = this.hwData.availableTvPorts || this.availableTvPorts || [];
+      if (ports.length > 0) {
+        this.dashboardFocus = "hdmi_0";
+      } else {
+        this.dashboardFocus = "input_back";
+      }
       this.focusCurrentDashboardElement();
     } catch (e) {
       console.warn("[TVSettings] openHdmiMenu error:", e);
@@ -501,7 +506,10 @@ window.TVSettingsController = {
         const rawOs2 = d.os_version || dev.os_version || "16";
         const dynamicPorts = d.availableTvPorts || d.available_tv_ports || d.ports || d.availablePorts;
         if (Array.isArray(dynamicPorts) && dynamicPorts.length > 0) {
-          const formattedPorts = dynamicPorts.map((p) => typeof p === "string" ? p : p.name || p.label || p.id || "HDMI").filter(Boolean);
+          const formattedPorts = dynamicPorts
+            .map((p) => typeof p === "string" ? p : p.name || p.label || p.id || "HDMI")
+            .filter(Boolean)
+            .filter(p => String(p).toUpperCase().includes("HDMI"));
           if (formattedPorts.length > 0) {
             this.availableTvPorts = formattedPorts;
           }
@@ -509,7 +517,10 @@ window.TVSettingsController = {
           try {
             const tvInputs = await window.flutterBridge.getTvInputs();
             if (Array.isArray(tvInputs) && tvInputs.length > 0) {
-              const parsedPorts = tvInputs.map((p) => typeof p === "string" ? p : p.label || p.name || p.id || p.model).filter(Boolean);
+              const parsedPorts = tvInputs
+                .map((p) => typeof p === "string" ? p : p.label || p.name || p.id || p.model)
+                .filter(Boolean)
+                .filter(p => String(p).toUpperCase().includes("HDMI"));
               if (parsedPorts.length > 0) {
                 this.availableTvPorts = parsedPorts;
               }

@@ -340,7 +340,10 @@
                                     </button>
                                     
                                     <!-- HDMI List -->
-                                    <div x-show="inputSelectionState === 'hdmi'" class="flex flex-1 gap-2 flex-wrap h-full">
+                                    <div x-show="inputSelectionState === 'hdmi'" class="flex flex-1 gap-2 flex-wrap h-full items-center">
+                                        <template x-if="!(hwData.availableTvPorts || availableTvPorts) || (hwData.availableTvPorts || availableTvPorts).length === 0">
+                                            <span class="text-xs text-slate-400 italic py-2 px-3 bg-white/5 rounded-xl border border-white/10">No HDMI ports detected</span>
+                                        </template>
                                         <template x-for="(port, pIdx) in (hwData.availableTvPorts || availableTvPorts)" :key="port">
                                             <button :id="`settings_hdmi_${pIdx}`"
                                                     type="button" tabindex="0"

@@ -544,20 +544,29 @@ class FlutterBridgeHandler {
                   'id': val.toString(),
                   'value': val.toString(),
                   'model': val.toString(),
-                  'type': key.toString().toUpperCase().contains('AV') ? 'AV' : 'HDMI',
+                  'type': 'HDMI',
                 });
               });
             }
-            if (allList.isNotEmpty) return allList;
+            // Strict HDMI Filter: Exclude AV, Tuner, TV, Composite, Component, DisplayPort
+            final hdmiOnly = allList.where((p) {
+              final name = (p['name'] ?? p['label'] ?? p['id'] ?? '').toString().toUpperCase();
+              final type = (p['type'] ?? '').toString().toUpperCase();
+              return (name.contains('HDMI') || type == 'HDMI') &&
+                     !name.contains('AV') &&
+                     !name.contains('TUNER') &&
+                     !name.contains('TV (TUNER)') &&
+                     !name.contains('COMPOSITE') &&
+                     !name.contains('COMPONENT');
+            }).toList();
+
+            return hdmiOnly;
           }
         } catch (e) {
           print('[FlutterBridge] Error fetching HDMI models: $e');
         }
 
-        return [
-          {'name': 'HDMI 1', 'label': 'HDMI 1', 'id': 'HDMI 1', 'model': 'HDMI 1'},
-          {'name': 'HDMI 2', 'label': 'HDMI 2', 'id': 'HDMI 2', 'model': 'HDMI 2'},
-        ];
+        return [];
 
       case 'setLanguage':
       case 'changeLanguage':

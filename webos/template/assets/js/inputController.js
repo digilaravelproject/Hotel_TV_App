@@ -32,7 +32,7 @@ window.TVInputController = {
     try {
       if ((_b = window.flutterBridge) == null ? void 0 : _b.getTvInputs) {
         const list = await window.flutterBridge.getTvInputs();
-        if (Array.isArray(list) && list.length > 0) {
+        if (Array.isArray(list)) {
           this.inputPorts = this.normalizePorts(list);
           this.inputLoading = false;
           return;
@@ -41,75 +41,39 @@ window.TVInputController = {
     } catch (e) {
       console.warn("[TVInput] Error fetching TV inputs from bridge:", e);
     }
-    this.inputPorts = this.normalizePorts([
-      {
-        id: "HDMI_1",
-        label: "HDMI 1",
-        name: "HDMI 1",
-        model: "HDMI_1",
-        type: "HDMI",
-        isConnected: true,
-        badge: "4K HDR 60Hz",
-        description: "Set-top Box / Cable TV"
-      },
-      {
-        id: "HDMI_2",
-        label: "HDMI 2 (eARC)",
-        name: "HDMI 2",
-        model: "HDMI_2",
-        type: "HDMI",
-        isConnected: true,
-        badge: "eARC / ARC",
-        description: "Gaming Console / Soundbar"
-      },
-      {
-        id: "AV",
-        label: "AV Input",
-        name: "AV Input",
-        model: "AV",
-        type: "AV",
-        isConnected: true,
-        badge: "Analog RCA",
-        description: "Composite Video / Audio"
-      },
-      {
-        id: "TUNER",
-        label: "Live TV (Tuner)",
-        name: "Live TV (Tuner)",
-        model: "TUNER",
-        type: "TUNER",
-        isConnected: true,
-        badge: "DTV Antenna",
-        description: "Over-The-Air Digital Channels"
-      }
-    ]);
+    this.inputPorts = [];
     this.inputLoading = false;
   },
   normalizePorts(ports) {
-    return (ports || []).map((port, idx) => {
-      const rawId = port.id || port.model || port.name || `PORT_${idx + 1}`;
+    const rawList = Array.isArray(ports) ? ports : [];
+    const hdmiOnly = rawList.filter(port => {
+      const raw = String(port.id || port.model || port.name || port.label || "").toUpperCase();
+      const type = String(port.type || "").toUpperCase();
+      return (raw.includes("HDMI") || type === "HDMI") &&
+             !raw.includes("AV") &&
+             !raw.includes("TUNER") &&
+             !raw.includes("COMPOSITE") &&
+             !raw.includes("TV (TUNER)");
+    });
+    if (hdmiOnly.length === 0) {
+      return [];
+    }
+
+    return hdmiOnly.map((port, idx) => {
+      const rawId = port.id || port.model || port.name || `HDMI_${idx + 1}`;
       const idUpper = String(rawId).toUpperCase();
-      let type = port.type || "HDMI";
-      if (idUpper.includes("AV") || idUpper.includes("COMPOSITE")) type = "AV";
-      else if (idUpper.includes("TUNER") || idUpper.includes("DTV") || idUpper.includes("ANTENNA")) type = "TUNER";
-      else if (idUpper.includes("HDMI")) type = "HDMI";
+      let type = "HDMI";
       let badge = port.badge;
       if (!badge) {
-        if (idUpper.includes("EARC") || idUpper.includes("ARC") || type === "HDMI" && idx === 1) badge = "eARC / ARC";
-        else if (type === "HDMI") badge = "4K HDR 60Hz";
-        else if (type === "AV") badge = "Composite RCA";
-        else if (type === "TUNER") badge = "DTV Antenna";
-        else badge = "Connected";
+        if (idUpper.includes("EARC") || idUpper.includes("ARC") || idx === 1) badge = "eARC / ARC";
+        else badge = "4K HDR 60Hz";
       }
       let desc = port.description;
       if (!desc) {
-        if (type === "HDMI" && (idUpper.includes("1") || idx === 0)) desc = "Set-top Box / Cable TV";
-        else if (type === "HDMI" && (idUpper.includes("2") || idx === 1)) desc = "Gaming Console / Soundbar";
-        else if (type === "HDMI" && (idUpper.includes("3") || idx === 2)) desc = "Media Player / Streaming Device";
-        else if (type === "HDMI") desc = "High Definition Source";
-        else if (type === "AV") desc = "Composite Video / Audio";
-        else if (type === "TUNER") desc = "Over-The-Air Digital Channels";
-        else desc = "Connected Hardware Port";
+        if (idUpper.includes("1") || idx === 0) desc = "Set-top Box / Cable TV";
+        else if (idUpper.includes("2") || idx === 1) desc = "Gaming Console / Soundbar";
+        else if (idUpper.includes("3") || idx === 2) desc = "Media Player / Streaming Device";
+        else desc = "High Definition Source";
       }
       return {
         id: rawId,

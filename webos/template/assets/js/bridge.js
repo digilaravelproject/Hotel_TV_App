@@ -613,20 +613,13 @@ window.loadLocalJson = function(url) {
         if (webos) {
           return [
             { id: "HDMI_1", label: "HDMI 1", name: "HDMI 1", model: "HDMI_1", type: "HDMI", isConnected: true, badge: "4K HDR 60Hz", description: "Set-top Box / Cable TV" },
-            { id: "HDMI_2", label: "HDMI 2 (eARC)", name: "HDMI 2", model: "HDMI_2", type: "HDMI", isConnected: true, badge: "eARC / ARC", description: "Gaming Console / Soundbar" },
-            { id: "AV", label: "AV Input", name: "AV Input", model: "AV", type: "AV", isConnected: true, badge: "Analog RCA", description: "Composite Video / Audio" },
-            { id: "TUNER", label: "Live TV (Tuner)", name: "Live TV (Tuner)", model: "TUNER", type: "TUNER", isConnected: true, badge: "DTV Antenna", description: "Over-The-Air Digital Channels" }
+            { id: "HDMI_2", label: "HDMI 2 (eARC)", name: "HDMI 2", model: "HDMI_2", type: "HDMI", isConnected: true, badge: "eARC / ARC", description: "Gaming Console / Soundbar" }
           ];
         }
         return await callNative("getTvInputs", []);
       } catch (e) {
         console.warn("FlutterBridge not available or getTvInputs error:", e);
-        return [
-          { id: "HDMI_1", label: "HDMI 1", name: "HDMI 1", model: "HDMI_1", type: "HDMI", isConnected: "true" },
-          { id: "HDMI_2", label: "HDMI 2", name: "HDMI 2", model: "HDMI_2", type: "HDMI", isConnected: "true" },
-          { id: "AV", label: "AV Input", name: "AV Input", model: "AV", type: "AV", isConnected: "true" },
-          { id: "TUNER", label: "Live TV (Tuner)", name: "Live TV (Tuner)", model: "TUNER", type: "TUNER", isConnected: "true" }
-        ];
+        return [];
       }
     }
   };
