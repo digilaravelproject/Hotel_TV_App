@@ -79,7 +79,26 @@ class FlutterBridgeHandler {
         } catch (_) {}
 
         if (activeOttList.isEmpty) {
-          return [];
+          // Smart Hybrid Fallback: When admin has not yet configured active_ott for this hotel,
+          // display all valid user-facing installed apps (excluding our own app and system core)
+          final List<Map<String, dynamic>> fallbackApps = [];
+          for (var app in installedApps) {
+            final pkg = (app['package'] ?? app['packageName'] ?? '').toString();
+            final name = (app['name'] ?? app['appName'] ?? '').toString();
+            if (pkg.isEmpty) continue;
+            if (pkg == 'com.paxtv.hospitality' || pkg == 'android' || pkg == 'com.android.settings') continue;
+
+            fallbackApps.add({
+              'name': name.isNotEmpty ? name : pkg,
+              'label': name.isNotEmpty ? name : pkg,
+              'package': pkg,
+              'packageName': pkg,
+              'package_name': pkg,
+              'id': pkg,
+              'icon': app['icon'] ?? app['appIcon'] ?? '',
+            });
+          }
+          return fallbackApps;
         }
 
         // Return ONLY apps from active_ott that are physically INSTALLED on the TV device

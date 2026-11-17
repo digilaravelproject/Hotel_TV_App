@@ -57,3 +57,4 @@ tizen_web/author-signature.xml
 tizen_web/signature1.xml
 tizen_web/.manifest.tmp
 /webos/template/*
+/.agent
