@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+// import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_text.dart';
 import '../../../../core/widget/tv_focusable.dart';
@@ -157,7 +157,8 @@ class ManualModeWidget extends StatelessWidget {
                                     height: 1.35,
                                   ),
                                   children: [
-                                    const TextSpan(text: "Scan QR with camera or visit\n"),
+                                    // const TextSpan(text: "Scan QR with camera or visit\n"),
+                                    const TextSpan(text: "Visit "),
                                     TextSpan(
                                       text: registerUrlWithoutScheme,
                                       style: TextStyle(
@@ -179,6 +180,7 @@ class ManualModeWidget extends StatelessWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        /*
                         // White Rounded QR Card
                         Column(
                           mainAxisSize: MainAxisSize.min,
@@ -215,6 +217,7 @@ class ManualModeWidget extends StatelessWidget {
                         ),
 
                         const SizedBox(width: 14),
+                        */
 
                         // 3 Step Guide Cards
                         Expanded(
