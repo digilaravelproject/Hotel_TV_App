@@ -1150,18 +1150,28 @@
                             </template>
                         </div>
 
-                        <!-- Port Name & Device Type Hint -->
-                        <div class="mt-1 w-full px-2 text-center">
-                            <h3 class="font-black uppercase tracking-wider transition-colors duration-200"
+                        <!-- Connected Device Name (Upper) & Port Name (Niche / Lower) -->
+                        <div class="mt-1 w-full px-2 text-center flex flex-col items-center">
+                            <!-- Upper: Auto-detected Connected Device Name -->
+                            <h3 class="font-black uppercase tracking-wider transition-colors duration-200 line-clamp-1"
                                 :class="[
-                                    isCompactLayout() ? 'text-xl' : 'text-2xl',
-                                    activeInputFocusIndex === idx ? 'text-amber-300 drop-shadow-[0_2px_10px_rgba(255,215,0,0.6)]' : 'text-white'
+                                    isCompactLayout() ? 'text-lg sm:text-xl' : 'text-xl sm:text-2xl',
+                                    activeInputFocusIndex === idx ? 'text-amber-300 drop-shadow-[0_2px_12px_rgba(255,215,0,0.7)]' : 'text-white'
                                 ]"
-                                x-text="port.label || port.name || port.id">
+                                x-text="port.deviceName || port.name || port.label">
                             </h3>
-                            <p class="text-slate-300 text-xs mt-1 font-semibold truncate"
-                               x-text="port.description">
-                            </p>
+
+                            <!-- Niche / Lower: Hardware Port Name badge & specs -->
+                            <div class="mt-2 flex items-center justify-center gap-1.5 flex-wrap">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-black uppercase tracking-wider shadow-sm">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" x-show="port.isConnected"></span>
+                                    <span x-text="port.portName || 'HDMI'"></span>
+                                </span>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-white/10 text-slate-300 text-[11px] font-bold uppercase tracking-wider"
+                                      x-text="port.badge"
+                                      x-show="port.badge">
+                                </span>
+                            </div>
                         </div>
 
                         <!-- Action Button Pill -->

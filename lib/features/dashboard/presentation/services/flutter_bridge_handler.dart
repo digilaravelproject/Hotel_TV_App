@@ -559,8 +559,9 @@ class FlutterBridgeHandler {
             // Strict HDMI Filter: Exclude AV, Tuner, TV, Composite, Component, DisplayPort
             final hdmiOnly = allList.where((p) {
               final name = (p['name'] ?? p['label'] ?? p['id'] ?? '').toString().toUpperCase();
+              final portName = (p['portName'] ?? '').toString().toUpperCase();
               final type = (p['type'] ?? '').toString().toUpperCase();
-              return (name.contains('HDMI') || type == 'HDMI') &&
+              return (name.contains('HDMI') || portName.contains('HDMI') || type == 'HDMI') &&
                      !name.contains('AV') &&
                      !name.contains('TUNER') &&
                      !name.contains('TV (TUNER)') &&

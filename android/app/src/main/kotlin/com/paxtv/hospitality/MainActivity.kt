@@ -692,6 +692,165 @@ class MainActivity : FlutterActivity() {
                idLower.contains("hdmi")
     }
 
+    private fun isValidDeviceName(name: String?): Boolean {
+        if (name.isNullOrBlank()) return false
+        val trimmed = name.trim()
+        val lower = trimmed.lowercase()
+        if (lower.startsWith("hdmi") || 
+            lower == "tv" || 
+            lower.startsWith("com.") || 
+            lower.contains("hw") || 
+            lower.contains("/") ||
+            lower.contains("google play") ||
+            lower.contains("shop")) {
+            return false
+        }
+        return trimmed.length >= 2
+    }
+
+    /**
+     * Auto-detects connected HDMI CEC device names (e.g., Tata Play, Dish TV, PlayStation, Fire TV)
+     * using reflection to support all TV OEM ROMs and Android TV versions safely without crashing.
+     */
+    private fun getCecDeviceNameForInput(input: TvInputInfo, portNumber: Int): String? {
+        // 1. Check TvInputInfo.getHdmiDeviceInfo() reflection
+        try {
+            val getHdmiDeviceInfoMethod = input.javaClass.getMethod("getHdmiDeviceInfo")
+            val hdmiDeviceInfo = getHdmiDeviceInfoMethod.invoke(input)
+            if (hdmiDeviceInfo != null) {
+                val getDisplayNameMethod = hdmiDeviceInfo.javaClass.getMethod("getDisplayName")
+                val name = getDisplayNameMethod.invoke(hdmiDeviceInfo)?.toString()?.trim()
+                if (isValidDeviceName(name)) {
+                    return name
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 2. Check HdmiControlManager connected devices reflection
+        try {
+            val hdmiControlManager = getSystemService("hdmi_control")
+            if (hdmiControlManager != null) {
+                val listMethods = listOf("getConnectedDevicesList", "getAllDeviceInfo", "getDeviceList")
+                for (methodName in listMethods) {
+                    try {
+                        val method = hdmiControlManager.javaClass.getMethod(methodName)
+                        val list = method.invoke(hdmiControlManager) as? List<*>
+                        if (list != null) {
+                            for (item in list) {
+                                if (item == null) continue
+                                val portId = try {
+                                    item.javaClass.getMethod("getPortId").invoke(item) as? Int ?: -1
+                                } catch (_: Exception) { -1 }
+
+                                if (portId == portNumber || portNumber <= 0) {
+                                    val name = try {
+                                        item.javaClass.getMethod("getDisplayName").invoke(item)?.toString()?.trim()
+                                    } catch (_: Exception) { null }
+                                    if (isValidDeviceName(name)) {
+                                        return name
+                                    }
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
+
+                // Check TV client device list
+                try {
+                    val getTvClientMethod = hdmiControlManager.javaClass.getMethod("getTvClient")
+                    val tvClient = getTvClientMethod.invoke(hdmiControlManager)
+                    if (tvClient != null) {
+                        val devListMethod = tvClient.javaClass.getMethod("getDeviceList")
+                        val list = devListMethod.invoke(tvClient) as? List<*>
+                        if (list != null) {
+                            for (item in list) {
+                                if (item == null) continue
+                                val portId = try {
+                                    item.javaClass.getMethod("getPortId").invoke(item) as? Int ?: -1
+                                } catch (_: Exception) { -1 }
+
+                                if (portId == portNumber || portNumber <= 0) {
+                                    val name = try {
+                                        item.javaClass.getMethod("getDisplayName").invoke(item)?.toString()?.trim()
+                                    } catch (_: Exception) { null }
+                                    if (isValidDeviceName(name)) {
+                                        return name
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {}
+
+        return null
+    }
+
+    private fun getConnectedDeviceAndPortName(input: TvInputInfo, hdmiFallbackIndex: Int): Pair<String, String> {
+        val id = input.id
+
+        // 1. Determine Port Number & Port Name
+        var portNum = -1
+        val hdmiMatch = Regex("HDMI[-_\\s]?([0-9]+)", RegexOption.IGNORE_CASE).find(id)
+        if (hdmiMatch != null) {
+            portNum = hdmiMatch.groupValues[1].toIntOrNull() ?: -1
+        } else {
+            val hwMatch = Regex("HW([0-9]+)", RegexOption.IGNORE_CASE).find(id)
+            if (hwMatch != null) {
+                val hwIdx = hwMatch.groupValues[1].toIntOrNull() ?: 0
+                portNum = hwIdx + 1
+            }
+        }
+
+        try {
+            val getHdmiDeviceInfoMethod = input.javaClass.getMethod("getHdmiDeviceInfo")
+            val hdmiDeviceInfo = getHdmiDeviceInfoMethod.invoke(input)
+            if (hdmiDeviceInfo != null) {
+                val pId = hdmiDeviceInfo.javaClass.getMethod("getPortId").invoke(hdmiDeviceInfo) as? Int ?: -1
+                if (pId > 0) {
+                    portNum = pId
+                }
+            }
+        } catch (_: Exception) {}
+
+        val finalPortNum = if (portNum > 0) portNum else hdmiFallbackIndex
+        val portName = "HDMI $finalPortNum"
+
+        // 2. Determine Connected Device Name (Upper)
+        // Step 2a: Check CEC Broadcasted Display Name (Tata Play, Dish TV, Apple TV, etc.)
+        var deviceName = getCecDeviceNameForInput(input, finalPortNum)
+
+        // Step 2b: Check TvInputInfo.loadCustomLabel (User or OS renamed label)
+        if (deviceName.isNullOrBlank()) {
+            val customLabel = try { input.loadCustomLabel(this)?.toString()?.trim() } catch (_: Exception) { null }
+            if (isValidDeviceName(customLabel)) {
+                deviceName = customLabel
+            }
+        }
+
+        // Step 2c: Check TvInputInfo.loadLabel
+        if (deviceName.isNullOrBlank()) {
+            val rawLabel = try { input.loadLabel(this)?.toString()?.trim() } catch (_: Exception) { null }
+            if (isValidDeviceName(rawLabel)) {
+                deviceName = rawLabel
+            }
+        }
+
+        // Step 2d: Friendly fallback if no CEC name broadcasted yet
+        if (deviceName.isNullOrBlank()) {
+            deviceName = when (finalPortNum) {
+                1 -> "Set-top Box / DTH"
+                2 -> "Gaming Console / Media"
+                3 -> "Streaming Player"
+                4 -> "High Definition Source"
+                else -> "HDMI Device"
+            }
+        }
+
+        return Pair(deviceName, portName)
+    }
+
     private fun getTvInputs(): List<String> {
         val inputs = mutableListOf<String>()
         try {
@@ -700,19 +859,9 @@ class MainActivity : FlutterActivity() {
                 var hdmiIndex = 1
                 for (input in tvInputManager.tvInputList) {
                     if (isHardwareHdmiInput(input)) {
-                        val rawLabel = try { input.loadLabel(applicationContext)?.toString() } catch (e: Exception) { null }
-                        val label = if (!rawLabel.isNullOrBlank() && 
-                                        rawLabel.contains("HDMI", ignoreCase = true) && 
-                                        !rawLabel.contains("com.") && 
-                                        !rawLabel.contains("/") &&
-                                        !rawLabel.contains("HW", ignoreCase = true)) {
-                            rawLabel.trim()
-                        } else {
-                            val name = "HDMI $hdmiIndex"
-                            hdmiIndex++
-                            name
-                        }
-                        inputs.add(label)
+                        val (deviceName, portName) = getConnectedDeviceAndPortName(input, hdmiIndex)
+                        hdmiIndex++
+                        inputs.add("$deviceName ($portName)")
                     }
                 }
             }
@@ -1030,14 +1179,16 @@ class MainActivity : FlutterActivity() {
                 for (info in tvInputManager.tvInputList) {
                     val id = info.id
                     val label = info.loadLabel(this)?.toString() ?: id
+                    val customLabel = try { info.loadCustomLabel(this)?.toString() } catch (_: Exception) { null } ?: ""
                     val normId = id.lowercase().replace(" ", "").replace("-", "").replace("_", "")
                     val normLabel = label.lowercase().replace(" ", "").replace("-", "").replace("_", "")
+                    val normCustom = customLabel.lowercase().replace(" ", "").replace("-", "").replace("_", "")
 
-                    if (normId == normalizedPort || normLabel == normalizedPort ||
-                        normId.contains(normalizedPort) || normLabel.contains(normalizedPort) ||
-                        (normalizedPort.isNotEmpty() && (normalizedPort.contains(normId) || normalizedPort.contains(normLabel)))) {
+                    if (normId == normalizedPort || normLabel == normalizedPort || normCustom == normalizedPort ||
+                        normId.contains(normalizedPort) || normLabel.contains(normalizedPort) || normCustom.contains(normalizedPort) ||
+                        (normalizedPort.isNotEmpty() && (normalizedPort.contains(normId) || normalizedPort.contains(normLabel) || normalizedPort.contains(normCustom)))) {
                         resolvedId = id
-                        if (label.isNotEmpty()) displayName = label
+                        displayName = if (customLabel.isNotEmpty()) customLabel else if (label.isNotEmpty()) label else id
                         break
                     }
                 }
@@ -1048,14 +1199,16 @@ class MainActivity : FlutterActivity() {
                 val match = tvInputManager.tvInputList.firstOrNull { info ->
                     val normId = info.id.lowercase().replace(" ", "").replace("-", "").replace("_", "")
                     val normLabel = (info.loadLabel(this)?.toString() ?: "").lowercase().replace(" ", "").replace("-", "").replace("_", "")
-                    normId.contains(normalizedPort) || normLabel.contains(normalizedPort)
+                    val normCustom = (try { info.loadCustomLabel(this)?.toString() } catch (_: Exception) { null } ?: "").lowercase().replace(" ", "").replace("-", "").replace("_", "")
+                    normId.contains(normalizedPort) || normLabel.contains(normalizedPort) || normCustom.contains(normalizedPort)
                 } ?: tvInputManager.tvInputList.firstOrNull { info ->
                     info.type == TvInputInfo.TYPE_HDMI || info.type == TvInputInfo.TYPE_TUNER || info.type == TvInputInfo.TYPE_COMPOSITE
                 } ?: tvInputManager.tvInputList.firstOrNull()
 
                 if (match != null) {
                     resolvedId = match.id
-                    displayName = match.loadLabel(this)?.toString() ?: match.id
+                    val custom = try { match.loadCustomLabel(this)?.toString() } catch (_: Exception) { null }
+                    displayName = if (!custom.isNullOrBlank()) custom else (match.loadLabel(this)?.toString() ?: match.id)
                 }
             }
 
@@ -1115,24 +1268,8 @@ class MainActivity : FlutterActivity() {
                         continue
                     }
 
-                    var rawLabel = try { input.loadLabel(this)?.toString() } catch(e: Exception) { null }
-                    
-                    // Filter out unwanted virtual package labels
-                    if (rawLabel != null && (rawLabel.contains("Google Play", ignoreCase = true) || rawLabel.contains("Shop", ignoreCase = true))) {
-                        rawLabel = null
-                    }
-
-                    val label = if (!rawLabel.isNullOrEmpty() && 
-                                    rawLabel.contains("HDMI", ignoreCase = true) && 
-                                    !rawLabel.contains("com.") && 
-                                    !rawLabel.contains("/") &&
-                                    !rawLabel.contains("HW", ignoreCase = true)) {
-                        rawLabel.trim()
-                    } else {
-                        val name = "HDMI $hdmiIndex"
-                        hdmiIndex++
-                        name
-                    }
+                    val (deviceName, portName) = getConnectedDeviceAndPortName(input, hdmiIndex)
+                    hdmiIndex++
 
                     val state = try {
                         tvInputManager.getInputState(id)
@@ -1144,12 +1281,15 @@ class MainActivity : FlutterActivity() {
 
                     inputsList.add(mapOf(
                         "id" to id,
-                        "label" to label,
-                        "name" to label,
+                        "label" to deviceName,
+                        "name" to deviceName,
+                        "deviceName" to deviceName,
+                        "portName" to portName,
                         "model" to id,
                         "value" to id,
                         "type" to "HDMI",
-                        "isConnected" to isConnected.toString()
+                        "isConnected" to isConnected.toString(),
+                        "hasSignal" to isConnected.toString()
                     ))
                 }
             }

@@ -47,7 +47,7 @@ window.TVInputController = {
   normalizePorts(ports) {
     const rawList = Array.isArray(ports) ? ports : [];
     const hdmiOnly = rawList.filter(port => {
-      const raw = String(port.id || port.model || port.name || port.label || "").toUpperCase();
+      const raw = String(port.id || port.model || port.name || port.label || port.portName || port.deviceName || "").toUpperCase();
       const type = String(port.type || "").toUpperCase();
       return (raw.includes("HDMI") || type === "HDMI") &&
              !raw.includes("AV") &&
@@ -68,24 +68,54 @@ window.TVInputController = {
         if (idUpper.includes("EARC") || idUpper.includes("ARC") || idx === 1) badge = "eARC / ARC";
         else badge = "4K HDR 60Hz";
       }
-      let desc = port.description;
-      if (!desc) {
-        if (idUpper.includes("1") || idx === 0) desc = "Set-top Box / Cable TV";
-        else if (idUpper.includes("2") || idx === 1) desc = "Gaming Console / Soundbar";
-        else if (idUpper.includes("3") || idx === 2) desc = "Media Player / Streaming Device";
-        else desc = "High Definition Source";
-      }
-      let cleanName = port.name || port.label || "";
-      if (!cleanName || cleanName.includes(".") || cleanName.includes("/") || cleanName.toUpperCase().includes("HW")) {
+
+      // 1. Port Name (Niche / Lower) e.g., HDMI 1, HDMI 2
+      let portName = (port.portName || "").trim();
+      if (!portName) {
         const matchHdmi = idUpper.match(/HDMI[-_\s]?([0-9]+)/i);
-        if (matchHdmi) cleanName = "HDMI " + matchHdmi[1];
-        else cleanName = `HDMI ${idx + 1}`;
+        if (matchHdmi) {
+          portName = "HDMI " + matchHdmi[1];
+        } else {
+          const matchLabel = String(port.label || port.name || "").match(/HDMI[-_\s]?([0-9]+)/i);
+          if (matchLabel) {
+            portName = "HDMI " + matchLabel[1];
+          } else {
+            portName = `HDMI ${idx + 1}`;
+          }
+        }
       }
+
+      // 2. Connected Device Name (Upper) e.g., Tata Play, Dish TV, PlayStation 5
+      let deviceName = (port.deviceName || "").trim();
+      const rawLabel = String(port.label || port.name || "").trim();
+      const isGenericHdmi = /^HDMI[\s\-_0-9]*$/i.test(rawLabel);
+      const isInternalId = rawLabel.includes(".") || rawLabel.includes("/") || rawLabel.toUpperCase().includes("HW");
+
+      if (!deviceName && rawLabel && !isGenericHdmi && !isInternalId) {
+        deviceName = rawLabel;
+      }
+
+      // Fallback contextual device name if no CEC broadcast
+      if (!deviceName) {
+        if (idUpper.includes("1") || portName.includes("1") || idx === 0) {
+          deviceName = "Set-top Box / DTH";
+        } else if (idUpper.includes("2") || portName.includes("2") || idx === 1) {
+          deviceName = "Gaming Console / Media";
+        } else if (idUpper.includes("3") || portName.includes("3") || idx === 2) {
+          deviceName = "Streaming Player";
+        } else {
+          deviceName = "Connected Device";
+        }
+      }
+
+      let desc = port.description || portName;
 
       return {
         id: rawId,
-        label: cleanName,
-        name: cleanName,
+        label: deviceName,
+        name: deviceName,
+        deviceName: deviceName,
+        portName: portName,
         model: port.model || rawId,
         type,
         badge,
@@ -103,10 +133,13 @@ window.TVInputController = {
     if (!this.currentActivePortId) return "HDMI 1";
     if (Array.isArray(this.inputPorts) && this.inputPorts.length > 0) {
       const found = this.inputPorts.find(
-        (p) => p && (p.id === this.currentActivePortId || p.model === this.currentActivePortId || p.name === this.currentActivePortId)
+        (p) => p && (p.id === this.currentActivePortId || p.model === this.currentActivePortId || p.name === this.currentActivePortId || p.portName === this.currentActivePortId)
       );
       if (found) {
-        return found.label || found.name || "HDMI 1";
+        if (found.deviceName && found.portName) {
+          return `${found.deviceName} (${found.portName})`;
+        }
+        return found.portName || found.deviceName || found.label || found.name || "HDMI 1";
       }
     }
     const raw = String(this.currentActivePortId).trim();
@@ -116,7 +149,11 @@ window.TVInputController = {
     if (raw.toUpperCase().includes("TUNER") || raw.toUpperCase().includes("DTV") || raw.toUpperCase().includes("ANTENNA")) return "Live TV";
     if (raw.toUpperCase() === "IPTV") return "IPTV";
     if (Array.isArray(this.inputPorts) && this.inputPorts.length > 0) {
-      return this.inputPorts[0].label || this.inputPorts[0].name || "HDMI 1";
+      const first = this.inputPorts[0];
+      if (first.deviceName && first.portName) {
+        return `${first.deviceName} (${first.portName})`;
+      }
+      return first.portName || first.deviceName || first.label || first.name || "HDMI 1";
     }
     return "HDMI 1";
   },
