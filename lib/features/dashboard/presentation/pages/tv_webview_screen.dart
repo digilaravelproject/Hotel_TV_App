@@ -138,7 +138,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
 
   void _startInactivityTimer() {
     _inactivityTimer?.cancel();
-    _inactivityTimer = Timer(const Duration(minutes: 2), () {
+    _inactivityTimer = Timer(AppConstants.screensaverInactivityDuration, () {
       if (mounted) {
         setState(() {
           _showScreensaver = true;
