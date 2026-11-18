@@ -75,10 +75,17 @@ window.TVInputController = {
         else if (idUpper.includes("3") || idx === 2) desc = "Media Player / Streaming Device";
         else desc = "High Definition Source";
       }
+      let cleanName = port.name || port.label || "";
+      if (!cleanName || cleanName.includes(".") || cleanName.includes("/") || cleanName.toUpperCase().includes("HW")) {
+        const matchHdmi = idUpper.match(/HDMI[-_\s]?([0-9]+)/i);
+        if (matchHdmi) cleanName = "HDMI " + matchHdmi[1];
+        else cleanName = `HDMI ${idx + 1}`;
+      }
+
       return {
         id: rawId,
-        label: port.label || port.name || rawId,
-        name: port.name || port.label || rawId,
+        label: cleanName,
+        name: cleanName,
         model: port.model || rawId,
         type,
         badge,
@@ -105,23 +112,13 @@ window.TVInputController = {
     const raw = String(this.currentActivePortId).trim();
     const matchHdmi = raw.match(/HDMI[-_\s]?([0-9]+)/i);
     if (matchHdmi) return "HDMI " + matchHdmi[1];
-    const matchHw = raw.match(/^HW([0-9]+)/i);
-    if (matchHw) return "HDMI " + matchHw[1];
     if (raw.toUpperCase().includes("AV") || raw.toUpperCase().includes("COMPOSITE")) return "AV Input";
     if (raw.toUpperCase().includes("TUNER") || raw.toUpperCase().includes("DTV") || raw.toUpperCase().includes("ANTENNA")) return "Live TV";
     if (raw.toUpperCase() === "IPTV") return "IPTV";
-    if (raw.includes("/") || raw.includes(".")) {
-      const parts = raw.split("/");
-      const lastPart = parts[parts.length - 1];
-      if (lastPart) {
-        const hdmiSub = lastPart.match(/HDMI[-_\s]?([0-9]+)/i);
-        if (hdmiSub) return "HDMI " + hdmiSub[1];
-        const hwSub = lastPart.match(/HW([0-9]+)/i);
-        if (hwSub) return "HDMI " + hwSub[1];
-        return lastPart.replace(/_/g, " ");
-      }
+    if (Array.isArray(this.inputPorts) && this.inputPorts.length > 0) {
+      return this.inputPorts[0].label || this.inputPorts[0].name || "HDMI 1";
     }
-    return raw.replace(/_/g, " ");
+    return "HDMI 1";
   },
   getGridCols() {
     const total = this.inputPorts ? this.inputPorts.length : 0;

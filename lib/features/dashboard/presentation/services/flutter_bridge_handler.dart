@@ -253,6 +253,10 @@ class FlutterBridgeHandler {
           deviceName = 'Hotel TV';
         }
 
+        final List<String> tvInputs = (info['tv_inputs'] is List)
+            ? (info['tv_inputs'] as List).map((e) => e.toString()).toList()
+            : [];
+
         final deviceMap = {
           'device_id': info['deviceId'] ?? '',
           'mac_address': info['macAddress'] ?? '',
@@ -278,6 +282,10 @@ class FlutterBridgeHandler {
           'device_name': deviceName,
           'deviceName': deviceName,
           'name': deviceName,
+          'availableTvPorts': tvInputs,
+          'available_tv_ports': tvInputs,
+          'ports': tvInputs,
+          'availablePorts': tvInputs,
         };
         return {
           'status': true,

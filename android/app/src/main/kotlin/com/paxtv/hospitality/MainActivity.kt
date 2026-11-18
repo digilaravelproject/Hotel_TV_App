@@ -674,6 +674,24 @@ class MainActivity : FlutterActivity() {
 
         return ""
     }
+    private fun isHardwareHdmiInput(input: android.media.tv.TvInputInfo): Boolean {
+        val idLower = input.id.lowercase()
+        if (idLower.contains("tuner") ||
+            idLower.contains("composite") ||
+            idLower.contains("component") ||
+            idLower.contains("vga") ||
+            idLower.contains("dvi") ||
+            idLower.contains("google.android.videos") ||
+            idLower.contains("livetv") ||
+            idLower.contains("zee5") ||
+            idLower.contains("play.movies")) {
+            return false
+        }
+        return input.type == android.media.tv.TvInputInfo.TYPE_HDMI ||
+               input.isPassthroughInput ||
+               idLower.contains("hdmi")
+    }
+
     private fun getTvInputs(): List<String> {
         val inputs = mutableListOf<String>()
         try {
@@ -681,15 +699,20 @@ class MainActivity : FlutterActivity() {
             if (tvInputManager != null) {
                 var hdmiIndex = 1
                 for (input in tvInputManager.tvInputList) {
-                    // Strict filter: ONLY genuine hardware HDMI inputs (No AV, No TV/Tuner, No Component)
-                    if (input.type == android.media.tv.TvInputInfo.TYPE_HDMI || input.isPassthroughInput) {
-                        val label = input.loadLabel(applicationContext)?.toString()
-                        if (!label.isNullOrBlank() && label.contains("HDMI", ignoreCase = true) && !label.contains("com.") && !label.contains("/")) {
-                            inputs.add(label.trim())
+                    if (isHardwareHdmiInput(input)) {
+                        val rawLabel = try { input.loadLabel(applicationContext)?.toString() } catch (e: Exception) { null }
+                        val label = if (!rawLabel.isNullOrBlank() && 
+                                        rawLabel.contains("HDMI", ignoreCase = true) && 
+                                        !rawLabel.contains("com.") && 
+                                        !rawLabel.contains("/") &&
+                                        !rawLabel.contains("HW", ignoreCase = true)) {
+                            rawLabel.trim()
                         } else {
-                            inputs.add("HDMI $hdmiIndex")
+                            val name = "HDMI $hdmiIndex"
                             hdmiIndex++
+                            name
                         }
+                        inputs.add(label)
                     }
                 }
             }
@@ -1088,10 +1111,7 @@ class MainActivity : FlutterActivity() {
                 for (input in inputList) {
                     val id = input.id
                     
-                    // Strict filter: ONLY genuine hardware HDMI inputs (No AV, No Tuner/Live TV, No Component, No VGA)
-                    val isHdmiInput = input.type == TvInputInfo.TYPE_HDMI || input.isPassthroughInput
-
-                    if (!isHdmiInput) {
+                    if (!isHardwareHdmiInput(input)) {
                         continue
                     }
 
@@ -1102,8 +1122,12 @@ class MainActivity : FlutterActivity() {
                         rawLabel = null
                     }
 
-                    val label = if (!rawLabel.isNullOrEmpty() && rawLabel.contains("HDMI", ignoreCase = true) && !rawLabel.contains("com.") && !rawLabel.contains("/")) {
-                        rawLabel
+                    val label = if (!rawLabel.isNullOrEmpty() && 
+                                    rawLabel.contains("HDMI", ignoreCase = true) && 
+                                    !rawLabel.contains("com.") && 
+                                    !rawLabel.contains("/") &&
+                                    !rawLabel.contains("HW", ignoreCase = true)) {
+                        rawLabel.trim()
                     } else {
                         val name = "HDMI $hdmiIndex"
                         hdmiIndex++

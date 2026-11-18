@@ -363,6 +363,9 @@ window.TVSettingsController = {
         return matchedHdmi;
       }
       if (String(port).toUpperCase().startsWith("HDMI")) {
+        if (ports.length > 0) {
+          return ports[0];
+        }
         return port;
       }
       return this.getAppPackageName(port);
@@ -418,7 +421,13 @@ window.TVSettingsController = {
     try {
       const val = this.getResolvedPortPreference();
       if (val === "IPTV") return "IPTV";
-      if (this.isHdmiSelected()) return val;
+      if (this.isHdmiSelected()) {
+        const ports = ((_a = this.hwData) == null ? void 0 : _a.availableTvPorts) || this.availableTvPorts || [];
+        if (ports.length > 0 && !ports.some(p => String(p).toLowerCase() === String(val).toLowerCase())) {
+          return ports[0];
+        }
+        return val;
+      }
       const apps = (typeof this.getActiveOttList === "function" ? this.getActiveOttList() : null) || (window.TVAppsController && typeof window.TVAppsController.getActiveOttList === "function" ? window.TVAppsController.getActiveOttList() : null) || ((_a = this.hotelData) == null ? void 0 : _a.active_ott) || [];
       const found = apps.find((a) => {
         const pkg = this.getAppPackageName(a);
