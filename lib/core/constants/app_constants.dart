@@ -9,6 +9,9 @@ class AppConstants {
   static const String hotelRegisterUrl = '$baseUrl/hotel/register';
   static const String helpUrl = 'https://paxtvlauncher.com/';
 
+  // Feature Flags
+  static const bool showUsePhoneTab = false;
+
   static String getQrUrl([String? pairCode]) {
     if (pairCode != null && pairCode.isNotEmpty) {
       return '$qrPairCodeUrl$pairCode';

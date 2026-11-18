@@ -80,7 +80,9 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     submitFocus = FocusNode();
     demoActionFocus = FocusNode();
 
-    selectedTabNotifier = ValueNotifier<TvLoginTab>(TvLoginTab.qr);
+    selectedTabNotifier = ValueNotifier<TvLoginTab>(
+      AppConstants.showUsePhoneTab ? TvLoginTab.qr : TvLoginTab.manual,
+    );
 
     // ── D-PAD NAVIGATION FOR TOP TABS ──────────────────────────────────
     // Tab 1: Use Phone (QR Mode)
@@ -102,8 +104,10 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     manualTabFocus.onKeyEvent = (node, event) {
       if (event is KeyDownEvent) {
         if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-          qrTabFocus.requestFocus();
-          return KeyEventResult.handled;
+          if (AppConstants.showUsePhoneTab) {
+            qrTabFocus.requestFocus();
+            return KeyEventResult.handled;
+          }
         }
         if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
           demoTabFocus.requestFocus();
@@ -209,7 +213,9 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
         CustomSnackbar.showError(message: widget.expiredNotice!);
       }
       _checkEmmConfig();
-      _generatePairCode();
+      if (AppConstants.showUsePhoneTab) {
+        _generatePairCode();
+      }
     });
   }
 
@@ -594,19 +600,22 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildTabItem(
-            tab: TvLoginTab.qr,
-            label: "Use Phone",
-            isSelected: selectedTab == TvLoginTab.qr,
-            focusNode: qrTabFocus,
-            autofocus: true,
-          ),
-          const SizedBox(width: 3),
+          if (AppConstants.showUsePhoneTab) ...[
+            _buildTabItem(
+              tab: TvLoginTab.qr,
+              label: "Use Phone",
+              isSelected: selectedTab == TvLoginTab.qr,
+              focusNode: qrTabFocus,
+              autofocus: true,
+            ),
+            const SizedBox(width: 3),
+          ],
           _buildTabItem(
             tab: TvLoginTab.manual,
             label: "Use Remote",
             isSelected: selectedTab == TvLoginTab.manual,
             focusNode: manualTabFocus,
+            autofocus: !AppConstants.showUsePhoneTab,
           ),
           const SizedBox(width: 3),
           _buildTabItem(
