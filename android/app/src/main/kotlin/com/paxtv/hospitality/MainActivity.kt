@@ -679,22 +679,16 @@ class MainActivity : FlutterActivity() {
         try {
             val tvInputManager = applicationContext.getSystemService(Context.TV_INPUT_SERVICE) as? android.media.tv.TvInputManager
             if (tvInputManager != null) {
+                var hdmiIndex = 1
                 for (input in tvInputManager.tvInputList) {
-                    // Filter for physical inputs (HDMI, Composite, Component, DisplayPort, Tuner)
-                    if (input.type == android.media.tv.TvInputInfo.TYPE_HDMI || 
-                        input.type == android.media.tv.TvInputInfo.TYPE_COMPOSITE ||
-                        input.type == android.media.tv.TvInputInfo.TYPE_TUNER ||
-                        input.type == android.media.tv.TvInputInfo.TYPE_COMPONENT ||
-                        input.type == android.media.tv.TvInputInfo.TYPE_DISPLAY_PORT) {
-                        
+                    // Strict filter: ONLY genuine hardware HDMI inputs (No AV, No TV/Tuner, No Component)
+                    if (input.type == android.media.tv.TvInputInfo.TYPE_HDMI || input.isPassthroughInput) {
                         val label = input.loadLabel(applicationContext)?.toString()
-                        if (!label.isNullOrBlank()) {
-                            inputs.add(label)
+                        if (!label.isNullOrBlank() && label.contains("HDMI", ignoreCase = true) && !label.contains("com.") && !label.contains("/")) {
+                            inputs.add(label.trim())
                         } else {
-                            // Fallback generic name if no label
-                            if (input.type == android.media.tv.TvInputInfo.TYPE_HDMI) inputs.add("HDMI")
-                            else if (input.type == android.media.tv.TvInputInfo.TYPE_TUNER) inputs.add("TV")
-                            else inputs.add("AV")
+                            inputs.add("HDMI $hdmiIndex")
+                            hdmiIndex++
                         }
                     }
                 }
@@ -704,12 +698,7 @@ class MainActivity : FlutterActivity() {
         }
         
         // Remove duplicates and sort (e.g. HDMI 1, HDMI 2)
-        var distinctInputs = inputs.distinct().toMutableList()
-        if (distinctInputs.isEmpty()) {
-            distinctInputs.add("HDMI 1")
-            distinctInputs.add("HDMI 2")
-        }
-        return distinctInputs
+        return inputs.distinct().toList()
     }
 
     private fun getNetworkDetails(): Map<String, String> {
@@ -1095,23 +1084,14 @@ class MainActivity : FlutterActivity() {
             if (tvInputManager != null) {
                 val inputList = tvInputManager.tvInputList
                 var hdmiIndex = 1
-                var avIndex = 1
-                var tunerIndex = 1
 
                 for (input in inputList) {
                     val id = input.id
                     
-                    // Exclude non-hardware / virtual app inputs (like Google Play Movies & TV, etc.)
-                    val isHardwareInput = input.type == TvInputInfo.TYPE_HDMI ||
-                                          input.type == TvInputInfo.TYPE_TUNER ||
-                                          input.type == TvInputInfo.TYPE_COMPOSITE ||
-                                          input.type == TvInputInfo.TYPE_COMPONENT ||
-                                          input.type == TvInputInfo.TYPE_DISPLAY_PORT ||
-                                          input.type == TvInputInfo.TYPE_VGA ||
-                                          input.type == TvInputInfo.TYPE_DVI ||
-                                          input.isPassthroughInput
+                    // Strict filter: ONLY genuine hardware HDMI inputs (No AV, No Tuner/Live TV, No Component, No VGA)
+                    val isHdmiInput = input.type == TvInputInfo.TYPE_HDMI || input.isPassthroughInput
 
-                    if (!isHardwareInput) {
+                    if (!isHdmiInput) {
                         continue
                     }
 
@@ -1122,39 +1102,12 @@ class MainActivity : FlutterActivity() {
                         rawLabel = null
                     }
 
-                    val label = if (!rawLabel.isNullOrEmpty() && !rawLabel.contains("com.") && !rawLabel.contains("/") && !rawLabel.contains("HW")) {
+                    val label = if (!rawLabel.isNullOrEmpty() && rawLabel.contains("HDMI", ignoreCase = true) && !rawLabel.contains("com.") && !rawLabel.contains("/")) {
                         rawLabel
                     } else {
-                        when (input.type) {
-                            TvInputInfo.TYPE_HDMI -> {
-                                val name = "HDMI $hdmiIndex"
-                                hdmiIndex++
-                                name
-                            }
-                            TvInputInfo.TYPE_TUNER -> {
-                                val name = if (tunerIndex == 1) "Live TV (Tuner)" else "Live TV $tunerIndex"
-                                tunerIndex++
-                                name
-                            }
-                            TvInputInfo.TYPE_COMPOSITE -> {
-                                val name = if (avIndex == 1) "AV Input" else "AV $avIndex"
-                                avIndex++
-                                name
-                            }
-                            TvInputInfo.TYPE_COMPONENT -> "Component"
-                            TvInputInfo.TYPE_DISPLAY_PORT -> "DisplayPort"
-                            TvInputInfo.TYPE_VGA -> "VGA"
-                            TvInputInfo.TYPE_DVI -> "DVI"
-                            else -> {
-                                if (input.isPassthroughInput) {
-                                    val name = "HDMI $hdmiIndex"
-                                    hdmiIndex++
-                                    name
-                                } else {
-                                    "TV Port"
-                                }
-                            }
-                        }
+                        val name = "HDMI $hdmiIndex"
+                        hdmiIndex++
+                        name
                     }
 
                     val state = try {
@@ -1171,12 +1124,7 @@ class MainActivity : FlutterActivity() {
                         "name" to label,
                         "model" to id,
                         "value" to id,
-                        "type" to when(input.type) {
-                            TvInputInfo.TYPE_HDMI -> "HDMI"
-                            TvInputInfo.TYPE_TUNER -> "TUNER"
-                            TvInputInfo.TYPE_COMPOSITE -> "AV"
-                            else -> "HARDWARE"
-                        },
+                        "type" to "HDMI",
                         "isConnected" to isConnected.toString()
                     ))
                 }

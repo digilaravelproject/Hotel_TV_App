@@ -530,8 +530,8 @@
                 📺
             </div>
             <h3 class="text-2xl font-bold text-white mb-2" x-text="t('no_apps_title', 'No Applications Installed')">No Applications Installed</h3>
-            <p class="text-sm font-semibold text-slate-400 max-w-md" x-text="t('no_apps_desc', 'No supported streaming applications were detected on this TV. Please install YouTube, Netflix, or other apps from the LG Content Store.')">
-                No supported streaming applications were detected on this TV. Please install YouTube, Netflix, or other apps from the LG Content Store.
+            <p class="text-sm font-semibold text-slate-400 max-w-md" x-text="t('no_apps_desc', 'No streaming applications detected. Please install apps from Google Play Store.')">
+                No streaming applications detected. Please install apps from Google Play Store.
             </p>
         </div>
 
@@ -1043,7 +1043,7 @@
                     TV INPUTS
                 </h1>
                 <p class="text-sm font-semibold text-slate-300 tracking-wide mt-0.5">
-                    Select a connected hardware port to switch TV display (HDMI, Set-top Box, Console, AV, Tuner)
+                    Select a connected hardware HDMI port to switch TV display (HDMI 1, HDMI 2, Set-top Box, Console)
                 </p>
             </div>
         </div>
@@ -1079,10 +1079,22 @@
     </template>
 
     <!-- ============================================================
-         3. TV INPUTS DYNAMIC ADAPTIVE HARDWARE PORTS GRID
-         Automatically adapts layout for 1, 2, 3, 4, 5, or 6+ ports
+         3. TV INPUTS DYNAMIC ADAPTIVE HARDWARE PORTS GRID / EMPTY STATE
          ============================================================ -->
-    <template x-if="!inputLoading">
+    <template x-if="!inputLoading && (!inputPorts || inputPorts.length === 0)">
+        <div class="flex flex-col items-center justify-center py-20 text-center relative z-10 space-y-4">
+            <div class="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-500">
+                <svg class="w-10 h-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                </svg>
+            </div>
+            <div class="text-xl font-bold text-slate-300 uppercase tracking-wider">No Hardware HDMI Ports Detected</div>
+            <p class="text-sm text-slate-400 max-w-md">No connected HDMI hardware inputs were reported by this TV device.</p>
+        </div>
+    </template>
+
+    <template x-if="!inputLoading && inputPorts && inputPorts.length > 0">
         <div class="w-full relative z-10 my-4">
             <div :class="getGridContainerClass()">
 
@@ -1549,7 +1561,10 @@
                                     </button>
                                     
                                     <!-- HDMI List -->
-                                    <div x-show="inputSelectionState === 'hdmi'" class="flex flex-1 gap-2 flex-wrap h-full">
+                                    <div x-show="inputSelectionState === 'hdmi'" class="flex flex-1 gap-2 flex-wrap h-full items-center">
+                                        <template x-if="!(hwData.availableTvPorts || availableTvPorts) || (hwData.availableTvPorts || availableTvPorts).length === 0">
+                                            <span class="text-xs text-slate-400 italic py-2 px-3 bg-white/5 rounded-xl border border-white/10">No HDMI ports detected</span>
+                                        </template>
                                         <template x-for="(port, pIdx) in (hwData.availableTvPorts || availableTvPorts)" :key="port">
                                             <button :id="`settings_hdmi_${pIdx}`"
                                                     type="button" tabindex="0"

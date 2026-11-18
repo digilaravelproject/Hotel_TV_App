@@ -61,30 +61,20 @@ window.TVAppsController = {
         if (typeof window.flutterBridge.getInstalledApps === "function") {
           const installed = await window.flutterBridge.getInstalledApps();
           if (Array.isArray(installed)) {
-            const installedPkgSet = /* @__PURE__ */ new Set();
-            installed.forEach((item) => {
-              if (typeof item === "string") {
-                installedPkgSet.add(item.toLowerCase().trim());
-              } else if (item && typeof item === "object") {
-                const pkg = item.package_name || item.packageName || item.package || item.id;
-                if (pkg) installedPkgSet.add(String(pkg).toLowerCase().trim());
-              }
-            });
-            const filtered = baseList.filter((app) => {
-              const appPkg = (app.package_name || app.id || "").toLowerCase().trim();
-              return installedPkgSet.has(appPkg);
-            });
-            this.activeOttList = filtered;
+            // Flutter bridge already verifies apps (matched with active_ott or smart hybrid fallback)
+            this.activeOttList = installed;
             this.hasSyncedInstalled = true;
             if (window.tvAppInstance) {
-              window.tvAppInstance.activeOttList = filtered;
+              window.tvAppInstance.activeOttList = installed;
             }
-            console.log(`[TVApps] Synced with Flutter TV: ${filtered.length} of ${baseList.length} configured apps are installed`);
+            console.log(`[TVApps] Synced with Flutter TV: ${installed.length} apps available`);
+            return;
           }
         }
       } catch (e) {
         console.warn("[TVApps] Error querying installed apps from bridge:", e);
       }
+      return;
     }
   },
   getAppIcon(app) {

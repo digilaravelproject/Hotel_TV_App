@@ -79,7 +79,26 @@ class FlutterBridgeHandler {
         } catch (_) {}
 
         if (activeOttList.isEmpty) {
-          return [];
+          // Smart Hybrid Fallback: When admin has not yet configured active_ott for this hotel,
+          // display all valid user-facing installed apps (excluding our own app and system core)
+          final List<Map<String, dynamic>> fallbackApps = [];
+          for (var app in installedApps) {
+            final pkg = (app['package'] ?? app['packageName'] ?? '').toString();
+            final name = (app['name'] ?? app['appName'] ?? '').toString();
+            if (pkg.isEmpty) continue;
+            if (pkg == 'com.paxtv.hospitality' || pkg == 'android' || pkg == 'com.android.settings') continue;
+
+            fallbackApps.add({
+              'name': name.isNotEmpty ? name : pkg,
+              'label': name.isNotEmpty ? name : pkg,
+              'package': pkg,
+              'packageName': pkg,
+              'package_name': pkg,
+              'id': pkg,
+              'icon': app['icon'] ?? app['appIcon'] ?? '',
+            });
+          }
+          return fallbackApps;
         }
 
         // Return ONLY apps from active_ott that are physically INSTALLED on the TV device
@@ -525,20 +544,29 @@ class FlutterBridgeHandler {
                   'id': val.toString(),
                   'value': val.toString(),
                   'model': val.toString(),
-                  'type': key.toString().toUpperCase().contains('AV') ? 'AV' : 'HDMI',
+                  'type': 'HDMI',
                 });
               });
             }
-            if (allList.isNotEmpty) return allList;
+            // Strict HDMI Filter: Exclude AV, Tuner, TV, Composite, Component, DisplayPort
+            final hdmiOnly = allList.where((p) {
+              final name = (p['name'] ?? p['label'] ?? p['id'] ?? '').toString().toUpperCase();
+              final type = (p['type'] ?? '').toString().toUpperCase();
+              return (name.contains('HDMI') || type == 'HDMI') &&
+                     !name.contains('AV') &&
+                     !name.contains('TUNER') &&
+                     !name.contains('TV (TUNER)') &&
+                     !name.contains('COMPOSITE') &&
+                     !name.contains('COMPONENT');
+            }).toList();
+
+            return hdmiOnly;
           }
         } catch (e) {
           print('[FlutterBridge] Error fetching HDMI models: $e');
         }
 
-        return [
-          {'name': 'HDMI 1', 'label': 'HDMI 1', 'id': 'HDMI 1', 'model': 'HDMI 1'},
-          {'name': 'HDMI 2', 'label': 'HDMI 2', 'id': 'HDMI 2', 'model': 'HDMI 2'},
-        ];
+        return [];
 
       case 'setLanguage':
       case 'changeLanguage':
