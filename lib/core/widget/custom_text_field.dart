@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
-class CustomTextField extends StatefulWidget {
+class CustomTextField extends StatelessWidget {
   final TextEditingController controller;
 
   /// Text
@@ -50,188 +49,109 @@ class CustomTextField extends StatefulWidget {
   });
 
   @override
-  State<CustomTextField> createState() => _CustomTextFieldState();
-}
-
-class _CustomTextFieldState extends State<CustomTextField>
-    with WidgetsBindingObserver {
-  bool _isEditing = false;
-  late final FocusNode _effectiveFocusNode;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _effectiveFocusNode = widget.focusNode ?? FocusNode();
-    _effectiveFocusNode.addListener(_handleFocusChange);
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    if (widget.focusNode == null) {
-      _effectiveFocusNode.dispose();
-    } else {
-      _effectiveFocusNode.removeListener(_handleFocusChange);
-    }
-    super.dispose();
-  }
-
-  void _handleFocusChange() {
-    if (!_effectiveFocusNode.hasFocus && _isEditing) {
-      setState(() => _isEditing = false);
-    }
-  }
-
-  @override
-  void didChangeMetrics() {
-    super.didChangeMetrics();
-    // When the soft keyboard is dismissed (e.g. Back button pressed on remote),
-    // bottom viewInsets becomes 0. Exit editing mode so D-pad navigation resumes.
-    final bottomInset = View.of(context).viewInsets.bottom;
-    if (bottomInset == 0 && _isEditing) {
-      setState(() => _isEditing = false);
-    }
-  }
-
-  void _startEditing() {
-    if (!_isEditing) {
-      setState(() => _isEditing = true);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        SystemChannels.textInput.invokeMethod('TextInput.show');
-      });
-    }
-  }
-
-  void _stopEditing() {
-    if (_isEditing) {
-      setState(() => _isEditing = false);
-      SystemChannels.textInput.invokeMethod('TextInput.hide');
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     Widget buildField(bool isFocused) {
-      return Focus(
-        canRequestFocus: false,
-        onKeyEvent: (node, event) {
-          if (event is KeyDownEvent) {
-            // When field is focused but not editing, pressing OK / Select / Enter enters editing mode
-            if (!_isEditing &&
-                (event.logicalKey == LogicalKeyboardKey.select ||
-                    event.logicalKey == LogicalKeyboardKey.enter ||
-                    event.logicalKey == LogicalKeyboardKey.space)) {
-              _startEditing();
-              return KeyEventResult.handled;
+      return Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(borderRadius),
+          boxShadow: isFocused
+              ? [
+                  BoxShadow(
+                    color: Colors.amber.shade400.withOpacity(0.35),
+                    blurRadius: 14,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : [],
+        ),
+        child: TextFormField(
+          controller: controller,
+          focusNode: focusNode,
+          keyboardType: keyboardType,
+          enabled: enabled,
+          textInputAction: textInputAction,
+          onFieldSubmitted: onFieldSubmitted,
+          style: textStyle ?? theme.textTheme.bodyLarge,
+          obscureText: obscureText,
+          textCapitalization: TextCapitalization.none,
+          onChanged: (value) {
+            if (value.isEmpty) return;
+
+            final capitalized =
+                value[0].toUpperCase() + value.substring(1);
+
+            if (capitalized != value) {
+              controller.value = controller.value.copyWith(
+                text: capitalized,
+                selection:
+                    TextSelection.collapsed(offset: capitalized.length),
+              );
             }
-          }
-          return KeyEventResult.ignored;
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(widget.borderRadius),
-            boxShadow: isFocused
-                ? [
-                    BoxShadow(
-                      color: Colors.amber.shade400.withOpacity(0.35),
-                      blurRadius: 14,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                : [],
-          ),
-          child: TextFormField(
-            controller: widget.controller,
-            focusNode: _effectiveFocusNode,
-            keyboardType: widget.keyboardType,
-            enabled: widget.enabled,
-            readOnly: !_isEditing,
-            showCursor: _isEditing,
-            onTap: _startEditing,
-            textInputAction: widget.textInputAction,
-            onFieldSubmitted: (value) {
-              _stopEditing();
-              widget.onFieldSubmitted?.call(value);
-            },
-            style: widget.textStyle ?? theme.textTheme.bodyLarge,
-            obscureText: widget.obscureText,
-            textCapitalization: TextCapitalization.none,
-            onChanged: (value) {
-              if (value.isEmpty) return;
 
-              final capitalized =
-                  value[0].toUpperCase() + value.substring(1);
-
-              if (capitalized != value) {
-                widget.controller.value = widget.controller.value.copyWith(
-                  text: capitalized,
-                  selection:
-                      TextSelection.collapsed(offset: capitalized.length),
-                );
-              }
-
-              widget.onChanged?.call(capitalized);
-            },
-            maxLength: widget.maxLength,
-            validator: widget.validator,
-            decoration: InputDecoration(
-              hintText: widget.hintText,
-              hintStyle: TextStyle(
-                color: Colors.white.withOpacity(0.4),
-                fontSize: 13,
-              ),
-              labelText: widget.labelText,
-              prefixIcon: widget.prefixIcon,
-              suffixIcon: widget.suffixIcon,
-              counterText: "",
-              contentPadding: widget.contentPadding ??
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              enabledBorder: OutlineInputBorder(
-                borderSide: BorderSide(
-                  color: isFocused
-                      ? Colors.amber.shade300
-                      : Colors.white.withOpacity(0.12),
-                  width: isFocused ? 2.2 : 1.0,
-                ),
-                borderRadius: BorderRadius.circular(widget.borderRadius),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(
-                  color: Colors.amber.shade300,
-                  width: 2.2,
-                ),
-                borderRadius: BorderRadius.circular(widget.borderRadius),
-              ),
-              errorBorder: OutlineInputBorder(
-                borderSide: BorderSide(
-                  color: theme.colorScheme.error,
-                  width: 1.5,
-                ),
-                borderRadius: BorderRadius.circular(widget.borderRadius),
-              ),
-              focusedErrorBorder: OutlineInputBorder(
-                borderSide: BorderSide(
-                  color: theme.colorScheme.error,
-                  width: 2,
-                ),
-                borderRadius: BorderRadius.circular(widget.borderRadius),
-              ),
-              filled: true,
-              fillColor: isFocused
-                  ? Colors.white.withOpacity(0.12)
-                  : Colors.white.withOpacity(0.06),
+            onChanged?.call(capitalized);
+          },
+          maxLength: maxLength,
+          validator: validator,
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: TextStyle(
+              color: Colors.white.withOpacity(0.4),
+              fontSize: 13,
             ),
+            labelText: labelText,
+            prefixIcon: prefixIcon,
+            suffixIcon: suffixIcon,
+            counterText: "",
+            contentPadding: contentPadding ??
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: isFocused
+                    ? Colors.amber.shade300
+                    : Colors.white.withOpacity(0.12),
+                width: isFocused ? 2.2 : 1.0,
+              ),
+              borderRadius: BorderRadius.circular(borderRadius),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: Colors.amber.shade300,
+                width: 2.2,
+              ),
+              borderRadius: BorderRadius.circular(borderRadius),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: theme.colorScheme.error,
+                width: 1.5,
+              ),
+              borderRadius: BorderRadius.circular(borderRadius),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: theme.colorScheme.error,
+                width: 2,
+              ),
+              borderRadius: BorderRadius.circular(borderRadius),
+            ),
+            filled: true,
+            fillColor: isFocused
+                ? Colors.white.withOpacity(0.12)
+                : Colors.white.withOpacity(0.06),
           ),
         ),
       );
     }
 
-    return AnimatedBuilder(
-      animation: _effectiveFocusNode,
-      builder: (context, _) => buildField(_effectiveFocusNode.hasFocus),
-    );
+    if (focusNode != null) {
+      return AnimatedBuilder(
+        animation: focusNode!,
+        builder: (context, _) => buildField(focusNode!.hasFocus),
+      );
+    }
+
+    return buildField(false);
   }
 }

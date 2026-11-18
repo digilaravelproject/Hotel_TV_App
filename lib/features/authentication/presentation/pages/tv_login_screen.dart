@@ -162,10 +162,8 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     // ── D-PAD NAVIGATION FOR MANUAL FORM ──────────────────────────────
     licenseKeyFocus.onKeyEvent = (node, event) {
       if (event is KeyDownEvent) {
-        if (View.of(context).viewInsets.bottom > 0) {
-          return KeyEventResult.ignored;
-        }
         if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          SystemChannels.textInput.invokeMethod('TextInput.hide');
           manualTabFocus.requestFocus();
           return KeyEventResult.handled;
         }
@@ -179,14 +177,12 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
 
     roomNoFocus.onKeyEvent = (node, event) {
       if (event is KeyDownEvent) {
-        if (View.of(context).viewInsets.bottom > 0) {
-          return KeyEventResult.ignored;
-        }
         if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
           licenseKeyFocus.requestFocus();
           return KeyEventResult.handled;
         }
         if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          SystemChannels.textInput.invokeMethod('TextInput.hide');
           submitFocus.requestFocus();
           return KeyEventResult.handled;
         }
