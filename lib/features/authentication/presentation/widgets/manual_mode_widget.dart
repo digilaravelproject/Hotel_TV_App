@@ -16,8 +16,6 @@ class ManualModeWidget extends StatelessWidget {
   final FocusNode submitFocus;
   final FocusNode manualTabFocus;
   final VoidCallback onSaveAndStart;
-  final VoidCallback? onSignUpNow;
-  final FocusNode? signUpFocus;
 
   const ManualModeWidget({
     Key? key,
@@ -29,8 +27,6 @@ class ManualModeWidget extends StatelessWidget {
     required this.submitFocus,
     required this.manualTabFocus,
     required this.onSaveAndStart,
-    this.onSignUpNow,
-    this.signUpFocus,
   }) : super(key: key);
 
   Widget _buildStepBadge(String text) {
@@ -246,45 +242,6 @@ class ManualModeWidget extends StatelessWidget {
                         ),
                       ],
                     ),
-
-                    const SizedBox(height: 14),
-
-                    // Action Button to view full registration screen if user wants
-                    if (onSignUpNow != null)
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: TvFocusable(
-                          focusNode: signUpFocus,
-                          scaleFactor: 1.03,
-                          onTap: onSignUpNow!,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6.5),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.20),
-                                width: 0.8,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Icon(Icons.open_in_new_rounded, color: Colors.white, size: 13),
-                                SizedBox(width: 6),
-                                Text(
-                                  "Open Registration Screen",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               ),

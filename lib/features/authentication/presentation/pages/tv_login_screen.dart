@@ -48,7 +48,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   late final FocusNode licenseKeyFocus;
   late final FocusNode roomNoFocus;
   late final FocusNode submitFocus;
-  late final FocusNode manualSignUpFocus;
   late final FocusNode demoActionFocus;
 
   // ValueNotifier to track active login tab (QR, Manual, Demo)
@@ -79,7 +78,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     licenseKeyFocus = FocusNode();
     roomNoFocus = FocusNode();
     submitFocus = FocusNode();
-    manualSignUpFocus = FocusNode();
     demoActionFocus = FocusNode();
 
     selectedTabNotifier = ValueNotifier<TvLoginTab>(TvLoginTab.qr);
@@ -167,10 +165,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
           roomNoFocus.requestFocus();
           return KeyEventResult.handled;
         }
-        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-          manualSignUpFocus.requestFocus();
-          return KeyEventResult.handled;
-        }
       }
       return KeyEventResult.ignored;
     };
@@ -185,10 +179,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
           submitFocus.requestFocus();
           return KeyEventResult.handled;
         }
-        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-          manualSignUpFocus.requestFocus();
-          return KeyEventResult.handled;
-        }
       }
       return KeyEventResult.ignored;
     };
@@ -197,10 +187,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
       if (event is KeyDownEvent) {
         if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
           roomNoFocus.requestFocus();
-          return KeyEventResult.handled;
-        }
-        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-          manualSignUpFocus.requestFocus();
           return KeyEventResult.handled;
         }
       }
@@ -595,7 +581,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     licenseKeyFocus.dispose();
     roomNoFocus.dispose();
     submitFocus.dispose();
-    manualSignUpFocus.dispose();
     demoActionFocus.dispose();
     selectedTabNotifier.dispose();
     super.dispose();
@@ -910,8 +895,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                                 roomNoFocus: roomNoFocus,
                                 submitFocus: submitFocus,
                                 manualTabFocus: manualTabFocus,
-                                onSignUpNow: _openRegisterScreen,
-                                signUpFocus: manualSignUpFocus,
                                 onSaveAndStart: () {
                                   if (formKey.currentState!.validate()) {
                                     _performRegistration(
