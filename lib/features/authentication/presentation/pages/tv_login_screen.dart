@@ -167,7 +167,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
           roomNoFocus.requestFocus();
           return KeyEventResult.handled;
         }
-        if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
           manualSignUpFocus.requestFocus();
           return KeyEventResult.handled;
         }
@@ -185,7 +185,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
           submitFocus.requestFocus();
           return KeyEventResult.handled;
         }
-        if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
           manualSignUpFocus.requestFocus();
           return KeyEventResult.handled;
         }
@@ -199,7 +199,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
           roomNoFocus.requestFocus();
           return KeyEventResult.handled;
         }
-        if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
           manualSignUpFocus.requestFocus();
           return KeyEventResult.handled;
         }
@@ -209,7 +209,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
 
     manualSignUpFocus.onKeyEvent = (node, event) {
       if (event is KeyDownEvent) {
-        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
           submitFocus.requestFocus();
           return KeyEventResult.handled;
         }

@@ -126,115 +126,14 @@ class ManualModeWidget extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // ── LEFT COLUMN: MANUAL INPUT FORM ────────────────────
-              SizedBox(
-                width: 310,
-                child: Form(
-                  key: formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const CustomAppText(
-                        AppText.manualInstruction,
-                        fontSize: 12.5,
-                        height: 1.4,
-                      ),
-                      UiSpacer.vSpace(14),
-
-                      // Hotel ID / License Key field
-                      CustomTextField(
-                        controller: licenseKeyController,
-                        focusNode: licenseKeyFocus,
-                        hintText: AppText.hotelIdHint,
-                        borderRadius: 14,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-                        textStyle: const TextStyle(color: Colors.white, fontSize: 13.5),
-                        textInputAction: TextInputAction.next,
-                        onFieldSubmitted: (_) => roomNoFocus.requestFocus(),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return AppText.requiredFieldValidation;
-                          }
-                          return null;
-                        },
-                      ),
-                      UiSpacer.vSpace(14),
-
-                      // Room No field
-                      CustomTextField(
-                        controller: roomNoController,
-                        focusNode: roomNoFocus,
-                        hintText: AppText.roomNoHint,
-                        borderRadius: 14,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-                        textStyle: const TextStyle(color: Colors.white, fontSize: 13.5),
-                        textInputAction: TextInputAction.done,
-                        onFieldSubmitted: (_) => submitFocus.requestFocus(),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return AppText.requiredFieldValidation;
-                          }
-                          return null;
-                        },
-                      ),
-                      UiSpacer.vSpace(18),
-
-                      // Confirm button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 46,
-                        child: TvFocusable(
-                          focusNode: submitFocus,
-                          scaleFactor: 1.03,
-                          onTap: onSaveAndStart,
-                          child: Container(
-                            height: 46,
-                            width: double.infinity,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(14),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.white.withOpacity(0.2),
-                                  blurRadius: 16,
-                                  spreadRadius: 1,
-                                ),
-                              ],
-                            ),
-                            child: const CustomAppText(
-                              'Confirm',
-                              color: Colors.black,
-                              fontSize: 15.5,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // ── VERTICAL DIVIDER ─────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Container(
-                  width: 1,
-                  height: 250,
-                  color: Colors.white.withOpacity(0.12),
-                ),
-              ),
-
-              // ── RIGHT COLUMN: REGISTRATION INSTRUCTIONS ───────────
+              // ── LEFT COLUMN: REGISTRATION INSTRUCTIONS ───────────
               SizedBox(
                 width: 440,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header
+                    // Header with Step Badge
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -340,7 +239,7 @@ class ManualModeWidget extends StatelessWidget {
                               _buildStepCard(
                                 icon: Icons.tv_rounded,
                                 title: "3. Sign In on TV",
-                                subtitle: "Enter key under Use Remote on the left",
+                                subtitle: "Enter key under Use Remote on the right",
                               ),
                             ],
                           ),
@@ -387,6 +286,107 @@ class ManualModeWidget extends StatelessWidget {
                         ),
                       ),
                   ],
+                ),
+              ),
+
+              // ── VERTICAL DIVIDER ─────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Container(
+                  width: 1,
+                  height: 250,
+                  color: Colors.white.withOpacity(0.12),
+                ),
+              ),
+
+              // ── RIGHT COLUMN: MANUAL INPUT FORM ───────────────────
+              SizedBox(
+                width: 310,
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const CustomAppText(
+                        AppText.manualInstruction,
+                        fontSize: 12.5,
+                        height: 1.4,
+                      ),
+                      UiSpacer.vSpace(14),
+
+                      // Hotel ID / License Key field
+                      CustomTextField(
+                        controller: licenseKeyController,
+                        focusNode: licenseKeyFocus,
+                        hintText: AppText.hotelIdHint,
+                        borderRadius: 14,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                        textStyle: const TextStyle(color: Colors.white, fontSize: 13.5),
+                        textInputAction: TextInputAction.next,
+                        onFieldSubmitted: (_) => roomNoFocus.requestFocus(),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return AppText.requiredFieldValidation;
+                          }
+                          return null;
+                        },
+                      ),
+                      UiSpacer.vSpace(14),
+
+                      // Room No field
+                      CustomTextField(
+                        controller: roomNoController,
+                        focusNode: roomNoFocus,
+                        hintText: AppText.roomNoHint,
+                        borderRadius: 14,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                        textStyle: const TextStyle(color: Colors.white, fontSize: 13.5),
+                        textInputAction: TextInputAction.done,
+                        onFieldSubmitted: (_) => submitFocus.requestFocus(),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return AppText.requiredFieldValidation;
+                          }
+                          return null;
+                        },
+                      ),
+                      UiSpacer.vSpace(18),
+
+                      // Confirm button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 46,
+                        child: TvFocusable(
+                          focusNode: submitFocus,
+                          scaleFactor: 1.03,
+                          onTap: onSaveAndStart,
+                          child: Container(
+                            height: 46,
+                            width: double.infinity,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.white.withOpacity(0.2),
+                                  blurRadius: 16,
+                                  spreadRadius: 1,
+                                ),
+                              ],
+                            ),
+                            child: const CustomAppText(
+                              'Confirm',
+                              color: Colors.black,
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
