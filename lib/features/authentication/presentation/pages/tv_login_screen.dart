@@ -193,20 +193,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
       return KeyEventResult.ignored;
     };
 
-    manualSignUpFocus.onKeyEvent = (node, event) {
-      if (event is KeyDownEvent) {
-        if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-          submitFocus.requestFocus();
-          return KeyEventResult.handled;
-        }
-        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-          manualTabFocus.requestFocus();
-          return KeyEventResult.handled;
-        }
-      }
-      return KeyEventResult.ignored;
-    };
-
     // ── D-PAD NAVIGATION FOR DEMO ACTION ──────────────────────────────
     demoActionFocus.onKeyEvent = (node, event) {
       if (event is KeyDownEvent) {
