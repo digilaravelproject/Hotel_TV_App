@@ -226,8 +226,8 @@ class ManualModeWidget extends StatelessWidget {
                             children: [
                               _buildStepCard(
                                 icon: Icons.hotel_rounded,
-                                title: "1. Register Property Account",
-                                subtitle: "Enter property name, manager name & email",
+                                title: "1. Register Hotel Account",
+                                subtitle: "Enter hotel name, manager name & email",
                               ),
                               const SizedBox(height: 8),
                               _buildStepCard(

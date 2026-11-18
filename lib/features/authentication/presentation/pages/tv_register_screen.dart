@@ -362,8 +362,8 @@ class _TvRegisterScreenState extends State<TvRegisterScreen> {
                                   // 3 Step Guide Cards
                                   _buildStepGuideItem(
                                     icon: Icons.hotel_rounded,
-                                    title: "Register Property Account",
-                                    subtitle: "Enter property name, manager name & email",
+                                    title: "Register Hotel Account",
+                                    subtitle: "Enter hotel name, manager name & email",
                                   ),
                                   const SizedBox(height: 10),
                                   _buildStepGuideItem(
