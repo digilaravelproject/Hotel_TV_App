@@ -51,78 +51,106 @@ class CustomTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final effectiveBorderColor = borderColor ?? theme.colorScheme.primary;
 
-    return TextFormField(
-      controller: controller,
-      focusNode: focusNode,
-      keyboardType: keyboardType,
-      enabled: enabled,
-      textInputAction: textInputAction,
-      onFieldSubmitted: onFieldSubmitted,
-      style: textStyle ?? theme.textTheme.bodyLarge,
-      obscureText: obscureText,
-      textCapitalization: TextCapitalization.none,
-      onChanged: (value) {
-        if (value.isEmpty) return;
+    Widget buildField(bool isFocused) {
+      return Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(borderRadius),
+          boxShadow: isFocused
+              ? [
+                  BoxShadow(
+                    color: Colors.amber.shade400.withOpacity(0.35),
+                    blurRadius: 14,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : [],
+        ),
+        child: TextFormField(
+          controller: controller,
+          focusNode: focusNode,
+          keyboardType: keyboardType,
+          enabled: enabled,
+          textInputAction: textInputAction,
+          onFieldSubmitted: onFieldSubmitted,
+          style: textStyle ?? theme.textTheme.bodyLarge,
+          obscureText: obscureText,
+          textCapitalization: TextCapitalization.none,
+          onChanged: (value) {
+            if (value.isEmpty) return;
 
-        final capitalized =
-            value[0].toUpperCase() + value.substring(1);
+            final capitalized =
+                value[0].toUpperCase() + value.substring(1);
 
-        if (capitalized != value) {
-          controller.value = controller.value.copyWith(
-            text: capitalized,
-            selection: TextSelection.collapsed(offset: capitalized.length),
-          );
-        }
+            if (capitalized != value) {
+              controller.value = controller.value.copyWith(
+                text: capitalized,
+                selection: TextSelection.collapsed(offset: capitalized.length),
+              );
+            }
 
-        onChanged?.call(capitalized);
-      },
-      maxLength: maxLength,
-      validator: validator,
-      decoration: InputDecoration(
-        hintText: hintText,
-        hintStyle: TextStyle(
-          color: Colors.white.withOpacity(0.4),
-          fontSize: 13,
-        ),
-        labelText: labelText,
-        prefixIcon: prefixIcon,
-        suffixIcon: suffixIcon,
-        counterText: "",
-        contentPadding: contentPadding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        enabledBorder: OutlineInputBorder(
-          borderSide: BorderSide(
-            color: Colors.white.withOpacity(0.12),
-            width: 1,
+            onChanged?.call(capitalized);
+          },
+          maxLength: maxLength,
+          validator: validator,
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: TextStyle(
+              color: Colors.white.withOpacity(0.4),
+              fontSize: 13,
+            ),
+            labelText: labelText,
+            prefixIcon: prefixIcon,
+            suffixIcon: suffixIcon,
+            counterText: "",
+            contentPadding: contentPadding ??
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: isFocused
+                    ? Colors.amber.shade300
+                    : Colors.white.withOpacity(0.12),
+                width: isFocused ? 2.2 : 1.0,
+              ),
+              borderRadius: BorderRadius.circular(borderRadius),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: Colors.amber.shade300,
+                width: 2.2,
+              ),
+              borderRadius: BorderRadius.circular(borderRadius),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: theme.colorScheme.error,
+                width: 1.5,
+              ),
+              borderRadius: BorderRadius.circular(borderRadius),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: theme.colorScheme.error,
+                width: 2,
+              ),
+              borderRadius: BorderRadius.circular(borderRadius),
+            ),
+            filled: true,
+            fillColor: isFocused
+                ? Colors.white.withOpacity(0.12)
+                : Colors.white.withOpacity(0.06),
           ),
-          borderRadius: BorderRadius.circular(borderRadius),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderSide: const BorderSide(
-            color: Colors.white,
-            width: 2.0,
-          ),
-          borderRadius: BorderRadius.circular(borderRadius),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderSide: BorderSide(
-            color: theme.colorScheme.error,
-            width: 1.5,
-          ),
-          borderRadius: BorderRadius.circular(borderRadius),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderSide: BorderSide(
-            color: theme.colorScheme.error,
-            width: 2,
-          ),
-          borderRadius: BorderRadius.circular(borderRadius),
-        ),
-        filled: true,
-        fillColor: Colors.white.withOpacity(0.06),
-      ),
-    );
+      );
+    }
+
+    if (focusNode != null) {
+      return AnimatedBuilder(
+        animation: focusNode!,
+        builder: (context, _) => buildField(focusNode!.hasFocus),
+      );
+    }
+
+    return buildField(false);
   }
 }

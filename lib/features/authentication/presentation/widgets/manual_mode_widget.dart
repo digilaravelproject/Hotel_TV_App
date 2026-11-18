@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_text.dart';
@@ -317,6 +318,15 @@ class ManualModeWidget extends StatelessWidget {
                         child: TvFocusable(
                           focusNode: submitFocus,
                           scaleFactor: 1.03,
+                          onKeyEvent: (node, event) {
+                            if (event is KeyDownEvent) {
+                              if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                                roomNoFocus.requestFocus();
+                                return KeyEventResult.handled;
+                              }
+                            }
+                            return KeyEventResult.ignored;
+                          },
                           onTap: onSaveAndStart,
                           child: Container(
                             height: 46,

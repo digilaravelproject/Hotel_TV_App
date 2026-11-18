@@ -9,6 +9,7 @@ class TvFocusable extends StatefulWidget {
   final FocusNode? focusNode;
   final bool autofocus;
   final ValueChanged<bool>? onFocusChange;
+  final FocusOnKeyEventCallback? onKeyEvent;
 
   const TvFocusable({
     Key? key,
@@ -19,6 +20,7 @@ class TvFocusable extends StatefulWidget {
     this.focusNode,
     this.autofocus = false,
     this.onFocusChange,
+    this.onKeyEvent,
   }) : super(key: key);
 
   @override
@@ -53,6 +55,12 @@ class _TvFocusableState extends State<TvFocusable> {
         widget.onFocusChange?.call(focused);
       },
       onKeyEvent: (node, event) {
+        if (widget.onKeyEvent != null) {
+          final res = widget.onKeyEvent!(node, event);
+          if (res == KeyEventResult.handled) {
+            return KeyEventResult.handled;
+          }
+        }
         if (event is KeyDownEvent || event is KeyRepeatEvent) {
           if (event.logicalKey == LogicalKeyboardKey.goBack) {
             return KeyEventResult.handled;

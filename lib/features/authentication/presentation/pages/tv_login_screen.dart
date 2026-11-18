@@ -113,11 +113,12 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
           demoTabFocus.requestFocus();
           return KeyEventResult.handled;
         }
-        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+            event.logicalKey == LogicalKeyboardKey.enter ||
+            event.logicalKey == LogicalKeyboardKey.select ||
+            event.logicalKey == LogicalKeyboardKey.space) {
           selectedTabNotifier.value = TvLoginTab.manual;
-          Future.delayed(const Duration(milliseconds: 100), () {
-            if (mounted) licenseKeyFocus.requestFocus();
-          });
+          licenseKeyFocus.requestFocus();
           return KeyEventResult.handled;
         }
       }
@@ -646,18 +647,55 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
       },
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent) {
+          // ── ENTER / SELECT / SPACE ──
           if (event.logicalKey == LogicalKeyboardKey.enter ||
               event.logicalKey == LogicalKeyboardKey.select ||
               event.logicalKey == LogicalKeyboardKey.space) {
             selectedTabNotifier.value = tab;
             if (tab == TvLoginTab.manual) {
-              Future.delayed(const Duration(milliseconds: 100), () {
-                if (mounted) licenseKeyFocus.requestFocus();
-              });
+              licenseKeyFocus.requestFocus();
             } else if (tab == TvLoginTab.demo) {
               if (!_isDemoLoading) _performDemoLogin();
             }
             return KeyEventResult.handled;
+          }
+
+          // ── D-PAD NAVIGATION ──
+          if (tab == TvLoginTab.qr) {
+            if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+              manualTabFocus.requestFocus();
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+              signUpFocus.requestFocus();
+              return KeyEventResult.handled;
+            }
+          } else if (tab == TvLoginTab.manual) {
+            if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+              if (AppConstants.showUsePhoneTab) {
+                qrTabFocus.requestFocus();
+                return KeyEventResult.handled;
+              }
+            }
+            if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+              demoTabFocus.requestFocus();
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+              selectedTabNotifier.value = TvLoginTab.manual;
+              licenseKeyFocus.requestFocus();
+              return KeyEventResult.handled;
+            }
+          } else if (tab == TvLoginTab.demo) {
+            if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+              manualTabFocus.requestFocus();
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+              selectedTabNotifier.value = TvLoginTab.demo;
+              demoActionFocus.requestFocus();
+              return KeyEventResult.handled;
+            }
           }
         }
         return KeyEventResult.ignored;
