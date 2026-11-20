@@ -49,6 +49,8 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   late final FocusNode roomNoFocus;
   late final FocusNode submitFocus;
   late final FocusNode demoActionFocus;
+  late final FocusNode settingsTopFocus;
+  late final FocusNode wifiTopFocus;
 
   // ValueNotifier to track active login tab (QR, Manual, Demo)
   late final ValueNotifier<TvLoginTab> selectedTabNotifier;
@@ -79,15 +81,58 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     roomNoFocus = FocusNode();
     submitFocus = FocusNode();
     demoActionFocus = FocusNode();
+    settingsTopFocus = FocusNode();
+    wifiTopFocus = FocusNode();
 
     selectedTabNotifier = ValueNotifier<TvLoginTab>(
       AppConstants.showUsePhoneTab ? TvLoginTab.qr : TvLoginTab.manual,
     );
 
+    // ── D-PAD NAVIGATION FOR TOP ACTIONS (SETTINGS & WIFI) ─────────────
+    settingsTopFocus.onKeyEvent = (node, event) {
+      if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+          wifiTopFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          if (selectedTabNotifier.value == TvLoginTab.manual) {
+            manualTabFocus.requestFocus();
+          } else {
+            demoTabFocus.requestFocus();
+          }
+          return KeyEventResult.handled;
+        }
+      }
+      return KeyEventResult.ignored;
+    };
+
+    wifiTopFocus.onKeyEvent = (node, event) {
+      if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+          settingsTopFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          if (selectedTabNotifier.value == TvLoginTab.manual) {
+            manualTabFocus.requestFocus();
+          } else {
+            demoTabFocus.requestFocus();
+          }
+          return KeyEventResult.handled;
+        }
+      }
+      return KeyEventResult.ignored;
+    };
+
     // ── D-PAD NAVIGATION FOR TOP TABS ──────────────────────────────────
     // Tab 1: Use Phone (QR Mode)
     qrTabFocus.onKeyEvent = (node, event) {
       if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          settingsTopFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
         if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
           manualTabFocus.requestFocus();
           return KeyEventResult.handled;
@@ -103,6 +148,10 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     // Tab 2: Use Remote (Manual Mode)
     manualTabFocus.onKeyEvent = (node, event) {
       if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          settingsTopFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
         if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
           if (AppConstants.showUsePhoneTab) {
             qrTabFocus.requestFocus();
@@ -128,6 +177,10 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     // Tab 3: Try Free Demo (Demo Mode)
     demoTabFocus.onKeyEvent = (node, event) {
       if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          settingsTopFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
         if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
           manualTabFocus.requestFocus();
           return KeyEventResult.handled;
@@ -592,6 +645,8 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     roomNoFocus.dispose();
     submitFocus.dispose();
     demoActionFocus.dispose();
+    settingsTopFocus.dispose();
+    wifiTopFocus.dispose();
     selectedTabNotifier.dispose();
     super.dispose();
   }
@@ -674,6 +729,12 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
             } else if (tab == TvLoginTab.demo) {
               if (!_isDemoLoading) _performDemoLogin();
             }
+            return KeyEventResult.handled;
+          }
+
+          // ── ARROW UP: GO TO TOP SETTINGS / WIFI ──
+          if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+            settingsTopFocus.requestFocus();
             return KeyEventResult.handled;
           }
 
@@ -886,7 +947,11 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
             Positioned(
               top: 20,
               right: 36,
-              child: const TvNetworkStatusHeader(),
+              child: TvNetworkStatusHeader(
+                showSettings: true,
+                settingsFocusNode: settingsTopFocus,
+                wifiFocusNode: wifiTopFocus,
+              ),
             ),
 
             // Main Content Area (Netflix Style)

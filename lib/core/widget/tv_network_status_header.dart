@@ -7,7 +7,16 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'tv_focusable.dart';
 
 class TvNetworkStatusHeader extends StatefulWidget {
-  const TvNetworkStatusHeader({Key? key}) : super(key: key);
+  final bool showSettings;
+  final FocusNode? settingsFocusNode;
+  final FocusNode? wifiFocusNode;
+
+  const TvNetworkStatusHeader({
+    Key? key,
+    this.showSettings = true,
+    this.settingsFocusNode,
+    this.wifiFocusNode,
+  }) : super(key: key);
 
   @override
   State<TvNetworkStatusHeader> createState() => _TvNetworkStatusHeaderState();
@@ -19,6 +28,8 @@ class _TvNetworkStatusHeaderState extends State<TvNetworkStatusHeader> {
   int _signalLevel = 4; // 0 to 4
   StreamSubscription<List<ConnectivityResult>>? _subscription;
   Timer? _pollingTimer;
+
+  static const _channel = MethodChannel('com.paxtv.hospitality/tv_control');
 
   @override
   void initState() {
@@ -47,10 +58,9 @@ class _TvNetworkStatusHeaderState extends State<TvNetworkStatusHeader> {
   }
 
   Future<void> _checkStatus() async {
-    const channel = MethodChannel('com.paxtv.hospitality/tv_control');
     try {
       final dynamic rawData =
-          await channel.invokeMethod('getWifiSignalStrength');
+          await _channel.invokeMethod('getWifiSignalStrength');
       if (rawData is Map) {
         final Map<String, dynamic> data = Map<String, dynamic>.from(rawData);
         final bool connected = data['connected'] == true;
@@ -86,18 +96,264 @@ class _TvNetworkStatusHeaderState extends State<TvNetworkStatusHeader> {
   }
 
   Future<void> _openNetworkSettings() async {
-    const channel = MethodChannel('com.paxtv.hospitality/tv_control');
     try {
       final bool? success =
-          await channel.invokeMethod<bool>('openWifiSettings');
+          await _channel.invokeMethod<bool>('openWifiSettings');
       if (success != true) {
-        await channel.invokeMethod('openSettings');
+        await _channel.invokeMethod('openSettings');
       }
     } catch (_) {
       try {
-        await channel.invokeMethod('openSettings');
+        await _channel.invokeMethod('openSettings');
       } catch (_) {}
     }
+  }
+
+  Future<void> _openDeviceSettings() async {
+    try {
+      await _channel.invokeMethod('openSettings');
+    } catch (_) {}
+  }
+
+  Future<void> _openAppDetailsSettings() async {
+    try {
+      await _channel.invokeMethod('openAppDetailsSettings');
+    } catch (_) {
+      _openDeviceSettings();
+    }
+  }
+
+  Future<void> _openHomeSettings() async {
+    try {
+      await _channel.invokeMethod('openHomeSettings');
+    } catch (_) {
+      _openDeviceSettings();
+    }
+  }
+
+  void _showSettingsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.75),
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+          child: Container(
+            width: 480,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF160E2A).withOpacity(0.96),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.18),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.6),
+                  blurRadius: 32,
+                  spreadRadius: 4,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade400.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.amber.shade400.withOpacity(0.4),
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.settings_suggest_rounded,
+                        color: Colors.amber.shade300,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "TV & App Settings",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            "Quick system control & launcher management",
+                            style: TextStyle(
+                              color: Colors.white60,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const Divider(color: Colors.white12, height: 1),
+                const SizedBox(height: 16),
+
+                // Option 1: Open Device Settings
+                _buildActionTile(
+                  icon: Icons.settings_rounded,
+                  iconColor: const Color(0xFF38BDF8),
+                  title: "Open Device Settings",
+                  subtitle: "Android TV system settings (Wi-Fi, Bluetooth, Device)",
+                  autofocus: true,
+                  onTap: () {
+                    Navigator.pop(dialogContext);
+                    _openDeviceSettings();
+                  },
+                ),
+                const SizedBox(height: 10),
+
+                // Option 2: App Info & Uninstall
+                _buildActionTile(
+                  icon: Icons.delete_outline_rounded,
+                  iconColor: const Color(0xFFEF4444),
+                  title: "App Info & Uninstall",
+                  subtitle: "Clear defaults, force stop, or uninstall PAX TV",
+                  onTap: () {
+                    Navigator.pop(dialogContext);
+                    _openAppDetailsSettings();
+                  },
+                ),
+                const SizedBox(height: 10),
+
+                // Option 3: Switch Default Launcher
+                _buildActionTile(
+                  icon: Icons.home_repair_service_rounded,
+                  iconColor: const Color(0xFF10B981),
+                  title: "Switch / Reset Default Launcher",
+                  subtitle: "Choose factory TV launcher or change home default",
+                  onTap: () {
+                    Navigator.pop(dialogContext);
+                    _openHomeSettings();
+                  },
+                ),
+                const SizedBox(height: 10),
+
+                // Option 4: Network Settings
+                _buildActionTile(
+                  icon: Icons.wifi_rounded,
+                  iconColor: const Color(0xFFF59E0B),
+                  title: "Network & Wi-Fi Settings",
+                  subtitle: "Configure wireless or ethernet connection",
+                  onTap: () {
+                    Navigator.pop(dialogContext);
+                    _openNetworkSettings();
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Close Button
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TvFocusable(
+                    onTap: () => Navigator.pop(dialogContext),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      child: const Text(
+                        "Close",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildActionTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    bool autofocus = false,
+  }) {
+    return TvFocusable(
+      autofocus: autofocus,
+      scaleFactor: 1.02,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.10)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.16),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.65),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: Colors.white.withOpacity(0.4),
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   IconData _getSignalIcon() {
@@ -148,35 +404,78 @@ class _TvNetworkStatusHeaderState extends State<TvNetworkStatusHeader> {
     final Color statusColor = _getSignalColor();
     final IconData statusIcon = _getSignalIcon();
 
-    return TvFocusable(
-      scaleFactor: 1.1,
-      onTap: _openNetworkSettings,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: const Color(0xFF1B0F2A).withValues(alpha: 0.85),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: statusColor.withValues(alpha: 0.6),
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: statusColor.withValues(alpha: 0.25),
-              blurRadius: 10,
-              spreadRadius: 1,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (widget.showSettings) ...[
+          // Settings Button (⚙️)
+          TvFocusable(
+            focusNode: widget.settingsFocusNode,
+            scaleFactor: 1.1,
+            onTap: () => _showSettingsDialog(context),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1B0F2A).withOpacity(0.85),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.35),
+                  width: 1.4,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.white.withOpacity(0.10),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.settings_rounded,
+                  size: 20,
+                  color: Colors.white,
+                ),
+              ),
             ),
-          ],
-        ),
-        child: Center(
-          child: Icon(
-            statusIcon,
-            size: 20,
-            color: statusColor,
+          ),
+          const SizedBox(width: 12),
+        ],
+
+        // Wi-Fi / Network Button (📶)
+        TvFocusable(
+          focusNode: widget.wifiFocusNode,
+          scaleFactor: 1.1,
+          onTap: _openNetworkSettings,
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1B0F2A).withOpacity(0.85),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: statusColor.withOpacity(0.7),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: statusColor.withOpacity(0.25),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: Center(
+              child: Icon(
+                statusIcon,
+                size: 20,
+                color: statusColor,
+              ),
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 }

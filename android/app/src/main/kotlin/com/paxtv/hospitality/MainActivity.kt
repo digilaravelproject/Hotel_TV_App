@@ -390,6 +390,14 @@ class MainActivity : FlutterActivity() {
                 "openSettings" -> {
                     result.success(openSettings())
                 }
+                "openAppDetailsSettings" -> {
+                    result.success(openAppDetailsSettings())
+                }
+                "openHomeSettings" -> {
+                    prepareForExternalLaunch()
+                    promptSetDefaultLauncher()
+                    result.success(true)
+                }
                 "openWifiSettings" -> {
                     result.success(openWifiSettings())
                 }
@@ -1040,14 +1048,43 @@ class MainActivity : FlutterActivity() {
 
     private fun openSettings(): Boolean {
         prepareForExternalLaunch()
+        val tvSettingIntents = listOf(
+            Intent(android.provider.Settings.ACTION_SETTINGS),
+            Intent("com.android.tv.settings.MainSettings"),
+            Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.MainSettings"),
+            Intent().setClassName("com.google.android.tv.settings", "com.google.android.tv.settings.MainSettings"),
+            Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.SettingsActivity"),
+            Intent().setClassName("com.google.android.tv.settings", "com.google.android.tv.settings.SettingsActivity")
+        )
+        for (intent in tvSettingIntents) {
+            try {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+                return true
+            } catch (_: Exception) {}
+        }
+        return false
+    }
+
+    private fun openAppDetailsSettings(): Boolean {
+        prepareForExternalLaunch()
         return try {
-            val intent = Intent(android.provider.Settings.ACTION_SETTINGS).apply {
+            val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = android.net.Uri.fromParts("package", packageName, null)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             startActivity(intent)
             true
         } catch (e: Exception) {
-            false
+            try {
+                val intent = Intent(android.provider.Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(intent)
+                true
+            } catch (_: Exception) {
+                false
+            }
         }
     }
 
