@@ -447,34 +447,43 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
                     return true;
                   };
 
-                  // Force dismiss any stuck black loading overlays in index.html, ensure isLoaded is true, and enforce canvas scale
+                  // Force dismiss any stuck black loading overlays, remove stuck x-cloak, ensure isLoaded is true, and enforce canvas scale
                   var fixLayoutAndOverlay = function() {
                     try {
                       if (window.tvAppInstance) {
                         window.tvAppInstance.isLoaded = true;
+                        if (!window.tvAppInstance.currentMenuList || window.tvAppInstance.currentMenuList.length === 0) {
+                          if (typeof window.tvAppInstance.initMenuData === 'function') {
+                            window.tvAppInstance.initMenuData();
+                          }
+                        }
                       }
                       var stuckOverlays = document.querySelectorAll('.z-50.bg-black, [class*="z-50"][class*="bg-black"]');
                       stuckOverlays.forEach(function(el) {
                         el.style.display = 'none';
                         el.style.opacity = '0';
                       });
-                      var canvas = document.getElementById('tv-canvas');
+                      document.querySelectorAll('[x-cloak]').forEach(function(el) {
+                        el.removeAttribute('x-cloak');
+                      });
+                      var canvas = document.getElementById('tv-canvas') || document.getElementById('app-canvas');
                       if (canvas) {
                         var w = window.innerWidth || (document.documentElement && document.documentElement.clientWidth) || window.screen.width || 1920;
                         var h = window.innerHeight || (document.documentElement && document.documentElement.clientHeight) || window.screen.height || 1080;
-                        if (w > 0 && h > 0) {
-                          var scale = Math.min(w / 1920, h / 1080);
-                          if (scale > 0) {
-                            canvas.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
-                          }
+                        if (w <= 0) w = 1920;
+                        if (h <= 0) h = 1080;
+                        var scale = Math.min(w / 1920, h / 1080);
+                        if (scale > 0) {
+                          canvas.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
                         }
                       }
                     } catch(e) {}
                   };
                   fixLayoutAndOverlay();
                   setTimeout(fixLayoutAndOverlay, 300);
-                  setTimeout(fixLayoutAndOverlay, 1000);
-                  setTimeout(fixLayoutAndOverlay, 2500);
+                  setTimeout(fixLayoutAndOverlay, 800);
+                  setTimeout(fixLayoutAndOverlay, 1500);
+                  setTimeout(fixLayoutAndOverlay, 3000);
                 } catch(e) {}
               })();
             ''');
@@ -668,7 +677,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
       return WebViewWidget.fromPlatformCreationParams(
         params: AndroidWebViewWidgetCreationParams(
           controller: controller.platform,
-          displayWithHybridComposition: true,
+          displayWithHybridComposition: false,
         ),
       );
     }

@@ -58,17 +58,40 @@
         })();
 
         function scaleCanvas() {
-            var canvas = document.getElementById('tv-canvas');
+            var canvas = document.getElementById('tv-canvas') || document.getElementById('app-canvas');
             if (!canvas) return;
             var targetW = 1920;
             var targetH = 1080;
-            var scale = Math.min(window.innerWidth / targetW, window.innerHeight / targetH);
-            canvas.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
+            var w = window.innerWidth || (document.documentElement && document.documentElement.clientWidth) || window.screen.width || targetW;
+            var h = window.innerHeight || (document.documentElement && document.documentElement.clientHeight) || window.screen.height || targetH;
+            if (w <= 0) w = targetW;
+            if (h <= 0) h = targetH;
+            var scale = Math.min(w / targetW, h / targetH);
+            if (scale > 0) {
+                canvas.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
+            }
         }
         window.addEventListener('resize', scaleCanvas);
         window.addEventListener('orientationchange', scaleCanvas);
         window.addEventListener('fullscreenchange', scaleCanvas);
         window.addEventListener('DOMContentLoaded', scaleCanvas);
+        window.addEventListener('load', scaleCanvas);
+        scaleCanvas();
+        setTimeout(scaleCanvas, 100);
+        setTimeout(scaleCanvas, 500);
+        setTimeout(scaleCanvas, 1500);
+
+        // Failsafe: Remove x-cloak after 1.5s so UI is never stuck invisible on slower TV chipsets/WebViews
+        setTimeout(function() {
+            try {
+                if (window.tvAppInstance) {
+                    window.tvAppInstance.isLoaded = true;
+                }
+                document.querySelectorAll('[x-cloak]').forEach(function(el) {
+                    el.removeAttribute('x-cloak');
+                });
+            } catch(e) {}
+        }, 1500);
     </script>
 </head>
 

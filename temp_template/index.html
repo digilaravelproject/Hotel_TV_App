@@ -210,25 +210,34 @@
   </div>
 
   <script>
-        function fitScreen() {
-      const canvas = document.getElementById('app-canvas');
+    function fitScreen() {
+      const canvas = document.getElementById('app-canvas') || document.getElementById('tv-canvas');
       if (!canvas) return;
       const targetWidth = 1920;
       const targetHeight = 1080;
 
-      const currentWidth = window.innerWidth;
-      const currentHeight = window.innerHeight;
+      let currentWidth = window.innerWidth || (document.documentElement && document.documentElement.clientWidth) || window.screen.width || targetWidth;
+      let currentHeight = window.innerHeight || (document.documentElement && document.documentElement.clientHeight) || window.screen.height || targetHeight;
+
+      if (currentWidth <= 0) currentWidth = targetWidth;
+      if (currentHeight <= 0) currentHeight = targetHeight;
 
       const scaleX = currentWidth / targetWidth;
       const scaleY = currentHeight / targetHeight;
       const scale = Math.min(scaleX, scaleY);
 
-      canvas.style.transform = `translate(-50%, -50%) scale(${scale})`;
+      if (scale > 0) {
+        canvas.style.transform = `translate(-50%, -50%) scale(${scale})`;
+      }
     }
 
     window.addEventListener('resize', fitScreen);
     window.addEventListener('DOMContentLoaded', fitScreen);
+    window.addEventListener('load', fitScreen);
     fitScreen();
+    setTimeout(fitScreen, 100);
+    setTimeout(fitScreen, 500);
+    setTimeout(fitScreen, 1500);
   </script>
 </body>
 
