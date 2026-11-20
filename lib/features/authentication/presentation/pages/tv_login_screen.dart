@@ -265,7 +265,9 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     };
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.expiredNotice != null && widget.expiredNotice!.isNotEmpty) {
+      if (widget.expiredNotice != null &&
+          widget.expiredNotice!.isNotEmpty &&
+          !widget.expiredNotice!.toLowerCase().contains('exited demo')) {
         CustomSnackbar.showError(message: widget.expiredNotice!);
       }
       _checkEmmConfig();

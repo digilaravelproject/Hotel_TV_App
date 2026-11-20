@@ -277,7 +277,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
           builder: (context) => TvLoginScreen(
-            expiredNotice: notice ?? 'Demo trial period has expired. Please enter a license key to continue.',
+            expiredNotice: notice,
           ),
         ),
         (route) => false,
@@ -338,9 +338,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
             ),
             onPressed: () async {
               Navigator.of(ctx).pop();
-              await _handleDemoExpired(
-                notice: 'Exited Demo Mode successfully.',
-              );
+              await _handleDemoExpired();
             },
             child: const Text('Exit to Login', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
