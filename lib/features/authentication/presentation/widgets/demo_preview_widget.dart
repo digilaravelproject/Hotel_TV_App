@@ -20,8 +20,8 @@ class DemoPreviewWidget extends StatelessWidget {
     return Center(
       child: Container(
         key: const ValueKey('demo_mode_preview'),
-        width: 410,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        width: 450,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
         decoration: BoxDecoration(
           color: const Color(0xFF190D2D).withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(24),
@@ -48,7 +48,7 @@ class DemoPreviewWidget extends StatelessWidget {
           children: [
             // Top Trial Badge
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4.5),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
               decoration: BoxDecoration(
                 color: Colors.amber.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(20),
@@ -60,13 +60,13 @@ class DemoPreviewWidget extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.bolt_rounded, color: Colors.amber.shade400, size: 14),
-                  const SizedBox(width: 4),
+                  Icon(Icons.bolt_rounded, color: Colors.amber.shade400, size: 16),
+                  const SizedBox(width: 5),
                   Text(
                     "FREE DEMO TRIAL",
                     style: TextStyle(
                       color: Colors.amber.shade300,
-                      fontSize: 10,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.8,
                     ),
@@ -74,15 +74,15 @@ class DemoPreviewWidget extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
             // Colorful Smart TV Vector Artwork
             SvgPicture.asset(
               AppAssets.demoShowcaseVector,
-              width: 130,
-              height: 95,
+              width: 140,
+              height: 100,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
             // Title
             const Text(
@@ -90,27 +90,27 @@ class DemoPreviewWidget extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 17,
+                fontSize: 20,
                 fontWeight: FontWeight.w900,
                 letterSpacing: -0.3,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
 
             // Subtitle Description
             const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
+              padding: EdgeInsets.symmetric(horizontal: 8),
               child: Text(
                 "Test all IPTV guest features, amenities, and room controls instantly with zero setup or credentials.",
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white70,
-                  fontSize: 11,
-                  height: 1.35,
+                  fontSize: 13.5,
+                  height: 1.4,
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
             // Feature Highlights Tags
             Wrap(
@@ -123,17 +123,17 @@ class DemoPreviewWidget extends StatelessWidget {
                 _buildTag(Icons.auto_awesome_rounded, "Zero Setup"),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
             // Interactive Remote Action Button
             TvFocusable(
               focusNode: demoActionFocus,
               onTap: onStartDemo ?? () {},
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 9),
+                padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 12),
                 decoration: BoxDecoration(
                   color: Colors.amber.shade400,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.amber.withOpacity(0.35),
@@ -147,23 +147,23 @@ class DemoPreviewWidget extends StatelessWidget {
                   children: [
                     if (isLoading) ...[
                       const SizedBox(
-                        width: 16,
-                        height: 16,
+                        width: 18,
+                        height: 18,
                         child: CircularProgressIndicator(
-                          strokeWidth: 2,
+                          strokeWidth: 2.2,
                           valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                     ] else ...[
-                      const Icon(Icons.play_arrow_rounded, color: Colors.black, size: 18),
-                      const SizedBox(width: 6),
+                      const Icon(Icons.play_arrow_rounded, color: Colors.black, size: 20),
+                      const SizedBox(width: 8),
                     ],
                     Text(
                       isLoading ? "Activating Demo..." : "Start Free Demo",
                       style: const TextStyle(
                         color: Colors.black,
-                        fontSize: 13,
+                        fontSize: 15,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -179,25 +179,25 @@ class DemoPreviewWidget extends StatelessWidget {
 
   Widget _buildTag(IconData icon, String label) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8.5, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.10),
+          color: Colors.white.withValues(alpha: 0.12),
           width: 0.8,
         ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: Colors.amber.shade300, size: 12),
-          const SizedBox(width: 4.5),
+          Icon(icon, color: Colors.amber.shade300, size: 14),
+          const SizedBox(width: 5),
           Text(
             label,
             style: const TextStyle(
               color: Colors.white70,
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),

@@ -444,6 +444,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
         'deviceId': info['deviceId'] ?? '',
         'macAddress': info['macAddress'] ?? '',
         'room_no': 'DEMO-001',
+        'license_key': 'HF9495',
         'model': info['model'] ?? '',
         'brand': info['brand'] ?? '',
         'osVersion': info['osVersion'] ?? '',
@@ -495,6 +496,13 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
         if (response.data is Map) {
           msg = response.data['message']?.toString() ?? response.data['msg']?.toString() ?? msg;
         }
+
+        if (msg.contains('not configured') || msg.contains('Demo showcase')) {
+          Logger.i('[Demo] Retrying login with demo license key HF9495...');
+          _performRegistration(context, 'HF9495', 'DEMO-001');
+          return;
+        }
+
         CustomSnackbar.showError(message: msg);
 
         if (response.statusCode == 403 ||
@@ -527,6 +535,13 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
           isExpired = true;
         }
       }
+
+      if (errorMsg.contains('not configured') || errorMsg.contains('Demo showcase')) {
+        Logger.i('[Demo] Retrying login with demo license key HF9495 from catch...');
+        _performRegistration(context, 'HF9495', 'DEMO-001');
+        return;
+      }
+
       CustomSnackbar.showError(message: errorMsg);
 
       if (isExpired) {
@@ -729,12 +744,12 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               decoration: BoxDecoration(
                 color: bgColor,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(22),
                 border: isFocused && !isSelected
-                    ? Border.all(color: Colors.white70, width: 1.2)
+                    ? Border.all(color: Colors.white70, width: 1.4)
                     : null,
                 boxShadow: isSelected
                     ? [
@@ -757,9 +772,9 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                 label,
                 style: TextStyle(
                   color: textColor,
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                  letterSpacing: 0.1,
+                  fontSize: 14.5,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  letterSpacing: 0.2,
                 ),
               ),
             ),
@@ -969,12 +984,12 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
               bottom: 16,
               left: 36,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.04),
-                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.white.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.08),
+                    color: Colors.white.withOpacity(0.12),
                   ),
                 ),
                 child: Row(
@@ -982,16 +997,16 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                   children: [
                     const CustomAppText(
                       "Device ID: ",
-                      color: Colors.white38,
-                      fontSize: 11,
+                      color: Colors.white54,
+                      fontSize: 13,
                     ),
                     FutureBuilder<String>(
                       future: DeviceInfoService.getDeviceId(),
                       builder: (context, snapshot) {
                         return CustomAppText(
                           snapshot.data ?? '...',
-                          color: Colors.white70,
-                          fontSize: 11,
+                          color: Colors.white,
+                          fontSize: 13,
                           fontWeight: FontWeight.bold,
                         );
                       },

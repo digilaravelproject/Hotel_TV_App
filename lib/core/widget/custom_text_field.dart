@@ -17,6 +17,7 @@ class CustomTextField extends StatefulWidget {
   final Color? borderColor;
   final double borderRadius;
   final TextStyle? textStyle;
+  final TextStyle? hintStyle;
   final EdgeInsetsGeometry? contentPadding;
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onFieldSubmitted;
@@ -41,6 +42,7 @@ class CustomTextField extends StatefulWidget {
     this.borderColor,
     this.borderRadius = 12,
     this.textStyle,
+    this.hintStyle,
     this.contentPadding,
     this.textInputAction,
     this.onFieldSubmitted,
@@ -168,10 +170,11 @@ class _CustomTextFieldState extends State<CustomTextField> {
               validator: widget.validator,
               decoration: InputDecoration(
                 hintText: widget.hintText,
-                hintStyle: TextStyle(
-                  color: Colors.white.withOpacity(0.4),
-                  fontSize: 13,
-                ),
+                hintStyle: widget.hintStyle ??
+                    TextStyle(
+                      color: Colors.white.withOpacity(0.4),
+                      fontSize: widget.textStyle?.fontSize ?? 15,
+                    ),
                 labelText: widget.labelText,
                 prefixIcon: widget.prefixIcon,
                 suffixIcon: widget.suffixIcon,

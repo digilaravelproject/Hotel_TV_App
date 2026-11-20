@@ -32,14 +32,14 @@ class ManualModeWidget extends StatelessWidget {
 
   Widget _buildStepBadge(String text) {
     return Container(
-      width: 24,
-      height: 24,
+      width: 28,
+      height: 28,
       decoration: BoxDecoration(
         color: Colors.amber.shade300.withOpacity(0.18),
         shape: BoxShape.circle,
         border: Border.all(
           color: Colors.amber.shade300.withOpacity(0.60),
-          width: 1.2,
+          width: 1.4,
         ),
       ),
       alignment: Alignment.center,
@@ -47,7 +47,7 @@ class ManualModeWidget extends StatelessWidget {
         text,
         style: TextStyle(
           color: Colors.amber.shade300,
-          fontSize: 12,
+          fontSize: 14,
           fontWeight: FontWeight.bold,
         ),
       ),
@@ -60,26 +60,26 @@ class ManualModeWidget extends StatelessWidget {
     required String subtitle,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Colors.white.withOpacity(0.08),
-          width: 0.8,
+          color: Colors.white.withOpacity(0.10),
+          width: 0.9,
         ),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: Colors.amber.shade300, size: 15),
+            child: Icon(icon, color: Colors.amber.shade300, size: 20),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -89,16 +89,16 @@ class ManualModeWidget extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.60),
-                    fontSize: 10.5,
+                    color: Colors.white.withOpacity(0.75),
+                    fontSize: 12.5,
                   ),
                 ),
               ],
@@ -125,7 +125,7 @@ class ManualModeWidget extends StatelessWidget {
             children: [
               // ── LEFT COLUMN: REGISTRATION INSTRUCTIONS ───────────
               SizedBox(
-                width: 440,
+                width: 480,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,7 +135,7 @@ class ManualModeWidget extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildStepBadge("i"),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -144,26 +144,26 @@ class ManualModeWidget extends StatelessWidget {
                                 "Need to register your hotel?",
                                 style: TextStyle(
                                   color: Colors.white,
-                                  fontSize: 13.5,
+                                  fontSize: 16.5,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              const SizedBox(height: 2),
+                              const SizedBox(height: 4),
                               RichText(
                                 text: TextSpan(
                                   style: TextStyle(
-                                    color: Colors.white.withOpacity(0.65),
-                                    fontSize: 11.5,
-                                    height: 1.35,
+                                    color: Colors.white.withOpacity(0.75),
+                                    fontSize: 13.5,
+                                    height: 1.4,
                                   ),
                                   children: [
-                                    // const TextSpan(text: "Scan QR with camera or visit\n"),
                                     const TextSpan(text: "Visit "),
                                     TextSpan(
                                       text: registerUrlWithoutScheme,
                                       style: TextStyle(
                                         color: Colors.amber.shade300,
                                         fontWeight: FontWeight.bold,
+                                        fontSize: 14,
                                       ),
                                     ),
                                   ],
@@ -174,75 +174,28 @@ class ManualModeWidget extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 16),
 
-                    // QR Code + 3 Step Guide Cards in a Row
-                    Row(
+                    // 3 Step Guide Cards
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        /*
-                        // White Rounded QR Card
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(9),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.40),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ],
-                              ),
-                              child: QrImageView(
-                                data: AppConstants.hotelRegisterUrl,
-                                version: QrVersions.auto,
-                                size: 108.0,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              "Scan to Sign Up",
-                              style: TextStyle(
-                                color: Colors.amber.shade300,
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+                        _buildStepCard(
+                          icon: Icons.hotel_rounded,
+                          title: "1. Register Hotel Account",
+                          subtitle: "Enter hotel name, manager name & email",
                         ),
-
-                        const SizedBox(width: 14),
-                        */
-
-                        // 3 Step Guide Cards
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildStepCard(
-                                icon: Icons.hotel_rounded,
-                                title: "1. Register Hotel Account",
-                                subtitle: "Enter hotel name, manager name & email",
-                              ),
-                              const SizedBox(height: 8),
-                              _buildStepCard(
-                                icon: Icons.key_rounded,
-                                title: "2. Receive TV License Key",
-                                subtitle: "Get your activation key for this room",
-                              ),
-                              const SizedBox(height: 8),
-                              _buildStepCard(
-                                icon: Icons.tv_rounded,
-                                title: "3. Sign In on TV",
-                                subtitle: "Enter key under Use Remote on the right",
-                              ),
-                            ],
-                          ),
+                        const SizedBox(height: 10),
+                        _buildStepCard(
+                          icon: Icons.key_rounded,
+                          title: "2. Receive TV License Key",
+                          subtitle: "Get your activation key for this room",
+                        ),
+                        const SizedBox(height: 10),
+                        _buildStepCard(
+                          icon: Icons.tv_rounded,
+                          title: "3. Sign In on TV",
+                          subtitle: "Enter key under Use Remote on the right",
                         ),
                       ],
                     ),
@@ -252,17 +205,17 @@ class ManualModeWidget extends StatelessWidget {
 
               // ── VERTICAL DIVIDER ─────────────────────────────────
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
+                padding: const EdgeInsets.symmetric(horizontal: 36),
                 child: Container(
                   width: 1,
-                  height: 250,
+                  height: 280,
                   color: Colors.white.withOpacity(0.12),
                 ),
               ),
 
               // ── RIGHT COLUMN: MANUAL INPUT FORM ───────────────────
               SizedBox(
-                width: 310,
+                width: 360,
                 child: Form(
                   key: formKey,
                   child: Column(
@@ -271,10 +224,10 @@ class ManualModeWidget extends StatelessWidget {
                     children: [
                       const CustomAppText(
                         AppText.manualInstruction,
-                        fontSize: 12.5,
+                        fontSize: 14.5,
                         height: 1.4,
                       ),
-                      UiSpacer.vSpace(14),
+                      UiSpacer.vSpace(16),
 
                       // Hotel ID / License Key field
                       CustomTextField(
@@ -282,8 +235,9 @@ class ManualModeWidget extends StatelessWidget {
                         focusNode: licenseKeyFocus,
                         hintText: AppText.hotelIdHint,
                         borderRadius: 14,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-                        textStyle: const TextStyle(color: Colors.white, fontSize: 13.5),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+                        textStyle: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 15.5),
                         textInputAction: TextInputAction.next,
                         onFieldSubmitted: (_) => roomNoFocus.requestFocus(),
                         validator: (value) {
@@ -301,8 +255,9 @@ class ManualModeWidget extends StatelessWidget {
                         focusNode: roomNoFocus,
                         hintText: AppText.roomNoHint,
                         borderRadius: 14,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-                        textStyle: const TextStyle(color: Colors.white, fontSize: 13.5),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+                        textStyle: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 15.5),
                         textInputAction: TextInputAction.done,
                         onFieldSubmitted: (_) => submitFocus.requestFocus(),
                         validator: (value) {
@@ -317,7 +272,7 @@ class ManualModeWidget extends StatelessWidget {
                       // Confirm button
                       SizedBox(
                         width: double.infinity,
-                        height: 46,
+                        height: 50,
                         child: TvFocusable(
                           focusNode: submitFocus,
                           scaleFactor: 1.03,
@@ -332,7 +287,7 @@ class ManualModeWidget extends StatelessWidget {
                           },
                           onTap: onSaveAndStart,
                           child: Container(
-                            height: 46,
+                            height: 50,
                             width: double.infinity,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
@@ -349,7 +304,7 @@ class ManualModeWidget extends StatelessWidget {
                             child: const CustomAppText(
                               'Confirm',
                               color: Colors.black,
-                              fontSize: 15.5,
+                              fontSize: 16.5,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
