@@ -394,9 +394,7 @@ class MainActivity : FlutterActivity() {
                     result.success(openAppDetailsSettings())
                 }
                 "openHomeSettings" -> {
-                    prepareForExternalLaunch()
-                    promptSetDefaultLauncher()
-                    result.success(true)
+                    result.success(openHomeSettings())
                 }
                 "openWifiSettings" -> {
                     result.success(openWifiSettings())
@@ -1085,6 +1083,41 @@ class MainActivity : FlutterActivity() {
             } catch (_: Exception) {
                 false
             }
+        }
+    }
+
+    private fun openHomeSettings(): Boolean {
+        prepareForExternalLaunch()
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val roleManager = getSystemService(Context.ROLE_SERVICE) as? RoleManager
+                if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) {
+                    val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME)
+                    startActivityForResult(intent, REQUEST_CODE_SET_DEFAULT_HOME)
+                    return true
+                }
+            }
+
+            try {
+                val homeSettingsIntent = Intent(android.provider.Settings.ACTION_HOME_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                if (homeSettingsIntent.resolveActivity(packageManager) != null) {
+                    startActivity(homeSettingsIntent)
+                    return true
+                }
+            } catch (_: Exception) {}
+
+            val selectorIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(Intent.createChooser(selectorIntent, "Select Home Launcher").apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            })
+            true
+        } catch (_: Exception) {
+            openSettings()
         }
     }
 
