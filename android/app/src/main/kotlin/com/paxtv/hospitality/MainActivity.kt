@@ -1475,47 +1475,6 @@ class MainActivity : FlutterActivity() {
             e.printStackTrace()
         }
 
-        // If inputsList is empty (like on Android TV emulator or TVs without TvInputService):
-        // Provide HDMI 1 (connected for Live TV / STB) and HDMI 2, HDMI 3 (disconnected)
-        if (inputsList.isEmpty()) {
-            inputsList.add(mapOf(
-                "id" to "HDMI_1",
-                "label" to "Set-top Box / DTH",
-                "name" to "Set-top Box / DTH",
-                "deviceName" to "Set-top Box / DTH",
-                "portName" to "HDMI 1",
-                "model" to "HDMI_1",
-                "value" to "HDMI_1",
-                "type" to "HDMI",
-                "isConnected" to "true",
-                "hasSignal" to "true"
-            ))
-            inputsList.add(mapOf(
-                "id" to "HDMI_2",
-                "label" to "Gaming Console / Media",
-                "name" to "Gaming Console / Media",
-                "deviceName" to "Gaming Console / Media",
-                "portName" to "HDMI 2",
-                "model" to "HDMI_2",
-                "value" to "HDMI_2",
-                "type" to "HDMI",
-                "isConnected" to "false",
-                "hasSignal" to "false"
-            ))
-            inputsList.add(mapOf(
-                "id" to "HDMI_3",
-                "label" to "Streaming Player",
-                "name" to "Streaming Player",
-                "deviceName" to "Streaming Player",
-                "portName" to "HDMI 3",
-                "model" to "HDMI_3",
-                "value" to "HDMI_3",
-                "type" to "HDMI",
-                "isConnected" to "false",
-                "hasSignal" to "false"
-            ))
-        }
-
         return inputsList
     }
 

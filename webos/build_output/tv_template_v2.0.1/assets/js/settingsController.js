@@ -433,8 +433,8 @@ window.TVSettingsController = {
         }
       }
 
-      // 3. Fallback: HDMI 1 is connected for default STB/Live TV
-      return clean === "HDMI1" || clean === "1";
+      // 3. Fallback: If not explicitly connected in hardware status, default to false
+      return false;
     } catch (_) {
       return false;
     }

@@ -628,21 +628,26 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
                           }
                         }
 
-                        // 5. Fix TV Inputs / HDMI Ports & Signal Indicators
-                        var defaultInputs = [
-                          { id: 'HDMI_1', label: 'HDMI 1', name: 'HDMI 1', portName: 'HDMI 1', model: 'HDMI_1', value: 'HDMI_1', type: 'HDMI', isConnected: true, badge: '4K HDR 60Hz', description: 'Set-top Box / Cable TV' },
-                          { id: 'HDMI_2', label: 'HDMI 2', name: 'HDMI 2', portName: 'HDMI 2', model: 'HDMI_2', value: 'HDMI_2', type: 'HDMI', isConnected: false, badge: 'eARC / ARC', description: 'Gaming Console / Soundbar' },
-                          { id: 'HDMI_3', label: 'HDMI 3', name: 'HDMI 3', portName: 'HDMI 3', model: 'HDMI_3', value: 'HDMI_3', type: 'HDMI', isConnected: false, badge: '4K HDR', description: 'Media Player / Streaming Device' }
-                        ];
-                        if (!window.tvAppInstance.inputPorts || window.tvAppInstance.inputPorts.length === 0) {
-                          window.tvAppInstance.inputPorts = defaultInputs;
-                          window.tvAppInstance.inputLoading = false;
-                        }
-                        if (window.TVInputController) {
-                          if (!window.TVInputController.inputPorts || window.TVInputController.inputPorts.length === 0) {
-                            window.TVInputController.inputPorts = defaultInputs;
-                            window.TVInputController.inputLoading = false;
-                          }
+                        // 5. Query Real Hardware TV Inputs & HDMI Ports (No Fake Fallbacks)
+                        if (window.flutterBridge && typeof window.flutterBridge.getTvInputs === 'function') {
+                          window.flutterBridge.getTvInputs().then(function(inputs) {
+                            if (Array.isArray(inputs)) {
+                              window.tvAppInstance.inputPorts = inputs;
+                              if (window.TVInputController) {
+                                window.TVInputController.inputPorts = inputs;
+                                window.TVInputController.inputLoading = false;
+                              }
+                              window.tvAppInstance.hdmiPortStatusMap = {};
+                              inputs.forEach(function(item) {
+                                var key = (item.portName || item.label || item.name || item.id || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                                var isConn = item.isConnected === true || item.isConnected === 'true' || item.hasSignal === true || item.hasSignal === 'true';
+                                window.tvAppInstance.hdmiPortStatusMap[key] = isConn;
+                              });
+                              if (typeof window._updateHdmiPortIndicators === 'function') {
+                                window._updateHdmiPortIndicators();
+                              }
+                            }
+                          }).catch(function() {});
                         }
 
                         // Helper: Checks if an HDMI port is physically connected / has active signal
@@ -662,26 +667,9 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
                                 return item.isConnected === true || item.isConnected === 'true' || item.hasSignal === true || item.hasSignal === 'true';
                               }
                             }
-                            return clean === 'HDMI1' || clean === '1';
+                            return false;
                           } catch(e) { return false; }
                         };
-
-                        // Helper: Query native TV bridge for real-time HDMI connection status
-                        if (window.flutterBridge && typeof window.flutterBridge.getTvInputs === 'function') {
-                          window.flutterBridge.getTvInputs().then(function(inputs) {
-                            if (Array.isArray(inputs) && inputs.length > 0) {
-                              window.tvAppInstance.hdmiPortStatusMap = {};
-                              inputs.forEach(function(item) {
-                                var key = (item.portName || item.label || item.name || item.id || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-                                var isConn = item.isConnected === true || item.isConnected === 'true' || item.hasSignal === true || item.hasSignal === 'true';
-                                window.tvAppInstance.hdmiPortStatusMap[key] = isConn;
-                              });
-                              if (typeof window._updateHdmiPortIndicators === 'function') {
-                                window._updateHdmiPortIndicators();
-                              }
-                            }
-                          }).catch(function() {});
-                        }
 
                         // Dynamic DOM Signal Indicator: Injects live green glowing indicator for connected HDMI ports
                         window._updateHdmiPortIndicators = function() {
@@ -695,7 +683,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
                               var text = btn.innerText || btn.textContent || '';
                               var isConnected = appInst && typeof appInst.isPortConnected === 'function' 
                                 ? appInst.isPortConnected(text) 
-                                : (text.toUpperCase().indexOf('1') !== -1);
+                                : false;
 
                               var existingDot = btn.querySelector('.hdmi-signal-indicator');
                               if (!existingDot) {
