@@ -19,9 +19,13 @@ window.TVAppsController = {
       list = this.activeOttList;
     } else {
       const inst = window.tvAppInstance;
-      if (inst && Array.isArray(inst.activeOttList) && inst.activeOttList.length > 0) list = inst.activeOttList;
-      else if (inst && Array.isArray((_a = inst.hotelData) == null ? void 0 : _a.active_ott)) list = inst.hotelData.active_ott;
-      else if (Array.isArray((_b = this.hotelData) == null ? void 0 : _b.active_ott)) list = this.hotelData.active_ott;
+      if (inst && Array.isArray(inst.activeOttList) && inst.activeOttList.length > 0) {
+        list = inst.activeOttList;
+      }
+      if (!this._syncInFlight) {
+        this._syncInFlight = true;
+        this.syncInstalledApps().finally(() => { this._syncInFlight = false; });
+      }
     }
     if (isWebOS) {
       list = list.filter((app) => {

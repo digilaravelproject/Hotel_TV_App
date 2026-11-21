@@ -650,6 +650,21 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
                           }).catch(function() {});
                         }
 
+                        // Query verified installed apps and sync immediately (strictly physically installed apps)
+                        if (window.flutterBridge && typeof window.flutterBridge.getInstalledApps === 'function') {
+                          window.flutterBridge.getInstalledApps().then(function(installed) {
+                            if (Array.isArray(installed)) {
+                              if (window.TVAppsController) {
+                                window.TVAppsController.activeOttList = installed;
+                                window.TVAppsController.hasSyncedInstalled = true;
+                              }
+                              if (window.tvAppInstance) {
+                                window.tvAppInstance.activeOttList = installed;
+                              }
+                            }
+                          }).catch(function() {});
+                        }
+
                         // Helper: Checks if an HDMI port is physically connected / has active signal
                         window.tvAppInstance.isPortConnected = function(port) {
                           try {

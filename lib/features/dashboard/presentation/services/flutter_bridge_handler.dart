@@ -130,14 +130,15 @@ class FlutterBridgeHandler {
               // 1. Exact package match
               if (target.isNotEmpty && pkg == target) return true;
 
-              // 2. Substring package match
-              if (target.isNotEmpty && (pkg.contains(target) || target.contains(pkg))) return true;
+              // 2. Substring package match (at least 6 characters)
+              if (target.isNotEmpty && target.length >= 6 && (pkg.contains(target) || target.contains(pkg))) return true;
 
-              // 3. ID match
-              if (id.isNotEmpty && (pkg.contains(id) || id.contains(pkg))) return true;
+              // 3. ID match - only if non-numeric and length >= 5
+              if (id.isNotEmpty && !RegExp(r'^\d+$').hasMatch(id) && id.length >= 5 && (pkg.contains(id) || id.contains(pkg))) return true;
 
-              // 4. App Name match
-              if (name.isNotEmpty && pkg.contains(name)) return true;
+              // 4. App Name match with installed app display name
+              final appDisplayName = (app['name'] ?? app['appName'] ?? '').toString().toLowerCase();
+              if (name.isNotEmpty && appDisplayName.isNotEmpty && (appDisplayName == name || (name.length >= 4 && appDisplayName.contains(name)))) return true;
 
               return false;
             },

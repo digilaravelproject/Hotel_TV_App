@@ -651,7 +651,11 @@ function tvApp() {
             this.focusCurrentLanguage();
           } else if (["apps", "applications"].includes(viewId)) {
             this.activeAppFocusIndex = 0;
-            if (typeof this.syncInstalledApps === "function") this.syncInstalledApps();
+            if (window.TVAppsController && typeof window.TVAppsController.syncInstalledApps === "function") {
+              window.TVAppsController.syncInstalledApps();
+            } else if (typeof this.syncInstalledApps === "function") {
+              this.syncInstalledApps();
+            }
             this.focusCurrentApp();
           } else if (["screen_cast", "cast"].includes(viewId)) {
             this.openScreenCast();
