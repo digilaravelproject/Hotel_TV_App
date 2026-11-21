@@ -1652,15 +1652,19 @@
                                                     @focus="dashboardFocus = `hdmi_${pIdx}`"
                                                     class="flex-1 py-2 px-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all outline-none border flex items-center justify-center gap-1.5"
                                                     :class="dashboardFocus === `hdmi_${pIdx}` ? 'ring-2 ring-amber-400 bg-amber-400 text-black border-amber-300 shadow-[0_0_15px_rgba(255,215,0,0.8)] scale-105' : (isPortSelected(port) ? 'bg-amber-400/20 text-amber-300 border-amber-400/50' : 'bg-white/10 text-slate-200 border-white/20')">
-                                                <!-- Green signal indicator when device is attached -->
-                                                <span x-show="isPortConnected(port)"
+                                                <!-- 🟢 Green Dot ONLY for the DEFAULT configured port -->
+                                                <span x-show="isPortSelected(port)"
                                                       class="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399] flex-shrink-0 animate-pulse border border-emerald-200"
-                                                      title="Signal Active / Device Attached"></span>
-                                                <!-- Dim dot when no device attached -->
-                                                <span x-show="!isPortConnected(port)"
-                                                      class="w-2 h-2 rounded-full bg-slate-600/70 border border-white/10 flex-shrink-0"
-                                                      title="No Device Attached"></span>
+                                                      title="Default TV Input"></span>
                                                 <span x-text="port"></span>
+                                                <!-- 🔌 / 📡 / 🎮 Connected Device Symbol & Name when attached -->
+                                                <template x-if="isPortConnected(port)">
+                                                    <span class="text-[10px] font-semibold opacity-90 flex items-center gap-1 ml-1 text-emerald-300"
+                                                          :class="dashboardFocus === `hdmi_${pIdx}` ? 'text-black' : ''">
+                                                        <span x-text="getConnectedDeviceSymbol(port)"></span>
+                                                        <span x-text="getConnectedDeviceName(port)"></span>
+                                                    </span>
+                                                </template>
                                             </button>
                                         </template>
                                     </div>
