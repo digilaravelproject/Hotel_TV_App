@@ -11,11 +11,12 @@ import '../../../../core/services/template/template_manager_service.dart';
 class FlutterBridgeHandler {
   final WebViewController controller;
   final MethodChannel _tvChannel;
+  final void Function(String view)? onViewChanged;
   StreamSubscription? _connectivitySub;
 
   static DateTime? _lastHdmiLaunchTime;
 
-  FlutterBridgeHandler(this.controller)
+  FlutterBridgeHandler(this.controller, {this.onViewChanged})
       : _tvChannel = const MethodChannel('com.paxtv.hospitality/tv_control');
 
   void dispose() {
@@ -54,6 +55,14 @@ class FlutterBridgeHandler {
 
   Future<dynamic> _dispatch(String method, List<dynamic> args) async {
     switch (method) {
+      case 'onViewChanged':
+      case 'viewChanged':
+        if (args.isNotEmpty) {
+          final view = args[0]?.toString() ?? 'home';
+          onViewChanged?.call(view);
+        }
+        return true;
+
       case 'getInstalledApps':
       case 'getApps':
       case 'getAppList':

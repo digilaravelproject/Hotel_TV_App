@@ -19,6 +19,7 @@ import 'webview_state.dart';
 class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
   void Function()? onPageStarted;
   void Function()? onPageFinished;
+  void Function(String view)? onViewChanged;
 
   WebViewBloc() : super(WebViewInitial()) {
     on<InitializeWebView>(_onInitialize);
@@ -93,7 +94,10 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
           await controller.clearLocalStorage();
         } catch (_) {}
       }
-      final bridgeHandler = FlutterBridgeHandler(controller);
+      final bridgeHandler = FlutterBridgeHandler(
+        controller,
+        onViewChanged: (view) => onViewChanged?.call(view),
+      );
       controller
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setBackgroundColor(const Color(0x00000000))

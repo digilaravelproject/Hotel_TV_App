@@ -57,6 +57,8 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
 
   bool _isDemoMode = false;
   int _demoDaysLeft = 0;
+  bool _isSubScreen = false;
+  bool _isExitDialogOpen = false;
 
   @override
   void initState() {
@@ -94,12 +96,21 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
           _resetInactivityTimer();
           return;
         }
+        if (_isExitDialogOpen && mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+          _isExitDialogOpen = false;
+          return;
+        }
         final ctrl = _controller;
         if (ctrl != null) await _handleBackNavigation(ctrl);
       } else if (call.method == 'onHomePressed') {
         if (_showScreensaver) {
           _resetInactivityTimer();
           return;
+        }
+        if (_isExitDialogOpen && mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+          _isExitDialogOpen = false;
         }
         final ctrl = _controller;
         if (ctrl != null) await _handleHomeNavigation(ctrl);
@@ -111,8 +122,24 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+
+    // If app goes to background / paused while exit dialog is showing:
+    // Dismiss the dialog automatically so user doesn't get stuck upon reopening the app.
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive || state == AppLifecycleState.hidden) {
+      if (_isExitDialogOpen && mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        _isExitDialogOpen = false;
+      }
+    }
+
     if (state == AppLifecycleState.resumed) {
       Logger.i('[TvWebviewScreen] App resumed from external app. Restoring WebView focus...');
+
+      // If exit dialog is somehow still open upon resume, dismiss it cleanly
+      if (_isExitDialogOpen && mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        _isExitDialogOpen = false;
+      }
       
       // FIX FOR BLACK SCREEN ON WAKE UP:
       // TV sleep hone par Android WebView ka GPU context destroy ho jata hai aur black screen aati hai.
@@ -296,8 +323,12 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
   }
 
   void _showExitDemoDialog() {
+    if (_isExitDialogOpen) return;
+    _isExitDialogOpen = true;
+
     showDialog(
       context: context,
+      barrierDismissible: true,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1B0F2A),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -312,41 +343,79 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
           ],
         ),
         content: const Text(
-          'Choose an action to exit Demo Mode:',
+          'Are you sure you want to exit Demo Mode?',
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
-          ),
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: Colors.white30),
+            autofocus: true,
+            style: ButtonStyle(
+              foregroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.focused)) return Colors.amberAccent;
+                return Colors.white70;
+              }),
+              backgroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.focused)) return Colors.white12;
+                return Colors.transparent;
+              }),
+              side: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.focused)) {
+                  return const BorderSide(color: Colors.amberAccent, width: 2);
+                }
+                return const BorderSide(color: Colors.white24, width: 1);
+              }),
+              padding: WidgetStateProperty.all(
+                const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+              ),
+              shape: WidgetStateProperty.all(
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
             ),
-            onPressed: () async {
-              Navigator.of(ctx).pop();
-              await _exitToTvLauncher();
-            },
-            child: const Text('TV Home (Launcher)'),
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('No', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.amber.shade700,
-              foregroundColor: Colors.black,
+            style: ButtonStyle(
+              backgroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.focused)) return Colors.amber.shade600;
+                return Colors.amber.shade800;
+              }),
+              foregroundColor: WidgetStateProperty.all(Colors.black),
+              side: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.focused)) {
+                  return const BorderSide(color: Colors.white, width: 2);
+                }
+                return BorderSide.none;
+              }),
+              elevation: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.focused)) return 8;
+                return 2;
+              }),
+              padding: WidgetStateProperty.all(
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              shape: WidgetStateProperty.all(
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
             ),
             onPressed: () async {
               Navigator.of(ctx).pop();
-              await _handleDemoExpired(
-                notice: 'Exited Demo Mode successfully.',
-              );
+              await _handleDemoExpired(notice: 'Exited Demo Mode successfully.');
             },
-            child: const Text('Exit to Login', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Yes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
-    );
+    ).then((_) {
+      _isExitDialogOpen = false;
+      if (mounted) {
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted && !_isExitDialogOpen) {
+            _webViewFocusNode.requestFocus();
+          }
+        });
+      }
+    });
   }
 
 
@@ -367,6 +436,13 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
     return BlocProvider<WebViewBloc>(
       create: (context) {
         final bloc = WebViewBloc();
+        bloc.onViewChanged = (view) {
+          if (mounted) {
+            setState(() {
+              _isSubScreen = (view != 'home');
+            });
+          }
+        };
         bloc.onPageStarted = () {
           if (mounted) {
             setState(() {
@@ -427,6 +503,13 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
                           (window.tvAppInstance.menuStack && window.tvAppInstance.menuStack.length > 0);
                         window.tvAppInstance.currentView = 'home';
                         window.tvAppInstance.menuStack = [];
+                        if (window.FlutterBridge && window.FlutterBridge.postMessage) {
+                          window.FlutterBridge.postMessage(JSON.stringify({
+                            method: 'onViewChanged',
+                            args: ['home'],
+                            id: 0
+                          }));
+                        }
                         if (window.tvAppInstance.menuItems) {
                           window.tvAppInstance.currentMenuList = window.tvAppInstance.menuItems;
                         }
@@ -468,6 +551,29 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
                             canvas.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
                           }
                         }
+                      }
+
+                      // Track currentView changes for Flutter Demo Badge dynamic positioning
+                      if (window.tvAppInstance && !window._tvViewWatcherInstalled) {
+                        window._tvViewWatcherInstalled = true;
+                        var lastView = window.tvAppInstance.currentView || 'home';
+                        setInterval(function() {
+                          try {
+                            if (window.tvAppInstance && window.tvAppInstance.currentView) {
+                              var cv = window.tvAppInstance.currentView;
+                              if (cv !== lastView) {
+                                lastView = cv;
+                                if (window.FlutterBridge && window.FlutterBridge.postMessage) {
+                                  window.FlutterBridge.postMessage(JSON.stringify({
+                                    method: 'onViewChanged',
+                                    args: [cv],
+                                    id: 0
+                                  }));
+                                }
+                              }
+                            }
+                          } catch(err) {}
+                        }, 150);
                       }
                     } catch(e) {}
                   };
@@ -521,6 +627,13 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
 
   Future<void> _handleBackNavigation(WebViewController controller) async {
     Logger.i('[BackNavigation] onBackPressed triggered (isDemoMode=$_isDemoMode)');
+    if (_isExitDialogOpen) {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        _isExitDialogOpen = false;
+      }
+      return;
+    }
     if (_isBackHandling) {
       Logger.i('[BackNavigation] Already handling back, ignoring');
       return;
@@ -607,6 +720,10 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
 
   Future<void> _handleHomeNavigation(WebViewController controller) async {
     Logger.i('[HomeNavigation] onHomePressed triggered (isDemoMode=$_isDemoMode)');
+    if (_isExitDialogOpen && mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+      _isExitDialogOpen = false;
+    }
     try {
       // 1. Check if we are currently at home view or in a sub-view
       bool isAtHome = true;
@@ -663,6 +780,44 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
     }
   }
 
+  Widget _buildDemoBadge() {
+    return AnimatedOpacity(
+      opacity: _isWebViewLoaded ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 300),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.85),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.amber.shade500, width: 1.0),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.4),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.bolt_rounded, color: Colors.amber.shade400, size: 14),
+            const SizedBox(width: 5),
+            Text(
+              _demoDaysLeft > 0 ? 'Demo Mode • $_demoDaysLeft days left' : 'Demo Mode',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildPlatformWebViewWidget(WebViewController controller) {
     if (!kIsWeb && Platform.isAndroid && controller.platform is AndroidWebViewController) {
       return WebViewWidget.fromPlatformCreationParams(
@@ -681,6 +836,9 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
       focusNode: _webViewFocusNode,
       autofocus: true,
       onKeyEvent: (node, event) {
+        if (_isExitDialogOpen) {
+          return KeyEventResult.ignored;
+        }
         if (event is KeyDownEvent || event is KeyRepeatEvent) {
           _resetInactivityTimer();
           if (_showScreensaver) {
@@ -789,47 +947,16 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
         children: [
           _buildPlatformWebViewWidget(controller),
 
-          // Dynamic Demo Mode Badge (Positioned below Room & Location/Weather in Top-Right)
-          // ONLY visible when the webview has finished loading and is not obscured
+          // Dynamic Demo Mode Badge
+          // - On Home screen: Positioned at top: 88, right: 32 (cleanly below Room & City so background text is 100% visible)
+          // - On Sub-screens: Positioned at top: 20, right: 32 (above modal cards in top-right corner)
           if (_isDemoMode && _isWebViewLoaded && !_showCenterLoading && !_showScreensaver)
-            Positioned(
-              top: 68,
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              top: _isSubScreen ? 20 : 88,
               right: 32,
-              child: AnimatedOpacity(
-                opacity: _isWebViewLoaded ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 300),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.85),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.amber.shade500, width: 1.0),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.4),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.bolt_rounded, color: Colors.amber.shade400, size: 14),
-                      const SizedBox(width: 5),
-                      Text(
-                        _demoDaysLeft > 0 ? 'Demo Mode • $_demoDaysLeft days left' : 'Demo Mode',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              child: _buildDemoBadge(),
             ),
           
           // Bottom Updating Banner
