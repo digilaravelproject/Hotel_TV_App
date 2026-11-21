@@ -1,9 +1,11 @@
 package com.paxtv.hospitality
 
 import android.accessibilityservice.AccessibilityService
+import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
@@ -13,6 +15,11 @@ class TvButtonAccessibilityService : AccessibilityService() {
 
     private var lastRelaunchTime: Long = 0
     private val TAG = "TvAccessibilityService"
+
+    companion object {
+        @Volatile
+        var currentForegroundPackage: String? = null
+    }
 
     // Common Android TV system launcher package names
     private val knownLauncherPackages = setOf(
@@ -46,6 +53,7 @@ class TvButtonAccessibilityService : AccessibilityService() {
 
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val packageName = event.packageName?.toString() ?: return
+            currentForegroundPackage = packageName
 
             // If the package is our own app, do nothing
             if (packageName == applicationContext.packageName) {
@@ -97,10 +105,72 @@ class TvButtonAccessibilityService : AccessibilityService() {
         return false
     }
 
+    private fun getActivePackage(): String? {
+        val current = currentForegroundPackage
+        if (!current.isNullOrBlank()) return current
+        return try {
+            rootInActiveWindow?.packageName?.toString()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun isYouTubeOrCastPackage(pkgName: String?): Boolean {
+        if (pkgName.isNullOrBlank()) return false
+        val pkg = pkgName.lowercase()
+        return pkg.contains("youtube") ||
+               pkg.contains("mediashell") ||
+               pkg.contains("chromecast") ||
+               pkg.contains("airscreen") ||
+               pkg.contains("airplay") ||
+               pkg.contains("miracast") ||
+               pkg.contains("screencast") ||
+               pkg.contains("wfd") ||
+               pkg == "com.google.android.apps.mediashell" ||
+               pkg == "com.google.android.youtube.tv" ||
+               pkg == "com.google.android.apps.youtube.tv" ||
+               pkg == "com.google.android.youtube" ||
+               pkg == "com.google.android.youtube.tvunplugged" ||
+               pkg == "com.google.android.apps.youtube.tv.unplugged"
+    }
+
+    private fun closeYouTubeAndBringAppToFront(pkg: String?) {
+        try {
+            // 1. Dispatch media pause & stop keys so audio immediately halts
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
+            audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
+            audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_STOP))
+            audioManager?.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_STOP))
+        } catch (e: Exception) {
+            Log.w(TAG, "Error stopping media playback: ${e.message}")
+        }
+
+        try {
+            // 2. Kill background processes of the cast/media app so it completely shuts down
+            val actMan = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+            if (!pkg.isNullOrBlank()) {
+                actMan?.killBackgroundProcesses(pkg)
+            }
+            actMan?.killBackgroundProcesses("com.google.android.youtube.tv")
+            actMan?.killBackgroundProcesses("com.google.android.apps.youtube.tv")
+            actMan?.killBackgroundProcesses("com.google.android.apps.mediashell")
+            actMan?.killBackgroundProcesses("com.google.android.youtube")
+        } catch (e: Exception) {
+            Log.w(TAG, "Error killing media background process: ${e.message}")
+        }
+
+        // 3. Reset foreground tracking
+        currentForegroundPackage = null
+
+        // 4. Bring Hotel TV App to front (works in both Try Demo mode & Login mode!)
+        bringAppToFront()
+    }
+
     private fun bringAppToFront() {
         try {
             val intent = Intent(this, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
             startActivity(intent)
         } catch (e: Exception) {
@@ -124,18 +194,43 @@ class TvButtonAccessibilityService : AccessibilityService() {
     override fun onKeyEvent(event: KeyEvent?): Boolean {
         if (event == null) return false
 
-        // In Demo Mode, do not intercept or swallow keys so TV remote works normally!
-        if (isDemoMode()) {
-            return super.onKeyEvent(event)
+        val keyCode = event.keyCode
+        val activePkg = getActivePackage()
+
+        // 1. BACK button handling when in YouTube or Cast receiver:
+        // Guest pressed BACK -> Close YouTube/Cast and bring Hotel TV app to front!
+        // Works in BOTH Try Demo Mode and Login Mode!
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (isYouTubeOrCastPackage(activePkg)) {
+                if (event.action == KeyEvent.ACTION_DOWN) {
+                    Log.i(TAG, "Back pressed while in YouTube/Cast ($activePkg). Closing YouTube and returning to Hotel TV...")
+                    closeYouTubeAndBringAppToFront(activePkg)
+                }
+                return true // Consume BACK so YouTube doesn't stay open!
+            }
         }
 
-        // Intercept Home button or TV key events to bring Hotel TV App to front (Kiosk mode only)
-        if (event.keyCode == KeyEvent.KEYCODE_HOME || event.keyCode == KeyEvent.KEYCODE_TV) {
+        // 2. HOME or TV button handling:
+        if (keyCode == KeyEvent.KEYCODE_HOME || keyCode == KeyEvent.KEYCODE_TV) {
+            if (isYouTubeOrCastPackage(activePkg)) {
+                if (event.action == KeyEvent.ACTION_DOWN) {
+                    Log.i(TAG, "Home pressed while in YouTube/Cast ($activePkg). Closing YouTube and returning to Hotel TV...")
+                    closeYouTubeAndBringAppToFront(activePkg)
+                }
+                return true
+            }
+
+            // In Demo Mode when already in our app, do not swallow keys (MainActivity handles it)
+            if (isDemoMode() && activePkg == applicationContext.packageName) {
+                return super.onKeyEvent(event)
+            }
+
             if (event.action == KeyEvent.ACTION_DOWN) {
                 bringAppToFront()
             }
             return true // Consume both ACTION_DOWN and ACTION_UP so OS never opens default home
         }
+
         return super.onKeyEvent(event)
     }
 }
