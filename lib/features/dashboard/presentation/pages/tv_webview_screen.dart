@@ -700,78 +700,49 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
                           } catch(e) { return '🔌'; }
                         };
 
-                        // Dynamic DOM Signal Indicator:
-                        // 1. Green Dot ONLY for Default TV Input
-                        // 2. Connected Device Symbol & Name for Attached Devices
+                        // Dynamic DOM Signal Indicator: Injects live green glowing indicator for connected HDMI ports
                         window._updateHdmiPortIndicators = function() {
                           try {
                             var portButtons = document.querySelectorAll('[id^="settings_hdmi_"]');
                             if (!portButtons || portButtons.length === 0) return;
                             
                             var appInst = window.tvAppInstance;
-                            var settingsInst = window.TVSettingsController;
-                            
                             for (var b = 0; b < portButtons.length; b++) {
                               var btn = portButtons[b];
                               var text = btn.innerText || btn.textContent || '';
-                              var clean = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                              
-                              // Check if this port is the configured DEFAULT port
-                              var isDefault = (settingsInst && typeof settingsInst.isPortSelected === 'function')
-                                ? settingsInst.isPortSelected(text)
-                                : (appInst && typeof appInst.isPortSelected === 'function' ? appInst.isPortSelected(text) : false);
-
-                              // Default Green Dot - ONLY ON THE DEFAULT PORT
-                              var defaultDot = btn.querySelector('.hdmi-default-dot') || btn.querySelector('.hdmi-signal-indicator');
-                              if (!defaultDot) {
-                                defaultDot = document.createElement('span');
-                                defaultDot.className = 'hdmi-default-dot';
-                                btn.insertBefore(defaultDot, btn.firstChild);
-                              }
-
-                              if (isDefault) {
-                                defaultDot.style.display = 'inline-block';
-                                defaultDot.style.width = '10px';
-                                defaultDot.style.height = '10px';
-                                defaultDot.style.borderRadius = '50%';
-                                defaultDot.style.backgroundColor = '#34d399';
-                                defaultDot.style.boxShadow = '0 0 10px #34d399, 0 0 16px rgba(52, 211, 153, 0.85)';
-                                defaultDot.style.marginRight = '6px';
-                                defaultDot.style.flexShrink = '0';
-                                defaultDot.style.border = '1.5px solid #a7f3d0';
-                                defaultDot.setAttribute('title', 'Default TV Input');
-                              } else {
-                                defaultDot.style.display = 'none';
-                              }
-
-                              // Check if device is physically connected
-                              var isConn = (appInst && typeof appInst.isPortConnected === 'function')
-                                ? appInst.isPortConnected(text)
+                              var isConnected = appInst && typeof appInst.isPortConnected === 'function' 
+                                ? appInst.isPortConnected(text) 
                                 : false;
 
-                              var devBadge = btn.querySelector('.hdmi-device-badge');
-                              if (!devBadge) {
-                                devBadge = document.createElement('span');
-                                devBadge.className = 'hdmi-device-badge';
-                                devBadge.style.fontSize = '10px';
-                                devBadge.style.marginLeft = '4px';
-                                devBadge.style.opacity = '0.9';
-                                btn.appendChild(devBadge);
+                              var existingDot = btn.querySelector('.hdmi-signal-indicator') || btn.querySelector('.hdmi-default-dot');
+                              if (!existingDot) {
+                                existingDot = document.createElement('span');
+                                existingDot.className = 'hdmi-signal-indicator';
+                                btn.insertBefore(existingDot, btn.firstChild);
                               }
 
-                              if (isConn) {
-                                var devName = (appInst && typeof appInst.getConnectedDeviceName === 'function')
-                                  ? appInst.getConnectedDeviceName(text)
-                                  : '';
-                                var icon = (appInst && typeof appInst.getConnectedDeviceSymbol === 'function')
-                                  ? appInst.getConnectedDeviceSymbol(text)
-                                  : '🔌';
-                                devBadge.style.display = 'inline-flex';
-                                devBadge.style.alignItems = 'center';
-                                devBadge.style.gap = '3px';
-                                devBadge.innerText = devName ? (icon + ' ' + devName) : icon;
+                              if (isConnected) {
+                                existingDot.style.display = 'inline-block';
+                                existingDot.style.width = '10px';
+                                existingDot.style.height = '10px';
+                                existingDot.style.borderRadius = '50%';
+                                existingDot.style.backgroundColor = '#34d399';
+                                existingDot.style.boxShadow = '0 0 10px #34d399, 0 0 16px rgba(52, 211, 153, 0.85)';
+                                existingDot.style.marginRight = '8px';
+                                existingDot.style.flexShrink = '0';
+                                existingDot.style.border = '1.5px solid #a7f3d0';
+                                existingDot.setAttribute('title', 'Device Connected');
                               } else {
-                                devBadge.style.display = 'none';
+                                existingDot.style.display = 'inline-block';
+                                existingDot.style.width = '8px';
+                                existingDot.style.height = '8px';
+                                existingDot.style.borderRadius = '50%';
+                                existingDot.style.backgroundColor = '#4b5563';
+                                existingDot.style.boxShadow = 'none';
+                                existingDot.style.marginRight = '8px';
+                                existingDot.style.flexShrink = '0';
+                                existingDot.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+                                existingDot.setAttribute('title', 'No Device Attached');
                               }
                             }
                           } catch(e) {}
