@@ -15,13 +15,25 @@ window.TVAppsController = {
     let list = [];
     if (this.hasSyncedInstalled && Array.isArray(this.activeOttList)) {
       list = this.activeOttList;
-    } else if (Array.isArray(this.activeOttList) && this.activeOttList.length > 0) {
-      list = this.activeOttList;
     } else {
       const inst = window.tvAppInstance;
-      if (inst && Array.isArray(inst.activeOttList) && inst.activeOttList.length > 0) {
+      if (inst && inst.hasSyncedInstalled && Array.isArray(inst.activeOttList)) {
         list = inst.activeOttList;
+      } else if (window.TVAppsController && window.TVAppsController.hasSyncedInstalled && Array.isArray(window.TVAppsController.activeOttList)) {
+        list = window.TVAppsController.activeOttList;
+      } else {
+        // Read cached verified apps if available to prevent flashing
+        try {
+          const cached = localStorage.getItem("cached_installed_apps");
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              list = parsed;
+            }
+          }
+        } catch (_) {}
       }
+
       if (!this._syncInFlight) {
         this._syncInFlight = true;
         this.syncInstalledApps().finally(() => { this._syncInFlight = false; });
@@ -51,8 +63,16 @@ window.TVAppsController = {
         const verified = await webosDev.checkInstalledApps(baseList);
         this.activeOttList = verified;
         this.hasSyncedInstalled = true;
+        try {
+          localStorage.setItem("cached_installed_apps", JSON.stringify(verified));
+        } catch (_) {}
         if (window.tvAppInstance) {
           window.tvAppInstance.activeOttList = verified;
+          window.tvAppInstance.hasSyncedInstalled = true;
+        }
+        if (window.TVAppsController) {
+          window.TVAppsController.activeOttList = verified;
+          window.TVAppsController.hasSyncedInstalled = true;
         }
         console.log(`[TVApps] Synced with TV: ${verified.length} of ${baseList.length} configured apps are installed`);
         return;
@@ -69,9 +89,17 @@ window.TVAppsController = {
             this.activeOttList = installed;
             this.hasSyncedInstalled = true;
             this.activeAppFocusIndex = 0;
+            try {
+              localStorage.setItem("cached_installed_apps", JSON.stringify(installed));
+            } catch (_) {}
             if (window.tvAppInstance) {
               window.tvAppInstance.activeOttList = installed;
+              window.tvAppInstance.hasSyncedInstalled = true;
               window.tvAppInstance.activeAppFocusIndex = 0;
+            }
+            if (window.TVAppsController) {
+              window.TVAppsController.activeOttList = installed;
+              window.TVAppsController.hasSyncedInstalled = true;
             }
             setTimeout(() => {
               if (typeof this.focusCurrentApp === "function") {

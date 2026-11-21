@@ -1222,12 +1222,13 @@
                         <!-- Connected Device Name (Upper) & Port Name (Niche / Lower) -->
                         <div class="mt-1 w-full px-2 text-center flex flex-col items-center">
                             <!-- Upper: Auto-detected Connected Device Name -->
+                            <!-- Upper: Auto-detected Connected Device Name -->
                             <h3 class="font-black uppercase tracking-wider transition-colors duration-200 line-clamp-1"
                                 :class="[
                                     isCompactLayout() ? 'text-lg sm:text-xl' : 'text-xl sm:text-2xl',
                                     activeInputFocusIndex === idx ? 'text-amber-300 drop-shadow-[0_2px_12px_rgba(255,215,0,0.7)]' : 'text-white'
                                 ]"
-                                x-text="port.deviceName || port.name || port.label">
+                                x-text="(port.deviceName && !port.deviceName.toUpperCase().startsWith('HDMI')) ? port.deviceName : (port.portName || port.label || 'HDMI')">
                             </h3>
 
                             <!-- Niche / Lower: Hardware Port Name badge & specs -->
@@ -1238,7 +1239,7 @@
                                 </span>
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-white/10 text-slate-300 text-[11px] font-bold uppercase tracking-wider"
                                       x-text="port.badge"
-                                      x-show="port.badge">
+                                      x-show="port.badge && !port.badge.toUpperCase().includes('HDMI DEVICE')">
                                 </span>
                             </div>
                         </div>
@@ -1652,14 +1653,12 @@
                                                     @focus="dashboardFocus = `hdmi_${pIdx}`"
                                                     class="flex-1 py-2 px-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all outline-none border flex items-center justify-center gap-1.5"
                                                     :class="dashboardFocus === `hdmi_${pIdx}` ? 'ring-2 ring-amber-400 bg-amber-400 text-black border-amber-300 shadow-[0_0_15px_rgba(255,215,0,0.8)] scale-105' : (isPortSelected(port) ? 'bg-amber-400/20 text-amber-300 border-amber-400/50' : 'bg-white/10 text-slate-200 border-white/20')">
-                                                <!-- Green signal indicator when device is attached -->
-                                                <span x-show="isPortConnected(port)"
-                                                      class="hdmi-signal-indicator w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399] flex-shrink-0 animate-pulse border border-emerald-200"
-                                                      title="Signal Active / Device Attached"></span>
-                                                <!-- Dim dot when no device attached -->
-                                                <span x-show="!isPortConnected(port)"
-                                                      class="hdmi-signal-indicator w-2 h-2 rounded-full bg-slate-600/70 border border-white/10 flex-shrink-0"
-                                                      title="No Device Attached"></span>
+                                                <!-- Single Clean Signal Indicator (No duplicate dots) -->
+                                                <span class="hdmi-signal-indicator flex-shrink-0 rounded-full transition-all duration-200"
+                                                      :class="isPortConnected(port) 
+                                                          ? 'w-2.5 h-2.5 bg-emerald-400 shadow-[0_0_10px_#34d399] animate-pulse border border-emerald-200' 
+                                                          : 'w-2 h-2 bg-slate-600/70 border border-white/10'"
+                                                      :title="isPortConnected(port) ? 'Signal Active / Device Attached' : 'No Device Attached'"></span>
                                                 <span x-text="port"></span>
                                                 <!-- Connected Device Symbol & Name when attached -->
                                                 <template x-if="isPortConnected(port) && getConnectedDeviceName(port) && !getConnectedDeviceName(port).toLowerCase().includes('hdmi')">

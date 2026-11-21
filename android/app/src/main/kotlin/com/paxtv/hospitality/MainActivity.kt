@@ -861,7 +861,39 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun isHdmiPortPhysicallyConnected(portNumber: Int): Boolean {
-        // 1. Check HdmiControlManager.getPortInfo() / getHdmiPortList() via reflection
+        // 1. Check if an active CEC device is connected to this port
+        try {
+            val hdmiControlManager = getSystemService("hdmi_control")
+            if (hdmiControlManager != null) {
+                val listMethods = listOf("getConnectedDevicesList", "getAllDeviceInfo", "getDeviceList")
+                for (methodName in listMethods) {
+                    try {
+                        val method = hdmiControlManager.javaClass.getMethod(methodName)
+                        val list = method.invoke(hdmiControlManager) as? List<*>
+                        if (list != null) {
+                            for (item in list) {
+                                if (item == null) continue
+                                val portId = try {
+                                    item.javaClass.getMethod("getPortId").invoke(item) as? Int ?: -1
+                                } catch (_: Exception) { -1 }
+
+                                val physAddr = try {
+                                    item.javaClass.getMethod("getPhysicalAddress").invoke(item) as? Int ?: -1
+                                } catch (_: Exception) { -1 }
+
+                                val calcPort = if (physAddr > 0) (physAddr ushr 12) and 0x0F else -1
+
+                                if (portId == portNumber || calcPort == portNumber) {
+                                    return true
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 2. Check HdmiControlManager.getPortInfo() / getHdmiPortList() via reflection
         try {
             val hdmiControlManager = getSystemService("hdmi_control")
             if (hdmiControlManager != null) {
@@ -876,7 +908,7 @@ class MainActivity : FlutterActivity() {
                                 val pId = try {
                                     portInfo.javaClass.getMethod("getId").invoke(portInfo) as? Int ?: -1
                                 } catch (_: Exception) { -1 }
-                                if (pId == portNumber || pId == (portNumber - 1)) {
+                                if (pId == portNumber) {
                                     val isConn = try {
                                         portInfo.javaClass.getMethod("isConnected").invoke(portInfo) as? Boolean ?: false
                                     } catch (_: Exception) { false }
@@ -889,19 +921,18 @@ class MainActivity : FlutterActivity() {
             }
         } catch (_: Exception) {}
 
-        // 2. Check Linux kernel HDMI hotplug status (sysfs)
+        // 3. Check Linux kernel port-specific DRM sysfs status (NEVER check generic switch/hdmi/state)
         try {
-            val possiblePaths = listOf(
-                "/sys/class/switch/hdmi/state",
-                "/sys/devices/virtual/switch/hdmi/state",
+            val specificPaths = listOf(
                 "/sys/class/drm/card0-HDMI-A-$portNumber/status",
-                "/sys/class/extcon/hdmi/state"
+                "/sys/class/drm/card0-HDMI-A-${portNumber - 1}/status",
+                "/sys/devices/platform/display/hdmi/hdmi_$portNumber/status"
             )
-            for (path in possiblePaths) {
+            for (path in specificPaths) {
                 val file = java.io.File(path)
                 if (file.exists() && file.canRead()) {
                     val content = file.readText().trim()
-                    if (content == "1" || content.equals("connected", ignoreCase = true)) {
+                    if (content.equals("connected", ignoreCase = true) || content == "1") {
                         return true
                     }
                 }
@@ -1350,72 +1381,94 @@ class MainActivity : FlutterActivity() {
         }
         lastLaunchHdmiTime = now
 
-        var displayName = port
-        if (displayName.contains("/")) {
-            displayName = displayName.substringAfterLast('/')
-        }
-        displayName = displayName.replace("_", " ").trim()
-
         return try {
             val tvInputManager = getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager
+            val allInputs = tvInputManager?.tvInputList ?: emptyList()
+            val hdmiInputs = allInputs.filter { isHardwareHdmiInput(it) }.sortedBy { it.id }
             var resolvedId: String? = null
+            var displayName = port.trim()
 
-            // 1. Map sequential HDMI 1, 2, 3 to actual hardware TV inputs
-            val hdmiInputs = tvInputManager?.tvInputList?.filter { isHardwareHdmiInput(it) }?.sortedBy { it.id } ?: emptyList()
-            val portNumMatch = Regex("([1-9])").find(port)
-            val portIndex = portNumMatch?.groupValues?.get(1)?.toIntOrNull()
-            if (portIndex != null && portIndex in 1..hdmiInputs.size) {
-                resolvedId = hdmiInputs[portIndex - 1].id
-                displayName = "HDMI $portIndex"
+            // 1. Exact match with any registered input ID
+            val exactMatch = allInputs.firstOrNull { it.id.equals(port.trim(), ignoreCase = true) }
+            if (exactMatch != null) {
+                resolvedId = exactMatch.id
             }
 
-            val normalizedPort = port.lowercase().replace(" ", "").replace("-", "").replace("_", "")
-
-            if (resolvedId == null && tvInputManager != null) {
-                for (info in tvInputManager.tvInputList) {
-                    val id = info.id
-                    val label = info.loadLabel(this)?.toString() ?: id
-                    val customLabel = try { info.loadCustomLabel(this)?.toString() } catch (_: Exception) { null } ?: ""
-                    val normId = id.lowercase().replace(" ", "").replace("-", "").replace("_", "")
-                    val normLabel = label.lowercase().replace(" ", "").replace("-", "").replace("_", "")
-                    val normCustom = customLabel.lowercase().replace(" ", "").replace("-", "").replace("_", "")
-
-                    if (normId == normalizedPort || normLabel == normalizedPort || normCustom == normalizedPort ||
-                        normId.contains(normalizedPort) || normLabel.contains(normalizedPort) || normCustom.contains(normalizedPort) ||
-                        (normalizedPort.isNotEmpty() && (normalizedPort.contains(normId) || normalizedPort.contains(normLabel) || normalizedPort.contains(normCustom)))) {
-                        resolvedId = id
-                        displayName = if (customLabel.isNotEmpty()) customLabel else if (label.isNotEmpty()) label else id
-                        break
+            // 2. Hardware pin matching (e.g. HW8, HW7, HW6)
+            if (resolvedId == null) {
+                val hwMatch = Regex("HW([0-9]+)", RegexOption.IGNORE_CASE).find(port)
+                if (hwMatch != null) {
+                    val hwNum = hwMatch.groupValues[1]
+                    val match = allInputs.firstOrNull { it.id.contains("HW$hwNum", ignoreCase = true) }
+                    if (match != null) {
+                        resolvedId = match.id
                     }
                 }
             }
 
-            // Fallback match if no exact normalized ID matched
-            if (resolvedId == null && tvInputManager != null && tvInputManager.tvInputList.isNotEmpty()) {
-                val match = tvInputManager.tvInputList.firstOrNull { info ->
-                    val normId = info.id.lowercase().replace(" ", "").replace("-", "").replace("_", "")
-                    val normLabel = (info.loadLabel(this)?.toString() ?: "").lowercase().replace(" ", "").replace("-", "").replace("_", "")
-                    val normCustom = (try { info.loadCustomLabel(this)?.toString() } catch (_: Exception) { null } ?: "").lowercase().replace(" ", "").replace("-", "").replace("_", "")
-                    normId.contains(normalizedPort) || normLabel.contains(normalizedPort) || normCustom.contains(normalizedPort)
-                } ?: tvInputManager.tvInputList.firstOrNull { info ->
-                    info.type == TvInputInfo.TYPE_HDMI || info.type == TvInputInfo.TYPE_TUNER || info.type == TvInputInfo.TYPE_COMPOSITE
-                } ?: tvInputManager.tvInputList.firstOrNull()
-
-                if (match != null) {
-                    resolvedId = match.id
-                    val custom = try { match.loadCustomLabel(this)?.toString() } catch (_: Exception) { null }
-                    displayName = if (!custom.isNullOrBlank()) custom else (match.loadLabel(this)?.toString() ?: match.id)
+            // 3. Sequential HDMI port index matching (e.g. "HDMI 1", "HDMI 2", "HDMI 3")
+            if (resolvedId == null) {
+                val hdmiNumMatch = Regex("HDMI\\s*([1-9])", RegexOption.IGNORE_CASE).find(port)
+                val seqIndex = hdmiNumMatch?.groupValues?.get(1)?.toIntOrNull()
+                if (seqIndex != null && seqIndex in 1..hdmiInputs.size) {
+                    resolvedId = hdmiInputs[seqIndex - 1].id
+                    displayName = "HDMI $seqIndex"
+                } else if (seqIndex != null) {
+                    // Match input ID containing this digit (e.g. HW8 for HDMI 8)
+                    val match = hdmiInputs.firstOrNull { it.id.contains("$seqIndex") }
+                    if (match != null) {
+                        resolvedId = match.id
+                    }
                 }
             }
 
-            val finalTargetId = resolvedId ?: port
+            // 4. Substring or normalized label matching
+            if (resolvedId == null) {
+                val normalizedPort = port.lowercase().replace(" ", "").replace("-", "").replace("_", "")
+                val match = allInputs.firstOrNull { info ->
+                    val normId = info.id.lowercase().replace(" ", "").replace("-", "").replace("_", "")
+                    val normLabel = (info.loadLabel(this)?.toString() ?: "").lowercase().replace(" ", "").replace("-", "").replace("_", "")
+                    val normCustom = (try { info.loadCustomLabel(this)?.toString() } catch (_: Exception) { "" } ?: "").lowercase().replace(" ", "").replace("-", "").replace("_", "")
+                    normId == normalizedPort || normLabel == normalizedPort || normCustom == normalizedPort ||
+                    normId.contains(normalizedPort) || normLabel.contains(normalizedPort) || normalizedPort.contains(normId)
+                }
+                if (match != null) {
+                    resolvedId = match.id
+                }
+            }
+
+            // 5. Safe Fallback: NEVER pass an unresolved arbitrary string into the TV input framework!
+            // If resolvedId is not a valid registered input, fallback to the first active hardware HDMI input.
+            if (resolvedId == null || allInputs.none { it.id == resolvedId }) {
+                resolvedId = hdmiInputs.firstOrNull()?.id ?: allInputs.firstOrNull()?.id
+            }
+
+            val finalTargetId = resolvedId
+            if (finalTargetId.isNullOrBlank()) {
+                Toast.makeText(applicationContext, "No TV inputs available", Toast.LENGTH_SHORT).show()
+                return false
+            }
+
+            // Resolve friendly display name
+            val targetInput = allInputs.firstOrNull { it.id == finalTargetId }
+            if (targetInput != null) {
+                val hdmiIdx = hdmiInputs.indexOf(targetInput)
+                if (hdmiIdx >= 0) {
+                    val portNum = hdmiIdx + 1
+                    val cecName = getCecDeviceNameForInput(targetInput, portNum)
+                    displayName = if (!cecName.isNullOrBlank()) cecName else "HDMI $portNum"
+                } else {
+                    val custom = try { targetInput.loadCustomLabel(this)?.toString() } catch (_: Exception) { null }
+                    val label = targetInput.loadLabel(this)?.toString()
+                    displayName = if (!custom.isNullOrBlank()) custom else (if (!label.isNullOrBlank()) label else "TV Input")
+                }
+            }
+
             Toast.makeText(applicationContext, "Opening $displayName...", Toast.LENGTH_SHORT).show()
 
-            val targetUri: Uri = if (finalTargetId.startsWith("content://")) {
-                Uri.parse(finalTargetId)
-            } else if (finalTargetId.contains("/")) {
-                Uri.parse("content://android.media.tv/passthrough/${Uri.encode(finalTargetId)}")
-            } else {
+            val targetUri: Uri = try {
+                android.media.tv.TvContract.buildChannelUriForPassthroughInput(finalTargetId)
+            } catch (_: Exception) {
                 Uri.parse("content://android.media.tv/passthrough/${Uri.encode(finalTargetId)}")
             }
 
@@ -1427,7 +1480,6 @@ class MainActivity : FlutterActivity() {
                 startActivity(intent)
                 true
             } catch (e: Exception) {
-                // If direct URI fails, fallback to TV Input Intent safely
                 try {
                     val fallbackIntent = Intent("android.intent.action.VIEW_TV_INPUT").apply {
                         data = targetUri
@@ -1436,13 +1488,22 @@ class MainActivity : FlutterActivity() {
                     startActivity(fallbackIntent)
                     true
                 } catch (_: Exception) {
-                    Toast.makeText(applicationContext, "$displayName is not connected", Toast.LENGTH_LONG).show()
+                    // Try launching standard TV app
+                    val tvAppPackages = listOf("com.android.tv", "com.google.android.tv", "com.mediatek.tvinput", "com.mediatek.tv")
+                    for (pkg in tvAppPackages) {
+                        val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
+                        if (launchIntent != null) {
+                            startActivity(launchIntent)
+                            return true
+                        }
+                    }
+                    Toast.makeText(applicationContext, "$displayName is not connected", Toast.LENGTH_SHORT).show()
                     false
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(applicationContext, "$displayName is not connected", Toast.LENGTH_LONG).show()
+            Toast.makeText(applicationContext, "Cannot open TV input", Toast.LENGTH_SHORT).show()
             false
         }
     }

@@ -138,7 +138,7 @@
                                     isCompactLayout() ? 'text-lg sm:text-xl' : 'text-xl sm:text-2xl',
                                     activeInputFocusIndex === idx ? 'text-amber-300 drop-shadow-[0_2px_12px_rgba(255,215,0,0.7)]' : 'text-white'
                                 ]"
-                                x-text="port.deviceName || port.name || port.label">
+                                x-text="(port.deviceName && !port.deviceName.toUpperCase().startsWith('HDMI')) ? port.deviceName : (port.portName || port.label || 'HDMI')">
                             </h3>
 
                             <!-- Niche / Lower: Hardware Port Name badge & specs -->
@@ -149,7 +149,7 @@
                                 </span>
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-white/10 text-slate-300 text-[11px] font-bold uppercase tracking-wider"
                                       x-text="port.badge"
-                                      x-show="port.badge">
+                                      x-show="port.badge && !port.badge.toUpperCase().includes('HDMI DEVICE')">
                                 </span>
                             </div>
                         </div>

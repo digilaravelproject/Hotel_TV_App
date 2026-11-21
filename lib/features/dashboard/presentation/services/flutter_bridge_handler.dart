@@ -112,6 +112,26 @@ class FlutterBridgeHandler {
 
         // Return ONLY apps from active_ott that are physically INSTALLED on the TV device
         final List<Map<String, dynamic>> resultApps = [];
+        final Map<String, List<String>> knownOttPackages = {
+          'netflix': ['com.netflix.ninja', 'com.netflix.mediaclient'],
+          'prime': ['com.amazon.amazonvideo.livingroom', 'com.amazon.avod.thirdpartyclient'],
+          'amazon prime video': ['com.amazon.amazonvideo.livingroom', 'com.amazon.avod.thirdpartyclient'],
+          'youtube': ['com.google.android.youtube.tv', 'com.google.android.youtube'],
+          'hotstar': ['in.startv.hotstar'],
+          'disney+ hotstar': ['in.startv.hotstar'],
+          'zee5': ['com.graymatrix.did'],
+          'sonyliv': ['com.sonyliv'],
+          'sony liv': ['com.sonyliv'],
+          'jiocinema': ['com.jio.media.ondemand'],
+          'jio cinema': ['com.jio.media.ondemand'],
+          'aha': ['com.aha.android'],
+          'sun nxt': ['com.suntv.sunnxt'],
+          'sunnxt': ['com.suntv.sunnxt'],
+          'mx player': ['com.mxtech.videoplayer.ad', 'com.mxtech.videoplayer.pro'],
+          'playstore': ['com.android.vending'],
+          'google play store': ['com.android.vending'],
+        };
+
         for (var ott in activeOttList) {
           final String ottPackage = ott['package_name']?.toString() ?? ott['package']?.toString() ?? ott['packageName']?.toString() ?? '';
           final String ottId = ott['id']?.toString().toLowerCase() ?? '';
@@ -119,26 +139,29 @@ class FlutterBridgeHandler {
 
           if (ottPackage.isEmpty && ottId.isEmpty) continue;
 
+          final knownCandidates = (knownOttPackages[ottId] ?? knownOttPackages[ottName.toLowerCase()] ?? [])
+              .map((e) => e.toLowerCase())
+              .toList();
+
           final matchingInstalled = installedApps.firstWhere(
             (app) {
               final pkg = (app['package'] ?? app['packageName'] ?? '').toString().toLowerCase();
               final target = ottPackage.toLowerCase();
-              final id = ottId.toLowerCase();
               final name = ottName.toLowerCase();
+              final appDisplayName = (app['name'] ?? app['appName'] ?? '').toString().toLowerCase();
               if (pkg.isEmpty) return false;
 
               // 1. Exact package match
               if (target.isNotEmpty && pkg == target) return true;
 
-              // 2. Substring package match (at least 6 characters)
-              if (target.isNotEmpty && target.length >= 6 && (pkg.contains(target) || target.contains(pkg))) return true;
+              // 2. Known TV / Mobile package alias match (e.g. com.netflix.ninja vs com.netflix.mediaclient)
+              if (knownCandidates.isNotEmpty && knownCandidates.contains(pkg)) return true;
 
-              // 3. ID match - only if non-numeric and length >= 5
-              if (id.isNotEmpty && !RegExp(r'^\d+$').hasMatch(id) && id.length >= 5 && (pkg.contains(id) || id.contains(pkg))) return true;
+              // 3. Exact Display Name match
+              if (name.isNotEmpty && appDisplayName.isNotEmpty && appDisplayName == name) return true;
 
-              // 4. App Name match with installed app display name
-              final appDisplayName = (app['name'] ?? app['appName'] ?? '').toString().toLowerCase();
-              if (name.isNotEmpty && appDisplayName.isNotEmpty && (appDisplayName == name || (name.length >= 4 && appDisplayName.contains(name)))) return true;
+              // 4. Strict package prefix match (only if target is a full qualified package)
+              if (target.contains('.') && target.length >= 10 && pkg == target) return true;
 
               return false;
             },

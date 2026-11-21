@@ -118,7 +118,9 @@ function tvApp() {
           console.warn("[TVApp] Failed loading hotel configuration:", cfgErr);
         }
         try {
-          if (typeof this.syncInstalledApps === "function") {
+          if (window.TVAppsController && typeof window.TVAppsController.syncInstalledApps === "function") {
+            await window.TVAppsController.syncInstalledApps.call(this);
+          } else if (typeof this.syncInstalledApps === "function") {
             await this.syncInstalledApps();
           }
         } catch (syncErr) {
@@ -164,7 +166,8 @@ function tvApp() {
         }
         if ((_a = config.device) == null ? void 0 : _a.room_no) this.roomNo = config.device.room_no;
         if ((_c = (_b = config.hotel) == null ? void 0 : _b.media) == null ? void 0 : _c.logo_image) this.hotelLogo = config.hotel.media.logo_image;
-        if (Array.isArray(config.active_ott) && config.active_ott.length > 0) {
+        if (!this.hasSyncedInstalled && Array.isArray(config.active_ott) && config.active_ott.length > 0) {
+          // Keep raw active_ott only in fallback/mock environment
           this.activeOttList = config.active_ott;
         }
         const hotelMedia = ((_d = config.hotel) == null ? void 0 : _d.media) || {};
