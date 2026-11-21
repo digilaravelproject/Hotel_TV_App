@@ -729,7 +729,15 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
                                 ? appInst.isPortConnected(text) 
                                 : false;
 
-                              var existingDot = btn.querySelector('.hdmi-signal-indicator') || btn.querySelector('.hdmi-default-dot');
+                              // Prevent double dots: remove any excess dots created
+                              var dots = btn.querySelectorAll('.hdmi-signal-indicator, .rounded-full');
+                              if (dots.length > 1) {
+                                for (var d = 1; d < dots.length; d++) {
+                                  dots[d].remove();
+                                }
+                              }
+
+                              var existingDot = btn.querySelector('.hdmi-signal-indicator') || btn.querySelector('.rounded-full');
                               if (!existingDot) {
                                 existingDot = document.createElement('span');
                                 existingDot.className = 'hdmi-signal-indicator';
@@ -758,6 +766,35 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
                                 existingDot.style.flexShrink = '0';
                                 existingDot.style.border = '1px solid rgba(255, 255, 255, 0.2)';
                                 existingDot.setAttribute('title', 'No Device Attached');
+                              }
+
+                              // Device label badge (only if genuine device and not 'HDMI Device')
+                              var devBadge = btn.querySelector('.hdmi-device-badge');
+                              if (isConnected) {
+                                var devName = (appInst && typeof appInst.getConnectedDeviceName === 'function')
+                                  ? appInst.getConnectedDeviceName(text)
+                                  : '';
+                                if (devName && !devName.toLowerCase().includes('hdmi')) {
+                                  if (!devBadge) {
+                                    devBadge = document.createElement('span');
+                                    devBadge.className = 'hdmi-device-badge';
+                                    devBadge.style.fontSize = '10px';
+                                    devBadge.style.marginLeft = '4px';
+                                    devBadge.style.opacity = '0.9';
+                                    btn.appendChild(devBadge);
+                                  }
+                                  var icon = (appInst && typeof appInst.getConnectedDeviceSymbol === 'function')
+                                    ? appInst.getConnectedDeviceSymbol(text)
+                                    : '🔌';
+                                  devBadge.style.display = 'inline-flex';
+                                  devBadge.style.alignItems = 'center';
+                                  devBadge.style.gap = '3px';
+                                  devBadge.innerText = icon + ' ' + devName;
+                                } else if (devBadge) {
+                                  devBadge.style.display = 'none';
+                                }
+                              } else if (devBadge) {
+                                devBadge.style.display = 'none';
                               }
                             }
                           } catch(e) {}

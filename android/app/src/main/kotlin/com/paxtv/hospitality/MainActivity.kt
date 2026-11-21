@@ -860,41 +860,74 @@ class MainActivity : FlutterActivity() {
         return null
     }
 
-    private fun getConnectedDeviceAndPortName(input: TvInputInfo, hdmiFallbackIndex: Int): Pair<String, String> {
-        val id = input.id
-
-        // 1. Determine Port Number & Port Name
-        var portNum = -1
-        val hdmiMatch = Regex("HDMI[-_\\s]?([0-9]+)", RegexOption.IGNORE_CASE).find(id)
-        if (hdmiMatch != null) {
-            portNum = hdmiMatch.groupValues[1].toIntOrNull() ?: -1
-        } else {
-            val hwMatch = Regex("HW([0-9]+)", RegexOption.IGNORE_CASE).find(id)
-            if (hwMatch != null) {
-                val hwIdx = hwMatch.groupValues[1].toIntOrNull() ?: 0
-                portNum = hwIdx + 1
-            }
-        }
-
+    private fun isHdmiPortPhysicallyConnected(portNumber: Int): Boolean {
+        // 1. Check HdmiControlManager.getPortInfo() / getHdmiPortList() via reflection
         try {
-            val getHdmiDeviceInfoMethod = input.javaClass.getMethod("getHdmiDeviceInfo")
-            val hdmiDeviceInfo = getHdmiDeviceInfoMethod.invoke(input)
-            if (hdmiDeviceInfo != null) {
-                val pId = hdmiDeviceInfo.javaClass.getMethod("getPortId").invoke(hdmiDeviceInfo) as? Int ?: -1
-                if (pId > 0) {
-                    portNum = pId
+            val hdmiControlManager = getSystemService("hdmi_control")
+            if (hdmiControlManager != null) {
+                val listMethods = listOf("getPortInfo", "getHdmiPortList")
+                for (methodName in listMethods) {
+                    try {
+                        val method = hdmiControlManager.javaClass.getMethod(methodName)
+                        val list = method.invoke(hdmiControlManager) as? List<*>
+                        if (list != null) {
+                            for (portInfo in list) {
+                                if (portInfo == null) continue
+                                val pId = try {
+                                    portInfo.javaClass.getMethod("getId").invoke(portInfo) as? Int ?: -1
+                                } catch (_: Exception) { -1 }
+                                if (pId == portNumber || pId == (portNumber - 1)) {
+                                    val isConn = try {
+                                        portInfo.javaClass.getMethod("isConnected").invoke(portInfo) as? Boolean ?: false
+                                    } catch (_: Exception) { false }
+                                    if (isConn) return true
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {}
                 }
             }
         } catch (_: Exception) {}
 
-        val finalPortNum = if (portNum > 0) portNum else hdmiFallbackIndex
-        val portName = "HDMI $finalPortNum"
+        // 2. Check Linux kernel HDMI hotplug status (sysfs)
+        try {
+            val possiblePaths = listOf(
+                "/sys/class/switch/hdmi/state",
+                "/sys/devices/virtual/switch/hdmi/state",
+                "/sys/class/drm/card0-HDMI-A-$portNumber/status",
+                "/sys/class/extcon/hdmi/state"
+            )
+            for (path in possiblePaths) {
+                val file = java.io.File(path)
+                if (file.exists() && file.canRead()) {
+                    val content = file.readText().trim()
+                    if (content == "1" || content.equals("connected", ignoreCase = true)) {
+                        return true
+                    }
+                }
+            }
+        } catch (_: Exception) {}
 
-        // 2. Determine Connected Device Name (Upper)
-        // Step 2a: Check CEC Broadcasted Display Name (Tata Play, Dish TV, Apple TV, etc.)
-        var deviceName = getCecDeviceNameForInput(input, finalPortNum)
+        return false
+    }
 
-        // Step 2b: Check TvInputInfo.loadCustomLabel (User or OS renamed label)
+    private fun getDeviceTypeName(type: Int?): String? {
+        return when (type) {
+            1 -> "Set-top Box / DTH"
+            4 -> "Playback Device / Console"
+            5 -> "Audio System"
+            else -> null
+        }
+    }
+
+    private fun getConnectedDeviceAndPortName(input: TvInputInfo, hdmiSequentialIndex: Int): Pair<String, String> {
+        val portName = "HDMI $hdmiSequentialIndex"
+        val portNum = hdmiSequentialIndex
+
+        // 1. Check CEC Broadcasted Display Name (Tata Play, Dish TV, Apple TV, etc.)
+        var deviceName = getCecDeviceNameForInput(input, portNum)
+
+        // 2. Check TvInputInfo.loadCustomLabel (User or OS renamed label)
         if (deviceName.isNullOrBlank()) {
             val customLabel = try { input.loadCustomLabel(this)?.toString()?.trim() } catch (_: Exception) { null }
             if (isValidDeviceName(customLabel)) {
@@ -902,7 +935,7 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        // Step 2c: Check TvInputInfo.loadLabel
+        // 3. Check TvInputInfo.loadLabel
         if (deviceName.isNullOrBlank()) {
             val rawLabel = try { input.loadLabel(this)?.toString()?.trim() } catch (_: Exception) { null }
             if (isValidDeviceName(rawLabel)) {
@@ -910,18 +943,7 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        // Step 2d: Friendly fallback if no CEC name broadcasted yet
-        if (deviceName.isNullOrBlank()) {
-            deviceName = when (finalPortNum) {
-                1 -> "Set-top Box / DTH"
-                2 -> "Gaming Console / Media"
-                3 -> "Streaming Player"
-                4 -> "High Definition Source"
-                else -> "HDMI Device"
-            }
-        }
-
-        return Pair(deviceName, portName)
+        return Pair(deviceName ?: "", portName)
     }
 
     private fun getTvInputs(): List<String> {
@@ -929,20 +951,18 @@ class MainActivity : FlutterActivity() {
         try {
             val tvInputManager = applicationContext.getSystemService(Context.TV_INPUT_SERVICE) as? android.media.tv.TvInputManager
             if (tvInputManager != null) {
+                val inputList = tvInputManager.tvInputList.filter { isHardwareHdmiInput(it) }
+                val sortedList = inputList.sortedBy { it.id }
                 var hdmiIndex = 1
-                for (input in tvInputManager.tvInputList) {
-                    if (isHardwareHdmiInput(input)) {
-                        val (deviceName, portName) = getConnectedDeviceAndPortName(input, hdmiIndex)
-                        hdmiIndex++
-                        inputs.add("$deviceName ($portName)")
-                    }
+                for (input in sortedList) {
+                    inputs.add("HDMI $hdmiIndex")
+                    hdmiIndex++
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
         
-        // Remove duplicates and sort (e.g. HDMI 1, HDMI 2)
         return inputs.distinct().toList()
     }
 
@@ -1340,11 +1360,18 @@ class MainActivity : FlutterActivity() {
             val tvInputManager = getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager
             var resolvedId: String? = null
 
-            var isConnected = false
+            // 1. Map sequential HDMI 1, 2, 3 to actual hardware TV inputs
+            val hdmiInputs = tvInputManager?.tvInputList?.filter { isHardwareHdmiInput(it) }?.sortedBy { it.id } ?: emptyList()
+            val portNumMatch = Regex("([1-9])").find(port)
+            val portIndex = portNumMatch?.groupValues?.get(1)?.toIntOrNull()
+            if (portIndex != null && portIndex in 1..hdmiInputs.size) {
+                resolvedId = hdmiInputs[portIndex - 1].id
+                displayName = "HDMI $portIndex"
+            }
 
             val normalizedPort = port.lowercase().replace(" ", "").replace("-", "").replace("_", "")
 
-            if (tvInputManager != null) {
+            if (resolvedId == null && tvInputManager != null) {
                 for (info in tvInputManager.tvInputList) {
                     val id = info.id
                     val label = info.loadLabel(this)?.toString() ?: id
@@ -1381,8 +1408,6 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
-            // Note: Some custom TV boards (e.g. MediaTek/Realtek/MStar AOSP) return TvInputManager.INPUT_STATE_DISCONNECTED (2)
-            // even when cable is physically connected. So we do NOT block intent launch here; instead we let Android TV Intent open it.
             val finalTargetId = resolvedId ?: port
             Toast.makeText(applicationContext, "Opening $displayName...", Toast.LENGTH_SHORT).show()
 
@@ -1427,39 +1452,42 @@ class MainActivity : FlutterActivity() {
         try {
             val tvInputManager = getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager
             if (tvInputManager != null) {
-                val inputList = tvInputManager.tvInputList
+                val inputList = tvInputManager.tvInputList.filter { isHardwareHdmiInput(it) }
+                // Sort ascending by ID (e.g. HW6, HW7, HW8 -> HDMI 1, HDMI 2, HDMI 3)
+                val sortedList = inputList.sortedBy { it.id }
                 var hdmiIndex = 1
 
-                for (input in inputList) {
+                for (input in sortedList) {
                     val id = input.id
-                    
-                    if (!isHardwareHdmiInput(input)) {
-                        continue
-                    }
-
-                    val (deviceName, portName) = getConnectedDeviceAndPortName(input, hdmiIndex)
                     val portNum = hdmiIndex
+                    val portName = "HDMI $portNum"
                     hdmiIndex++
 
                     // 1. Check CEC broadcasted device name (e.g., Tata Play, Apple TV, Fire TV, PS5)
                     val cecName = getCecDeviceNameForInput(input, portNum)
                     
-                    // 2. Query hardware connection state from Android TvInputManager
-                    val state = try {
-                        tvInputManager.getInputState(id)
-                    } catch (e: Exception) {
-                        if (!cecName.isNullOrBlank()) TvInputManager.INPUT_STATE_CONNECTED else -1
-                    }
+                    // 2. Check hardware physical connection (HdmiControlManager port info / sysfs hotplug)
+                    val isPhysicallyConnected = isHdmiPortPhysicallyConnected(portNum)
 
-                    // A port is physically connected if CEC found an active device or TvInputManager state is CONNECTED (0)
-                    val isConnected = (!cecName.isNullOrBlank()) ||
-                                      (state == TvInputManager.INPUT_STATE_CONNECTED || 
-                                       state == TvInputManager.INPUT_STATE_CONNECTED_STANDBY || 
-                                       state == 0)
+                    // A port is physically connected ONLY if active CEC device is present or physical HPD line is connected
+                    val isConnected = (!cecName.isNullOrBlank()) || isPhysicallyConnected
+
+                    val deviceName = if (!cecName.isNullOrBlank()) {
+                        cecName
+                    } else if (isPhysicallyConnected) {
+                        when (portNum) {
+                            1 -> "Set-top Box / DTH"
+                            2 -> "Gaming Console / Media"
+                            3 -> "Streaming Player"
+                            else -> "Connected Device"
+                        }
+                    } else {
+                        ""
+                    }
 
                     inputsList.add(mapOf(
                         "id" to id,
-                        "label" to deviceName,
+                        "label" to portName,
                         "name" to deviceName,
                         "deviceName" to deviceName,
                         "portName" to portName,
