@@ -64,19 +64,19 @@ window.TVAppsController = {
             // Flutter bridge already verifies apps (matched with active_ott or smart hybrid fallback)
             this.activeOttList = installed;
             this.hasSyncedInstalled = true;
+            this.activeAppFocusIndex = 0;
             if (window.tvAppInstance) {
               window.tvAppInstance.activeOttList = installed;
               window.tvAppInstance.activeAppFocusIndex = 0;
             }
-            this.activeAppFocusIndex = 0;
-            this.$nextTick(() => {
+            setTimeout(() => {
               if (typeof this.focusCurrentApp === "function") {
                 this.focusCurrentApp();
               } else {
                 const el = document.getElementById("app_card_0");
                 if (el) el.focus();
               }
-            });
+            }, 60);
             console.log(`[TVApps] Synced with Flutter TV: ${installed.length} apps available`);
             return;
           }
@@ -180,21 +180,48 @@ window.TVAppsController = {
     }, 2500);
   },
   focusCurrentApp() {
-    this.$nextTick(() => {
-      if (typeof this.activeAppFocusIndex === "number") {
-        const el = document.getElementById(`app_card_${this.activeAppFocusIndex}`);
-        if (el) {
-          el.focus();
-          el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
-        }
+    const doFocus = () => {
+      const idx = typeof this.activeAppFocusIndex === "number" ? this.activeAppFocusIndex : 0;
+      this.activeAppFocusIndex = idx;
+      if (window.tvAppInstance) {
+        window.tvAppInstance.activeAppFocusIndex = idx;
       }
-    });
+      const el = document.getElementById(`app_card_${idx}`);
+      if (el) {
+        el.focus();
+        el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+      }
+    };
+    if (typeof this.$nextTick === "function") {
+      this.$nextTick(doFocus);
+    } else {
+      setTimeout(doFocus, 50);
+    }
   },
   handleApplicationsGridNavigation(e) {
     var _a, _b, _c;
     const list = this.getActiveOttList();
     const total = list.length;
     const cols = 5;
+
+    // Safety recovery: if focus state was lost or header_back, any directional key recovers to active card
+    if (typeof this.activeAppFocusIndex !== "number" || this.activeAppFocusIndex === "header_back") {
+      if (TVRemoteManager.matches(e, "ENTER")) {
+        if (document.activeElement === document.getElementById("tv-header-back-btn") || this.activeAppFocusIndex === "header_back") {
+          this.goBack();
+          return true;
+        }
+      }
+      if (TVRemoteManager.matches(e, "DOWN") || TVRemoteManager.matches(e, "LEFT") || TVRemoteManager.matches(e, "RIGHT")) {
+        e.preventDefault();
+        var backBtn = document.getElementById("tv-header-back-btn");
+        if (backBtn) backBtn.blur();
+        this.activeAppFocusIndex = typeof this.lastAppCardIndex === "number" ? this.lastAppCardIndex : 0;
+        this.focusCurrentApp();
+        return true;
+      }
+    }
+
     if (TVRemoteManager.matches(e, "LEFT")) {
       e.preventDefault();
       if (typeof this.activeAppFocusIndex === "number") {
@@ -224,10 +251,12 @@ window.TVAppsController = {
         } else {
           this.lastAppCardIndex = this.activeAppFocusIndex;
           this.activeAppFocusIndex = "header_back";
-          this.$nextTick(() => {
+          const doHeaderFocus = () => {
             var _a2;
             (_a2 = document.getElementById("tv-header-back-btn")) == null ? void 0 : _a2.focus();
-          });
+          };
+          if (typeof this.$nextTick === "function") this.$nextTick(doHeaderFocus);
+          else setTimeout(doHeaderFocus, 50);
         }
       }
       return true;

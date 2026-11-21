@@ -628,11 +628,11 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
                           }
                         }
 
-                        // 5. Fix TV Inputs / HDMI Ports (Ensure never empty!)
+                        // 5. Fix TV Inputs / HDMI Ports & Signal Indicators
                         var defaultInputs = [
-                          { id: 'HDMI_1', label: 'HDMI 1', name: 'HDMI 1', model: 'HDMI_1', value: 'HDMI_1', type: 'HDMI', isConnected: true, badge: '4K HDR 60Hz', description: 'Set-top Box / Cable TV' },
-                          { id: 'HDMI_2', label: 'HDMI 2', name: 'HDMI 2', model: 'HDMI_2', value: 'HDMI_2', type: 'HDMI', isConnected: true, badge: 'eARC / ARC', description: 'Gaming Console / Soundbar' },
-                          { id: 'HDMI_3', label: 'HDMI 3', name: 'HDMI 3', model: 'HDMI_3', value: 'HDMI_3', type: 'HDMI', isConnected: true, badge: '4K HDR', description: 'Media Player / Streaming Device' }
+                          { id: 'HDMI_1', label: 'HDMI 1', name: 'HDMI 1', portName: 'HDMI 1', model: 'HDMI_1', value: 'HDMI_1', type: 'HDMI', isConnected: true, badge: '4K HDR 60Hz', description: 'Set-top Box / Cable TV' },
+                          { id: 'HDMI_2', label: 'HDMI 2', name: 'HDMI 2', portName: 'HDMI 2', model: 'HDMI_2', value: 'HDMI_2', type: 'HDMI', isConnected: false, badge: 'eARC / ARC', description: 'Gaming Console / Soundbar' },
+                          { id: 'HDMI_3', label: 'HDMI 3', name: 'HDMI 3', portName: 'HDMI 3', model: 'HDMI_3', value: 'HDMI_3', type: 'HDMI', isConnected: false, badge: '4K HDR', description: 'Media Player / Streaming Device' }
                         ];
                         if (!window.tvAppInstance.inputPorts || window.tvAppInstance.inputPorts.length === 0) {
                           window.tvAppInstance.inputPorts = defaultInputs;
@@ -643,6 +643,149 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
                             window.TVInputController.inputPorts = defaultInputs;
                             window.TVInputController.inputLoading = false;
                           }
+                        }
+
+                        // Helper: Checks if an HDMI port is physically connected / has active signal
+                        window.tvAppInstance.isPortConnected = function(port) {
+                          try {
+                            if (!port) return false;
+                            var portStr = (typeof port === 'object' ? (port.portName || port.name || port.label || port.id || '') : String(port)).trim().toUpperCase();
+                            var clean = portStr.replace(/[^A-Z0-9]/g, '');
+                            var statusMap = window.tvAppInstance.hdmiPortStatusMap;
+                            if (statusMap && statusMap[clean] !== undefined) return Boolean(statusMap[clean]);
+                            
+                            var list = window.tvAppInstance.inputPorts || (window.TVInputController && window.TVInputController.inputPorts) || [];
+                            for (var i = 0; i < list.length; i++) {
+                              var item = list[i];
+                              var itemName = (item.portName || item.name || item.label || item.id || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                              if (itemName === clean || itemName.indexOf(clean) !== -1 || clean.indexOf(itemName) !== -1) {
+                                return item.isConnected === true || item.isConnected === 'true' || item.hasSignal === true || item.hasSignal === 'true';
+                              }
+                            }
+                            return clean === 'HDMI1' || clean === '1';
+                          } catch(e) { return false; }
+                        };
+
+                        // Helper: Query native TV bridge for real-time HDMI connection status
+                        if (window.flutterBridge && typeof window.flutterBridge.getTvInputs === 'function') {
+                          window.flutterBridge.getTvInputs().then(function(inputs) {
+                            if (Array.isArray(inputs) && inputs.length > 0) {
+                              window.tvAppInstance.hdmiPortStatusMap = {};
+                              inputs.forEach(function(item) {
+                                var key = (item.portName || item.label || item.name || item.id || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                                var isConn = item.isConnected === true || item.isConnected === 'true' || item.hasSignal === true || item.hasSignal === 'true';
+                                window.tvAppInstance.hdmiPortStatusMap[key] = isConn;
+                              });
+                              if (typeof window._updateHdmiPortIndicators === 'function') {
+                                window._updateHdmiPortIndicators();
+                              }
+                            }
+                          }).catch(function() {});
+                        }
+
+                        // Dynamic DOM Signal Indicator: Injects live green glowing indicator for connected HDMI ports
+                        window._updateHdmiPortIndicators = function() {
+                          try {
+                            var portButtons = document.querySelectorAll('[id^="settings_hdmi_"]');
+                            if (!portButtons || portButtons.length === 0) return;
+                            
+                            var appInst = window.tvAppInstance;
+                            for (var b = 0; b < portButtons.length; b++) {
+                              var btn = portButtons[b];
+                              var text = btn.innerText || btn.textContent || '';
+                              var isConnected = appInst && typeof appInst.isPortConnected === 'function' 
+                                ? appInst.isPortConnected(text) 
+                                : (text.toUpperCase().indexOf('1') !== -1);
+
+                              var existingDot = btn.querySelector('.hdmi-signal-indicator');
+                              if (!existingDot) {
+                                existingDot = document.createElement('span');
+                                existingDot.className = 'hdmi-signal-indicator';
+                                btn.insertBefore(existingDot, btn.firstChild);
+                              }
+
+                              if (isConnected) {
+                                existingDot.style.display = 'inline-block';
+                                existingDot.style.width = '10px';
+                                existingDot.style.height = '10px';
+                                existingDot.style.borderRadius = '50%';
+                                existingDot.style.backgroundColor = '#34d399';
+                                existingDot.style.boxShadow = '0 0 10px #34d399, 0 0 16px rgba(52, 211, 153, 0.85)';
+                                existingDot.style.marginRight = '8px';
+                                existingDot.style.flexShrink = '0';
+                                existingDot.style.border = '1.5px solid #a7f3d0';
+                                existingDot.setAttribute('title', 'Device Connected');
+                              } else {
+                                existingDot.style.display = 'inline-block';
+                                existingDot.style.width = '8px';
+                                existingDot.style.height = '8px';
+                                existingDot.style.borderRadius = '50%';
+                                existingDot.style.backgroundColor = '#4b5563';
+                                existingDot.style.boxShadow = 'none';
+                                existingDot.style.marginRight = '8px';
+                                existingDot.style.flexShrink = '0';
+                                existingDot.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+                                existingDot.setAttribute('title', 'No Device Attached');
+                              }
+                            }
+                          } catch(e) {}
+                        };
+
+                        if (!window._hdmiIndicatorTimer) {
+                          window._hdmiIndicatorTimer = setInterval(window._updateHdmiPortIndicators, 500);
+                        }
+
+                        // 6. Fix Applications Focus & Hover (Gold glow outline on hover & active card)
+                        if (!document.getElementById('tv-apps-focus-style')) {
+                          var appStyle = document.createElement('style');
+                          appStyle.id = 'tv-apps-focus-style';
+                          appStyle.textContent = `
+                            [id^="app_card_"] {
+                              transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, border-color 0.25s ease, background 0.25s ease !important;
+                              cursor: pointer !important;
+                            }
+                            [id^="app_card_"]:hover,
+                            [id^="app_card_"]:focus,
+                            [id^="app_card_"].active-app-card {
+                              border: 2px solid #fbbf24 !important;
+                              background: linear-gradient(to bottom, rgba(245, 158, 11, 0.25), #181818, #000) !important;
+                              box-shadow: 0 0 35px rgba(255, 215, 0, 0.7), 0 12px 28px rgba(0, 0, 0, 0.95) !important;
+                              transform: scale(1.05) !important;
+                              z-index: 30 !important;
+                            }
+                            [id^="app_card_"]:hover h3,
+                            [id^="app_card_"]:focus h3,
+                            [id^="app_card_"].active-app-card h3 {
+                              color: #fcd34d !important;
+                              text-shadow: 0 2px 8px rgba(255, 215, 0, 0.6) !important;
+                            }
+                          `;
+                          document.head.appendChild(appStyle);
+                        }
+
+                        // Ensure first app card is focused on Applications view
+                        if (!window._appFocusGuardInstalled) {
+                          window._appFocusGuardInstalled = true;
+                          setInterval(function() {
+                            try {
+                              if (window.tvAppInstance && ['apps', 'applications'].indexOf(window.tvAppInstance.currentView) !== -1) {
+                                var cards = document.querySelectorAll('[id^="app_card_"]');
+                                if (cards && cards.length > 0) {
+                                  var curIdx = typeof window.tvAppInstance.activeAppFocusIndex === 'number' ? window.tvAppInstance.activeAppFocusIndex : 0;
+                                  if (window.tvAppInstance.activeAppFocusIndex !== 'header_back') {
+                                    window.tvAppInstance.activeAppFocusIndex = curIdx;
+                                  }
+                                  for (var c = 0; c < cards.length; c++) {
+                                    if (c === curIdx && window.tvAppInstance.activeAppFocusIndex !== 'header_back') {
+                                      cards[c].classList.add('active-app-card');
+                                    } else {
+                                      cards[c].classList.remove('active-app-card');
+                                    }
+                                  }
+                                }
+                              }
+                            } catch(err) {}
+                          }, 150);
                         }
 
 

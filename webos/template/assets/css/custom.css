@@ -103,3 +103,25 @@ html, body {
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.08);
 }
+
+/* TV Applications Grid Cards Hover & Focus */
+[id^="app_card_"] {
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+[id^="app_card_"]:hover,
+[id^="app_card_"]:focus,
+[id^="app_card_"].active-app-card {
+    border: 2px solid #fbbf24 !important;
+    background: linear-gradient(to bottom, rgba(245, 158, 11, 0.25), #181818, #000) !important;
+    box-shadow: 0 0 35px rgba(255, 215, 0, 0.7), 0 12px 28px rgba(0, 0, 0, 0.95) !important;
+    transform: scale(1.05) !important;
+    z-index: 30 !important;
+}
+
+[id^="app_card_"]:hover h3,
+[id^="app_card_"]:focus h3,
+[id^="app_card_"].active-app-card h3 {
+    color: #fcd34d !important;
+    text-shadow: 0 2px 8px rgba(255, 215, 0, 0.6) !important;
+}

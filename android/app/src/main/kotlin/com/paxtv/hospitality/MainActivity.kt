@@ -632,12 +632,15 @@ class MainActivity : FlutterActivity() {
             success = true
         } catch (_: Exception) {}
 
-        // 4. Shell Commands (Works if device is rooted or has elevated runtime)
+        // 4. Shell Commands (Only if rooted / su available, avoiding SecurityException on standard TV OS)
         Thread {
             try {
-                runShellCommand("settings put global device_name \"$name\"")
-                runShellCommand("settings put secure bluetooth_name \"$name\"")
-                runShellCommand("setprop net.hostname \"$name\"")
+                val suCheck = runShellCommand("which su")
+                if (suCheck.contains("su")) {
+                    runShellCommand("su -c settings put global device_name \"$name\"")
+                    runShellCommand("su -c settings put secure bluetooth_name \"$name\"")
+                    runShellCommand("su -c setprop net.hostname \"$name\"")
+                }
             } catch (_: Exception) {}
         }.start()
 
@@ -1435,15 +1438,24 @@ class MainActivity : FlutterActivity() {
                     }
 
                     val (deviceName, portName) = getConnectedDeviceAndPortName(input, hdmiIndex)
+                    val portNum = hdmiIndex
                     hdmiIndex++
 
+                    // 1. Check CEC broadcasted device name (e.g., Tata Play, Apple TV, Fire TV, PS5)
+                    val cecName = getCecDeviceNameForInput(input, portNum)
+                    
+                    // 2. Query hardware connection state from Android TvInputManager
                     val state = try {
                         tvInputManager.getInputState(id)
                     } catch (e: Exception) {
-                        TvInputManager.INPUT_STATE_CONNECTED
+                        if (!cecName.isNullOrBlank()) TvInputManager.INPUT_STATE_CONNECTED else -1
                     }
 
-                    val isConnected = (state == TvInputManager.INPUT_STATE_CONNECTED || state == TvInputManager.INPUT_STATE_CONNECTED_STANDBY || state == 0)
+                    // A port is physically connected if CEC found an active device or TvInputManager state is CONNECTED (0)
+                    val isConnected = (!cecName.isNullOrBlank()) ||
+                                      (state == TvInputManager.INPUT_STATE_CONNECTED || 
+                                       state == TvInputManager.INPUT_STATE_CONNECTED_STANDBY || 
+                                       state == 0)
 
                     inputsList.add(mapOf(
                         "id" to id,
@@ -1461,6 +1473,47 @@ class MainActivity : FlutterActivity() {
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+
+        // If inputsList is empty (like on Android TV emulator or TVs without TvInputService):
+        // Provide HDMI 1 (connected for Live TV / STB) and HDMI 2, HDMI 3 (disconnected)
+        if (inputsList.isEmpty()) {
+            inputsList.add(mapOf(
+                "id" to "HDMI_1",
+                "label" to "Set-top Box / DTH",
+                "name" to "Set-top Box / DTH",
+                "deviceName" to "Set-top Box / DTH",
+                "portName" to "HDMI 1",
+                "model" to "HDMI_1",
+                "value" to "HDMI_1",
+                "type" to "HDMI",
+                "isConnected" to "true",
+                "hasSignal" to "true"
+            ))
+            inputsList.add(mapOf(
+                "id" to "HDMI_2",
+                "label" to "Gaming Console / Media",
+                "name" to "Gaming Console / Media",
+                "deviceName" to "Gaming Console / Media",
+                "portName" to "HDMI 2",
+                "model" to "HDMI_2",
+                "value" to "HDMI_2",
+                "type" to "HDMI",
+                "isConnected" to "false",
+                "hasSignal" to "false"
+            ))
+            inputsList.add(mapOf(
+                "id" to "HDMI_3",
+                "label" to "Streaming Player",
+                "name" to "Streaming Player",
+                "deviceName" to "Streaming Player",
+                "portName" to "HDMI 3",
+                "model" to "HDMI_3",
+                "value" to "HDMI_3",
+                "type" to "HDMI",
+                "isConnected" to "false",
+                "hasSignal" to "false"
+            ))
         }
 
         return inputsList
