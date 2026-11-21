@@ -107,84 +107,51 @@ class FlutterBridgeHandler {
               'icon': app['icon'] ?? app['appIcon'] ?? '',
             });
           }
-          if (fallbackApps.isNotEmpty) {
-            return fallbackApps;
-          }
-          // Showcase Fallback if no user apps installed
-          return _defaultShowcaseOttApps;
+          return fallbackApps;
         }
 
-        // 1. Known TV Aliases Map
-        final Map<String, List<String>> ottAliases = {
-          'prime': ['com.amazon.amazonvideo.livingroom', 'com.amazon.avod.thirdpartyclient', 'com.amazon.aiv.eu'],
-          'amazon': ['com.amazon.amazonvideo.livingroom', 'com.amazon.avod.thirdpartyclient', 'com.amazon.aiv.eu'],
-          'netflix': ['com.netflix.ninja', 'com.netflix.mediaclient'],
-          'youtube': ['com.google.android.youtube.tv', 'com.google.android.youtube'],
-          'hotstar': ['in.startv.hotstar', 'in.startv.hotstar.dplus'],
-          'zee5': ['com.graymatrix.did'],
-          'sonyliv': ['com.jio.media.ondemand', 'com.sony.liv'],
-          'playstore': ['com.android.vending'],
-        };
-
+        // Return ONLY apps from active_ott that are physically INSTALLED on the TV device
         final List<Map<String, dynamic>> resultApps = [];
-        final Set<String> processedOttKeys = {};
-        final Set<String> addedPackageNames = {};
-
         for (var ott in activeOttList) {
-          final String ottId = (ott['id'] ?? '').toString().toLowerCase().trim();
-          final String ottPackage = (ott['package_name'] ?? ott['package'] ?? ott['packageName'] ?? '').toString().toLowerCase().trim();
-          final String ottName = (ott['name'] ?? ottId).toString();
+          final String ottPackage = ott['package_name']?.toString() ?? ott['package']?.toString() ?? ott['packageName']?.toString() ?? '';
+          final String ottId = ott['id']?.toString().toLowerCase() ?? '';
+          final String ottName = ott['name']?.toString() ?? ottId;
 
-          // Determine normalized group key (e.g. 'prime', 'netflix')
-          String groupKey = ottId;
-          for (var k in ottAliases.keys) {
-            if (ottId.contains(k) || ottPackage.contains(k)) {
-              groupKey = k;
-              break;
-            }
-          }
+          if (ottPackage.isEmpty && ottId.isEmpty) continue;
 
-          // Skip if this OTT app category is ALREADY added (Prevents duplicates)
-          if (processedOttKeys.contains(groupKey)) continue;
-
-          // Find the physically installed package for this OTT app
           final matchingInstalled = installedApps.firstWhere(
-            (installed) {
-              final pkg = (installed['package'] ?? installed['packageName'] ?? '').toString().toLowerCase();
-              if (pkg.isEmpty || addedPackageNames.contains(pkg)) return false;
+            (app) {
+              final pkg = (app['package'] ?? app['packageName'] ?? '').toString().toLowerCase();
+              final target = ottPackage.toLowerCase();
+              final id = ottId.toLowerCase();
+              final name = ottName.toLowerCase();
+              if (pkg.isEmpty) return false;
 
-              // A. Direct exact package match
-              if (ottPackage.isNotEmpty && pkg == ottPackage) return true;
+              // 1. Exact package match
+              if (target.isNotEmpty && pkg == target) return true;
 
-              // B. Check against known aliases list
-              final aliases = ottAliases[groupKey] ?? [];
-              if (aliases.contains(pkg)) return true;
+              // 2. Substring package match
+              if (target.isNotEmpty && (pkg.contains(target) || target.contains(pkg))) return true;
 
-              // C. Substring match
-              if (ottPackage.isNotEmpty && (pkg.contains(ottPackage) || ottPackage.contains(pkg))) return true;
+              // 3. ID match
+              if (id.isNotEmpty && (pkg.contains(id) || id.contains(pkg))) return true;
 
-              // D. Dynamic ID match
-              if (ottId.length > 2 && pkg.contains(ottId)) return true;
+              // 4. App Name match
+              if (name.isNotEmpty && pkg.contains(name)) return true;
 
               return false;
             },
             orElse: () => {},
           );
 
-          // If installed match is found, add EXACTLY ONCE
           if (matchingInstalled.isNotEmpty) {
-            final realPkg = (matchingInstalled['packageName'] ?? matchingInstalled['package'] ?? ottPackage).toString();
-            
-            processedOttKeys.add(groupKey);
-            addedPackageNames.add(realPkg);
-
             resultApps.add({
-              'id': ottId.isNotEmpty ? ottId : groupKey,
-              'name': matchingInstalled['name'] ?? matchingInstalled['appName'] ?? ottName,
-              'label': matchingInstalled['name'] ?? matchingInstalled['appName'] ?? ottName,
-              'package': realPkg,
-              'packageName': realPkg,
-              'package_name': realPkg,
+              'name': ott['name'] ?? matchingInstalled['name'] ?? matchingInstalled['appName'] ?? ottName,
+              'label': ott['name'] ?? matchingInstalled['name'] ?? matchingInstalled['appName'] ?? ottName,
+              'package': matchingInstalled['package'] ?? matchingInstalled['packageName'] ?? ottPackage,
+              'packageName': matchingInstalled['package'] ?? matchingInstalled['packageName'] ?? ottPackage,
+              'package_name': matchingInstalled['package'] ?? matchingInstalled['packageName'] ?? ottPackage,
+              'id': ott['id'] ?? matchingInstalled['package'] ?? matchingInstalled['packageName'] ?? ottId,
               'icon': (matchingInstalled['icon'] != null && matchingInstalled['icon'].toString().isNotEmpty)
                   ? matchingInstalled['icon']
                   : (ott['icon'] ?? ott['logo'] ?? ''),
@@ -192,10 +159,7 @@ class FlutterBridgeHandler {
           }
         }
 
-        if (resultApps.isNotEmpty) {
-          return resultApps;
-        }
-        return _defaultShowcaseOttApps;
+        return resultApps;
 
       case 'launchApp':
         final package = args.isNotEmpty ? args[0] as String? : null;
@@ -614,15 +578,13 @@ class FlutterBridgeHandler {
                      !name.contains('COMPONENT');
             }).toList();
 
-            if (hdmiOnly.isNotEmpty) {
-              return hdmiOnly;
-            }
+            return hdmiOnly;
           }
         } catch (e) {
           print('[FlutterBridge] Error fetching HDMI models: $e');
         }
 
-        return _defaultHdmiInputs;
+        return [];
 
       case 'setLanguage':
       case 'changeLanguage':
@@ -690,123 +652,4 @@ class FlutterBridgeHandler {
       "window.flutterBridge._reject($id, '${error.replaceAll("'", "\\'")}');",
     );
   }
-
-  static final List<Map<String, dynamic>> _defaultShowcaseOttApps = [
-    {
-      'name': 'YouTube',
-      'label': 'YouTube',
-      'package': 'com.google.android.youtube.tv',
-      'packageName': 'com.google.android.youtube.tv',
-      'package_name': 'com.google.android.youtube.tv',
-      'id': 'youtube',
-      'icon_name': 'youtube.svg',
-      'icon': 'assets/images/ott/youtube.svg',
-    },
-    {
-      'name': 'Netflix',
-      'label': 'Netflix',
-      'package': 'com.netflix.ninja',
-      'packageName': 'com.netflix.ninja',
-      'package_name': 'com.netflix.ninja',
-      'id': 'netflix',
-      'icon_name': 'netflix.svg',
-      'icon': 'assets/images/ott/netflix.svg',
-    },
-    {
-      'name': 'Prime Video',
-      'label': 'Prime Video',
-      'package': 'com.amazon.amazonvideo.livingroom',
-      'packageName': 'com.amazon.amazonvideo.livingroom',
-      'package_name': 'com.amazon.amazonvideo.livingroom',
-      'id': 'prime-video',
-      'icon_name': 'prime-video.svg',
-      'icon': 'assets/images/ott/prime-video.svg',
-    },
-    {
-      'name': 'Disney+ Hotstar',
-      'label': 'Disney+ Hotstar',
-      'package': 'in.startv.hotstar',
-      'packageName': 'in.startv.hotstar',
-      'package_name': 'in.startv.hotstar',
-      'id': 'hotstar',
-      'icon_name': 'hotstar.svg',
-      'icon': 'assets/images/ott/hotstar.svg',
-    },
-    {
-      'name': 'JioCinema',
-      'label': 'JioCinema',
-      'package': 'com.jio.media.ondemand',
-      'packageName': 'com.jio.media.ondemand',
-      'package_name': 'com.jio.media.ondemand',
-      'id': 'jiocinema',
-      'icon_name': 'jiocinema.svg',
-      'icon': 'assets/images/ott/jiocinema.svg',
-    },
-    {
-      'name': 'Zee5',
-      'label': 'Zee5',
-      'package': 'com.graymatrix.did',
-      'packageName': 'com.graymatrix.did',
-      'package_name': 'com.graymatrix.did',
-      'id': 'zee5',
-      'icon_name': 'zee5.svg',
-      'icon': 'assets/images/ott/zee5.svg',
-    },
-    {
-      'name': 'SonyLIV',
-      'label': 'SonyLIV',
-      'package': 'com.jio.media.stb.ondemand',
-      'packageName': 'com.jio.media.stb.ondemand',
-      'package_name': 'com.jio.media.stb.ondemand',
-      'id': 'sonyliv',
-      'icon_name': 'sonyliv.svg',
-      'icon': 'assets/images/ott/sonyliv.svg',
-    },
-    {
-      'name': 'Google Play Store',
-      'label': 'Google Play Store',
-      'package': 'com.android.vending',
-      'packageName': 'com.android.vending',
-      'package_name': 'com.android.vending',
-      'id': 'google-play-store',
-      'icon_name': 'google-play-store.svg',
-      'icon': 'assets/images/ott/google-play-store.svg',
-    },
-  ];
-
-  static final List<Map<String, dynamic>> _defaultHdmiInputs = [
-    {
-      'id': 'HDMI_1',
-      'label': 'HDMI 1',
-      'name': 'HDMI 1',
-      'model': 'HDMI_1',
-      'value': 'HDMI_1',
-      'type': 'HDMI',
-      'isConnected': 'true',
-      'badge': '4K HDR 60Hz',
-      'description': 'Set-top Box / Cable TV',
-    },
-    {
-      'id': 'HDMI_2',
-      'label': 'HDMI 2',
-      'name': 'HDMI 2',
-      'model': 'HDMI_2',
-      'value': 'HDMI_2',
-      'type': 'HDMI',
-      'isConnected': 'true',
-      'badge': 'eARC / ARC',
-      'description': 'Gaming Console / Soundbar',
-    },
-    {
-      'id': 'HDMI_3',
-      'label': 'HDMI 3',
-      'name': 'HDMI 3',
-      'model': 'HDMI_3',
-      'value': 'HDMI_3',
-      'type': 'HDMI',
-      'isConnected': 'true',
-      'badge': '4K HDR',
-      'description': 'Media Player / Streaming Device',
-    },
-  ];
 }

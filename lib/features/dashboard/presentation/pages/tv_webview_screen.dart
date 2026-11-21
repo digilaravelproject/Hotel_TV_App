@@ -58,6 +58,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
   bool _isDemoMode = false;
   int _demoDaysLeft = 0;
   bool _isSubScreen = false;
+  bool _isExitDialogOpen = false;
 
   @override
   void initState() {
@@ -95,12 +96,21 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
           _resetInactivityTimer();
           return;
         }
+        if (_isExitDialogOpen && mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+          _isExitDialogOpen = false;
+          return;
+        }
         final ctrl = _controller;
         if (ctrl != null) await _handleBackNavigation(ctrl);
       } else if (call.method == 'onHomePressed') {
         if (_showScreensaver) {
           _resetInactivityTimer();
           return;
+        }
+        if (_isExitDialogOpen && mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+          _isExitDialogOpen = false;
         }
         final ctrl = _controller;
         if (ctrl != null) await _handleHomeNavigation(ctrl);
@@ -112,23 +122,48 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+
+    // If app goes to background / paused while exit dialog is showing:
+    // Dismiss the dialog automatically so user doesn't get stuck upon reopening the app.
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive || state == AppLifecycleState.hidden) {
+      if (_isExitDialogOpen && mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        _isExitDialogOpen = false;
+      }
+    }
+
     if (state == AppLifecycleState.resumed) {
       Logger.i('[TvWebviewScreen] App resumed from external app. Restoring WebView focus...');
-      
-      // FIX FOR BLACK SCREEN ON WAKE UP:
-      // TV sleep hone par Android WebView ka GPU context destroy ho jata hai aur black screen aati hai.
-      // Isliye jab app resume ho, toh WebView ko force reload kar do.
-      if (_controller != null) {
-        _controller!.reload();
+
+      // If exit dialog is somehow still open upon resume, dismiss it cleanly
+      if (_isExitDialogOpen && mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        _isExitDialogOpen = false;
       }
 
       // Screensaver dismiss karo agar show ho raha tha
       if (_showScreensaver && mounted) {
         _resetInactivityTimer();
       }
-      // WebView ko focus do taaki back button aur D-pad kaam kare
+
+      // Safe WebView refresh without causing a pitch black reload screen
+      if (_controller != null) {
+        _controller!.currentUrl().then((url) {
+          if (url == null || url.isEmpty || url == 'about:blank') {
+            _controller!.reload();
+          } else {
+            _controller!.runJavaScript(
+              "try { if (window.tvAppInstance && typeof window.tvAppInstance.refreshUI === 'function') { window.tvAppInstance.refreshUI(); } window.dispatchEvent(new Event('resize')); } catch(e) {}"
+            );
+          }
+        }).catchError((_) {
+          _controller?.reload();
+        });
+      }
+
+      // WebView ko focus do taaki back button aur D-pad kaam kare (only if no dialog open)
       Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) {
+        if (mounted && !_isExitDialogOpen) {
           _webViewFocusNode.requestFocus();
           // Back channel handler re-register karo (defensive)
           _setupBackChannel();
@@ -305,8 +340,12 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
   }
 
   void _showExitDemoDialog() {
+    if (_isExitDialogOpen) return;
+    _isExitDialogOpen = true;
+
     showDialog(
       context: context,
+      barrierDismissible: true,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1B0F2A),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -327,18 +366,54 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
         actions: [
           TextButton(
             autofocus: true,
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.white70,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            style: ButtonStyle(
+              foregroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.focused)) return Colors.amberAccent;
+                return Colors.white70;
+              }),
+              backgroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.focused)) return Colors.white12;
+                return Colors.transparent;
+              }),
+              side: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.focused)) {
+                  return const BorderSide(color: Colors.amberAccent, width: 2);
+                }
+                return const BorderSide(color: Colors.white24, width: 1);
+              }),
+              padding: WidgetStateProperty.all(
+                const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+              ),
+              shape: WidgetStateProperty.all(
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
             ),
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('No', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            child: const Text('No', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.amber.shade700,
-              foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            style: ButtonStyle(
+              backgroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.focused)) return Colors.amber.shade600;
+                return Colors.amber.shade800;
+              }),
+              foregroundColor: WidgetStateProperty.all(Colors.black),
+              side: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.focused)) {
+                  return const BorderSide(color: Colors.white, width: 2);
+                }
+                return BorderSide.none;
+              }),
+              elevation: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.focused)) return 8;
+                return 2;
+              }),
+              padding: WidgetStateProperty.all(
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              shape: WidgetStateProperty.all(
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
             ),
             onPressed: () async {
               Navigator.of(ctx).pop();
@@ -348,7 +423,16 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
           ),
         ],
       ),
-    );
+    ).then((_) {
+      _isExitDialogOpen = false;
+      if (mounted) {
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted && !_isExitDialogOpen) {
+            _webViewFocusNode.requestFocus();
+          }
+        });
+      }
+    });
   }
 
 
@@ -561,27 +645,6 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
                           }
                         }
 
-                        // 6. Fix Applications Grid (Ensure never empty!)
-                        var defaultApps = [
-                          { name: 'YouTube', package: 'com.google.android.youtube.tv', packageName: 'com.google.android.youtube.tv', id: 'youtube', icon_name: 'youtube.svg', icon: 'assets/images/ott/youtube.svg' },
-                          { name: 'Netflix', package: 'com.netflix.ninja', packageName: 'com.netflix.ninja', id: 'netflix', icon_name: 'netflix.svg', icon: 'assets/images/ott/netflix.svg' },
-                          { name: 'Prime Video', package: 'com.amazon.amazonvideo.livingroom', packageName: 'com.amazon.amazonvideo.livingroom', id: 'prime-video', icon_name: 'prime-video.svg', icon: 'assets/images/ott/prime-video.svg' },
-                          { name: 'Disney+ Hotstar', package: 'in.startv.hotstar', packageName: 'in.startv.hotstar', id: 'hotstar', icon_name: 'hotstar.svg', icon: 'assets/images/ott/hotstar.svg' },
-                          { name: 'JioCinema', package: 'com.jio.media.ondemand', packageName: 'com.jio.media.ondemand', id: 'jiocinema', icon_name: 'jiocinema.svg', icon: 'assets/images/ott/jiocinema.svg' },
-                          { name: 'Zee5', package: 'com.graymatrix.did', packageName: 'com.graymatrix.did', id: 'zee5', icon_name: 'zee5.svg', icon: 'assets/images/ott/zee5.svg' },
-                          { name: 'SonyLIV', package: 'com.jio.media.stb.ondemand', packageName: 'com.jio.media.stb.ondemand', id: 'sonyliv', icon_name: 'sonyliv.svg', icon: 'assets/images/ott/sonyliv.svg' },
-                          { name: 'Google Play Store', package: 'com.android.vending', packageName: 'com.android.vending', id: 'google-play-store', icon_name: 'google-play-store.svg', icon: 'assets/images/ott/google-play-store.svg' }
-                        ];
-                        if (!window.tvAppInstance.activeOttList || window.tvAppInstance.activeOttList.length === 0) {
-                          window.tvAppInstance.activeOttList = defaultApps;
-                          window.tvAppInstance.hasSyncedInstalled = true;
-                        }
-                        if (window.TVAppsController) {
-                          if (!window.TVAppsController.activeOttList || window.TVAppsController.activeOttList.length === 0) {
-                            window.TVAppsController.activeOttList = defaultApps;
-                            window.TVAppsController.hasSyncedInstalled = true;
-                          }
-                        }
 
                         // 7. Fix Background Slider Images (Ensure never pitch black!)
                         var dataStr = localStorage.getItem('cachedHotelData') || (window.tvLoginData && JSON.stringify(window.tvLoginData));
@@ -741,6 +804,13 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
 
   Future<void> _handleBackNavigation(WebViewController controller) async {
     Logger.i('[BackNavigation] onBackPressed triggered (isDemoMode=$_isDemoMode)');
+    if (_isExitDialogOpen) {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        _isExitDialogOpen = false;
+      }
+      return;
+    }
     if (_isBackHandling) {
       Logger.i('[BackNavigation] Already handling back, ignoring');
       return;
@@ -827,6 +897,10 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
 
   Future<void> _handleHomeNavigation(WebViewController controller) async {
     Logger.i('[HomeNavigation] onHomePressed triggered (isDemoMode=$_isDemoMode)');
+    if (_isExitDialogOpen && mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+      _isExitDialogOpen = false;
+    }
     try {
       // 1. Check if we are currently at home view or in a sub-view
       bool isAtHome = true;
@@ -939,6 +1013,9 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
       focusNode: _webViewFocusNode,
       autofocus: true,
       onKeyEvent: (node, event) {
+        if (_isExitDialogOpen) {
+          return KeyEventResult.ignored;
+        }
         if (event is KeyDownEvent || event is KeyRepeatEvent) {
           _resetInactivityTimer();
           if (_showScreensaver) {
@@ -1048,26 +1125,14 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
           _buildPlatformWebViewWidget(controller),
 
           // Dynamic Demo Mode Badge
-          // - When on Home screen (_isSubScreen == false):
-          //   Positioned in the exact HORIZONTAL CENTER of the screen (top: 80, left: 0, right: 0)
-          //   Cleanly below the Hotel Logo and above greeting, so Logo & Room info are NEVER cut off!
-          // - When on Sub-screens / Modals (_isSubScreen == true):
-          //   Positioned at top: 20, right: 32 (above modal cards in top-right corner)
+          // - On Home screen: Positioned at top: 88, right: 32 (cleanly below Room & City so background text is 100% visible)
+          // - On Sub-screens: Positioned at top: 20, right: 32 (above modal cards in top-right corner)
           if (_isDemoMode && _isWebViewLoaded && !_showCenterLoading && !_showScreensaver)
-            _isSubScreen
-                ? Positioned(
-                    top: 20,
-                    right: 32,
-                    child: _buildDemoBadge(),
-                  )
-                : Positioned(
-                    top: 80,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: _buildDemoBadge(),
-                    ),
-                  ),
+            Positioned(
+              top: _isSubScreen ? 20 : 88,
+              right: 32,
+              child: _buildDemoBadge(),
+            ),
           
           // Bottom Updating Banner
           if (_showBottomUpdating)
