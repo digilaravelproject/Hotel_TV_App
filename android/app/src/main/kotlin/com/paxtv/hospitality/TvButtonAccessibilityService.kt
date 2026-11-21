@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
@@ -51,9 +53,13 @@ class TvButtonAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
+        val pkg = event.packageName?.toString()
+        if (!pkg.isNullOrBlank()) {
+            currentForegroundPackage = pkg
+        }
+
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            val packageName = event.packageName?.toString() ?: return
-            currentForegroundPackage = packageName
+            val packageName = pkg ?: return
 
             // If the package is our own app, do nothing
             if (packageName == applicationContext.packageName) {
@@ -105,14 +111,38 @@ class TvButtonAccessibilityService : AccessibilityService() {
         return false
     }
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     private fun getActivePackage(): String? {
+        try {
+            val rootPkg = rootInActiveWindow?.packageName?.toString()
+            if (!rootPkg.isNullOrBlank()) return rootPkg
+        } catch (_: Exception) {}
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            try {
+                for (window in windows) {
+                    if (window.isFocused || window.isActive) {
+                        val p = window.root?.packageName?.toString()
+                        if (!p.isNullOrBlank()) return p
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
         val current = currentForegroundPackage
         if (!current.isNullOrBlank()) return current
-        return try {
-            rootInActiveWindow?.packageName?.toString()
-        } catch (_: Exception) {
-            null
-        }
+
+        try {
+            val am = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+            val running = am?.runningAppProcesses
+            val top = running?.firstOrNull { it.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND }
+            if (top != null && !top.processName.isNullOrBlank()) {
+                return top.processName
+            }
+        } catch (_: Exception) {}
+
+        return null
     }
 
     private fun isYouTubeOrCastPackage(pkgName: String?): Boolean {
@@ -121,17 +151,12 @@ class TvButtonAccessibilityService : AccessibilityService() {
         return pkg.contains("youtube") ||
                pkg.contains("mediashell") ||
                pkg.contains("chromecast") ||
+               pkg.contains("smarttube") ||
                pkg.contains("airscreen") ||
                pkg.contains("airplay") ||
                pkg.contains("miracast") ||
                pkg.contains("screencast") ||
-               pkg.contains("wfd") ||
-               pkg == "com.google.android.apps.mediashell" ||
-               pkg == "com.google.android.youtube.tv" ||
-               pkg == "com.google.android.apps.youtube.tv" ||
-               pkg == "com.google.android.youtube" ||
-               pkg == "com.google.android.youtube.tvunplugged" ||
-               pkg == "com.google.android.apps.youtube.tv.unplugged"
+               pkg.contains("wfd")
     }
 
     private fun closeYouTubeAndBringAppToFront(pkg: String?) {
@@ -146,25 +171,40 @@ class TvButtonAccessibilityService : AccessibilityService() {
             Log.w(TAG, "Error stopping media playback: ${e.message}")
         }
 
+        // 2. Perform system GLOBAL_ACTION_HOME so Android OS closes YouTube and takes it off the screen!
         try {
-            // 2. Kill background processes of the cast/media app so it completely shuts down
-            val actMan = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
-            if (!pkg.isNullOrBlank()) {
-                actMan?.killBackgroundProcesses(pkg)
-            }
-            actMan?.killBackgroundProcesses("com.google.android.youtube.tv")
-            actMan?.killBackgroundProcesses("com.google.android.apps.youtube.tv")
-            actMan?.killBackgroundProcesses("com.google.android.apps.mediashell")
-            actMan?.killBackgroundProcesses("com.google.android.youtube")
+            performGlobalAction(GLOBAL_ACTION_HOME)
         } catch (e: Exception) {
-            Log.w(TAG, "Error killing media background process: ${e.message}")
+            Log.w(TAG, "Error performing global action home: ${e.message}")
         }
 
-        // 3. Reset foreground tracking
+        // 3. Immediately bring Hotel TV App to front
+        bringAppToFront()
+
+        // 4. Reset foreground tracking
         currentForegroundPackage = null
 
-        // 4. Bring Hotel TV App to front (works in both Try Demo mode & Login mode!)
-        bringAppToFront()
+        // 5. Multi-stage delayed cleanup:
+        // Once OS moves YouTube to background, kill its background processes and re-assert Hotel TV app in front
+        mainHandler.postDelayed({
+            try {
+                val actMan = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+                if (!pkg.isNullOrBlank()) {
+                    actMan?.killBackgroundProcesses(pkg)
+                }
+                actMan?.killBackgroundProcesses("com.google.android.youtube.tv")
+                actMan?.killBackgroundProcesses("com.google.android.apps.youtube.tv")
+                actMan?.killBackgroundProcesses("com.google.android.apps.mediashell")
+                actMan?.killBackgroundProcesses("com.google.android.youtube")
+            } catch (e: Exception) {
+                Log.w(TAG, "Error in delayed killBackgroundProcesses: ${e.message}")
+            }
+            bringAppToFront()
+        }, 150)
+
+        mainHandler.postDelayed({
+            bringAppToFront()
+        }, 350)
     }
 
     private fun bringAppToFront() {
