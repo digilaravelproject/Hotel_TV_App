@@ -22,6 +22,10 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.content.RestrictionsManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.net.NetworkInterface
 import java.util.Collections
@@ -367,6 +371,9 @@ class MainActivity : FlutterActivity() {
                     val name = call.argument<String>("name") ?: ""
                     result.success(setDeviceDisplayName(name))
                 }
+                "getActualDeviceName" -> {
+                    result.success(getActualDeviceName())
+                }
                 else -> {
                     result.notImplemented()
                 }
@@ -377,7 +384,12 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, TV_CONTROL_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "getInstalledApps" -> {
-                    result.success(getInstalledApps())
+                    CoroutineScope(Dispatchers.IO).launch {
+                        val apps = getInstalledApps()
+                        withContext(Dispatchers.Main) {
+                            result.success(apps)
+                        }
+                    }
                 }
                 "launchApp" -> {
                     val packageName = call.argument<String>("package") ?: call.argument<String>("packageName")
@@ -549,6 +561,33 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
+     * Reads the REAL system device name that is currently broadcasted over the network
+     * and visible to mobile phones scanning via Google Cast / AirPlay / Bluetooth.
+     */
+    private fun getActualDeviceName(): String {
+        // 1. Settings.Global device_name (Standard on Android TV / Chromecast)
+        try {
+            val name = android.provider.Settings.Global.getString(contentResolver, "device_name")
+            if (!name.isNullOrBlank()) return name
+        } catch (_: Exception) {}
+
+        // 2. Settings.Secure bluetooth_name
+        try {
+            val name = android.provider.Settings.Secure.getString(contentResolver, "bluetooth_name")
+            if (!name.isNullOrBlank()) return name
+        } catch (_: Exception) {}
+
+        // 3. Bluetooth Adapter name
+        try {
+            val bt = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+            if (bt != null && !bt.name.isNullOrBlank()) return bt.name
+        } catch (_: Exception) {}
+
+        // 4. Fallback: Build.MODEL
+        return Build.MODEL ?: ""
+    }
+
+    /**
      * Sets the Android device's display name — this is the name that appears on
      * mobile phones when they scan for cast/screen mirroring targets (Miracast, AirPlay, Chromecast).
      * Format: "TV Name (Room No)" — e.g. "Taj TV (Room 106)"
@@ -557,9 +596,65 @@ class MainActivity : FlutterActivity() {
         if (name.isBlank()) return false
         var success = false
 
-        // 1. Wi-Fi Direct (P2P) name — PRIORITY
-        // Mobile phone ke Cast/Screen Mirror list mein yahi naam dikhta hai (Miracast discovery)
-        // setDeviceName is @SystemApi — reflection se call karo
+        // 0. DevicePolicyManager (If app is Device Owner, this can set Global settings directly!)
+        try {
+            val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+            val admin = MyDeviceAdminReceiver.getComponentName(this)
+            if (dpm != null && dpm.isDeviceOwnerApp(packageName)) {
+                dpm.setGlobalSetting(admin, "device_name", name)
+                android.util.Log.i("HotelTV", "✅ DPM setGlobalSetting device_name to: $name")
+                success = true
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("HotelTV", "⚠️ DPM setGlobalSetting error: ${e.message}")
+        }
+
+        // 1. Settings.Global device_name (Requires WRITE_SECURE_SETTINGS or system privilege)
+        try {
+            android.provider.Settings.Global.putString(contentResolver, "device_name", name)
+            android.util.Log.i("HotelTV", "✅ Settings.Global device_name set to: $name")
+            success = true
+        } catch (e: Exception) {
+            android.util.Log.w("HotelTV", "⚠️ Settings.Global: ${e.message}")
+        }
+
+        // 2. Settings.Secure bluetooth_name
+        try {
+            android.provider.Settings.Secure.putString(contentResolver, "bluetooth_name", name)
+            android.util.Log.i("HotelTV", "✅ Settings.Secure bluetooth_name set to: $name")
+            success = true
+        } catch (_: Exception) {}
+
+        // 3. Settings.System device_name
+        try {
+            android.provider.Settings.System.putString(contentResolver, "device_name", name)
+            android.util.Log.i("HotelTV", "✅ Settings.System device_name set to: $name")
+            success = true
+        } catch (_: Exception) {}
+
+        // 4. Shell Commands (Works if device is rooted or has elevated runtime)
+        Thread {
+            try {
+                runShellCommand("settings put global device_name \"$name\"")
+                runShellCommand("settings put secure bluetooth_name \"$name\"")
+                runShellCommand("setprop net.hostname \"$name\"")
+            } catch (_: Exception) {}
+        }.start()
+
+        // 5. Bluetooth device name
+        try {
+            val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
+            val adapter = bluetoothManager?.adapter
+            if (adapter != null) {
+                adapter.name = name
+                android.util.Log.i("HotelTV", "✅ Bluetooth name set to: $name")
+                success = true
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("HotelTV", "⚠️ Could not set Bluetooth name: ${e.message}")
+        }
+
+        // 6. Wi-Fi Direct (P2P) name — PRIORITY for Miracast discovery
         try {
             val wifiP2pManager = applicationContext.getSystemService(Context.WIFI_P2P_SERVICE)
                     as? android.net.wifi.p2p.WifiP2pManager
@@ -588,37 +683,6 @@ class MainActivity : FlutterActivity() {
             }
         } catch (e: Exception) {
             android.util.Log.w("HotelTV", "⚠️ Wi-Fi Direct setDeviceName error: ${e.message}")
-        }
-
-        // 2. Settings.System device_name — works on some devices without special permission
-        try {
-            android.provider.Settings.System.putString(contentResolver, "device_name", name)
-            android.util.Log.i("HotelTV", "✅ Settings.System device_name set to: $name")
-            success = true
-        } catch (e: Exception) {
-            android.util.Log.w("HotelTV", "⚠️ Settings.System: ${e.message}")
-        }
-
-        // 3. Settings.Global device_name (Miracast/WiFi Display fallback — needs WRITE_SECURE_SETTINGS)
-        try {
-            android.provider.Settings.Global.putString(contentResolver, "device_name", name)
-            success = true
-            android.util.Log.i("HotelTV", "✅ Settings.Global device_name set to: $name")
-        } catch (e: Exception) {
-            android.util.Log.w("HotelTV", "⚠️ Could not set device_name via Settings.Global: ${e.message}")
-        }
-
-        // 4. Bluetooth device name
-        try {
-            val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
-            val adapter = bluetoothManager?.adapter
-            if (adapter != null) {
-                adapter.name = name
-                android.util.Log.i("HotelTV", "✅ Bluetooth name set to: $name")
-                success = true
-            }
-        } catch (e: Exception) {
-            android.util.Log.w("HotelTV", "⚠️ Could not set Bluetooth name: ${e.message}")
         }
 
         return success
@@ -984,12 +1048,17 @@ class MainActivity : FlutterActivity() {
         val leanbackIntent = Intent(Intent.ACTION_MAIN, null).apply {
             addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
         }
-        val leanbackInfos = pm.queryIntentActivities(leanbackIntent, 0)
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PackageManager.MATCH_ALL
+        } else {
+            0
+        }
+        val leanbackInfos = pm.queryIntentActivities(leanbackIntent, flags)
 
         val launcherIntent = Intent(Intent.ACTION_MAIN, null).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
         }
-        val launcherInfos = pm.queryIntentActivities(launcherIntent, 0)
+        val launcherInfos = pm.queryIntentActivities(launcherIntent, flags)
 
         val combinedInfos = (leanbackInfos + launcherInfos)
 
@@ -1017,17 +1086,27 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun drawableToBase64(drawable: Drawable): String {
-        val targetSize = 64
-        val bmp = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bmp)
-        drawable.setBounds(0, 0, canvas.width, canvas.height)
-        drawable.draw(canvas)
+        return try {
+            val targetSize = 72
+            val bmp = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bmp)
+            
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
 
-        val outputStream = ByteArrayOutputStream()
-        bmp.compress(Bitmap.CompressFormat.WEBP, 70, outputStream)
-        val byteArray = outputStream.toByteArray()
-        bmp.recycle()
-        return "data:image/webp;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
+            val outputStream = ByteArrayOutputStream()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                bmp.compress(Bitmap.CompressFormat.WEBP_LOSSY, 75, outputStream)
+            } else {
+                @Suppress("DEPRECATION")
+                bmp.compress(Bitmap.CompressFormat.WEBP, 75, outputStream)
+            }
+            val byteArray = outputStream.toByteArray()
+            bmp.recycle()
+            "data:image/webp;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
+        } catch (e: Exception) {
+            ""
+        }
     }
 
     private fun launchApp(packageName: String): Boolean {
@@ -1040,7 +1119,24 @@ class MainActivity : FlutterActivity() {
             startActivity(intent)
             true
         } else {
-            false
+            try {
+                val storeIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(storeIntent)
+                true
+            } catch (_: Exception) {
+                try {
+                    val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$packageName")).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(webIntent)
+                    true
+                } catch (_: Exception) {
+                    Toast.makeText(applicationContext, "App is not installed on this TV", Toast.LENGTH_SHORT).show()
+                    false
+                }
+            }
         }
     }
 

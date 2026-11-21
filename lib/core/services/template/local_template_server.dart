@@ -1,7 +1,10 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'template_manager_service.dart';
 import '../../utils/logger.dart';
+import '../../constants/app_constants.dart';
+import '../storage/shared_prefs.dart';
 
 class LocalTemplateServer {
   static HttpServer? _server;
@@ -103,6 +106,16 @@ class LocalTemplateServer {
         }
 
         if (!await file.exists()) {
+          // If it's a request for cached_media, attempt to find its remote URL and download on-the-fly!
+          if (filePath.startsWith('cached_media/') || filePath.contains('/cached_media/')) {
+            final fetched = await _tryFetchAndCacheMedia(filePath, dirPath);
+            if (fetched != null && await fetched.exists()) {
+              file = fetched;
+            }
+          }
+        }
+
+        if (!await file.exists()) {
           Logger.w('[LocalServer] File 404 Not Found: $filePath (searched root: $dirPath)');
           request.response.statusCode = 404;
           await request.response.close();
@@ -166,6 +179,69 @@ class LocalTemplateServer {
   }
 
   static String get baseUrl => 'http://127.0.0.1:$_port';
+
+  static Future<File?> _tryFetchAndCacheMedia(String filePath, String dirPath) async {
+    try {
+      final fileName = p.basename(filePath);
+      final targetFile = File(p.join(dirPath, filePath));
+      final parentDir = targetFile.parent;
+      if (!await parentDir.exists()) {
+        await parentDir.create(recursive: true);
+      }
+
+      // 1. Look for matching URL in stored tv_login_data
+      String? remoteUrl;
+      final rawLogin = SharedPrefs.getString(AppConstants.tvLoginDataKey);
+      if (rawLogin != null && rawLogin.isNotEmpty && rawLogin.contains(fileName)) {
+        try {
+          final dynamic decoded = jsonDecode(rawLogin);
+          void searchJson(dynamic obj) {
+            if (remoteUrl != null) return;
+            if (obj is String) {
+              if (obj.startsWith('http') && obj.contains(fileName)) {
+                remoteUrl = obj;
+              }
+            } else if (obj is Map) {
+              obj.values.forEach(searchJson);
+            } else if (obj is List) {
+              obj.forEach(searchJson);
+            }
+          }
+          searchJson(decoded);
+        } catch (_) {}
+      }
+
+      // 2. Common fallback URL paths on server
+      final List<String> tryUrls = [];
+      final String? foundUrl = remoteUrl;
+      if (foundUrl != null) tryUrls.add(foundUrl);
+      tryUrls.add('https://app.paxtvlauncher.com/uploads/hotel_sliders/$fileName');
+      tryUrls.add('https://app.paxtvlauncher.com/uploads/hotel_images/$fileName');
+      tryUrls.add('https://app.paxtvlauncher.com/uploads/hotel_logos/$fileName');
+
+      final client = HttpClient();
+      client.connectionTimeout = const Duration(seconds: 5);
+      client.badCertificateCallback = (cert, host, port) => true;
+
+      for (final url in tryUrls) {
+        try {
+          final request = await client.getUrl(Uri.parse(url));
+          final response = await request.close();
+          if (response.statusCode == 200) {
+            final sink = targetFile.openWrite();
+            await response.pipe(sink);
+            await sink.flush();
+            await sink.close();
+            Logger.i('[LocalServer] On-the-fly cached media downloaded: $fileName from $url');
+            return targetFile;
+          }
+        } catch (_) {}
+      }
+    } catch (e) {
+      Logger.w('[LocalServer] _tryFetchAndCacheMedia error: $e');
+    }
+    return null;
+  }
 
   static String _mimeType(String ext) {
     switch (ext) {

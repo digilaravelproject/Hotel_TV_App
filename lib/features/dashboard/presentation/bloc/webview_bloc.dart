@@ -19,6 +19,7 @@ import 'webview_state.dart';
 class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
   void Function()? onPageStarted;
   void Function()? onPageFinished;
+  void Function(String view)? onViewChanged;
 
   WebViewBloc() : super(WebViewInitial()) {
     on<InitializeWebView>(_onInitialize);
@@ -44,10 +45,9 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
         // cached images still render, remote ones retry on next online sync.
         final bool online = await NetworkInfo.checkConnectivity();
         if (online) {
-          // Bounded wait: if some URLs are permanently broken (404) or the
-          // network stalls, we must not hang startup indefinitely.
+          // Bounded wait: quick 4s check so startup is instant
           await TemplateManagerService.regenerateDataJson()
-              .timeout(const Duration(seconds: 45), onTimeout: () {});
+              .timeout(const Duration(seconds: 4), onTimeout: () {});
         } else {
           Logger.w('[WebViewBloc] Offline and media cache incomplete — skipping blocking cache fill.');
           if (!dataJsonExists) {
@@ -93,10 +93,19 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
           await controller.clearLocalStorage();
         } catch (_) {}
       }
-      final bridgeHandler = FlutterBridgeHandler(controller);
+      final bridgeHandler = FlutterBridgeHandler(
+        controller,
+        onViewChanged: (view) => onViewChanged?.call(view),
+      );
       controller
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setBackgroundColor(const Color(0x00000000))
+        ..setOnConsoleMessage((JavaScriptConsoleMessage message) {
+          Logger.i('[WebViewConsole][${message.level.name}] ${message.message}');
+          if (message.level == JavaScriptLogLevel.error) {
+            Logger.e('[WebViewConsoleError] ${message.message}');
+          }
+        })
         ..addJavaScriptChannel('FlutterBridge',
             onMessageReceived: (message) {
           bridgeHandler.handleMessage(message.message);
@@ -218,6 +227,7 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
     await _injectNetworkFallbackPatch(controller);
     await _injectTvInputsPatch(controller);
     await _injectClockSyncPatch(controller);
+    await _injectApplicationsPatch(controller);
   }
 
   /// Injects clock calibration & timezone sync patch into WebView runtime
@@ -290,15 +300,12 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
         "          if (obj.hwData.subnet === '255.255.255.0') obj.hwData.subnet = '';"
         "          if (obj.hwData.dns === '8.8.8.8') obj.hwData.dns = '';"
         "        }"
-        "        if (obj && obj.inputPorts && Array.isArray(obj.inputPorts) && obj.inputPorts.length === 4) {"
-        "          if (obj.inputPorts[0].id === 'HDMI_1' && obj.inputPorts[3].id === 'TUNER') {"
-        "            obj.inputPorts = [];"
-        "          }"
-        "        }"
         "      }"
         "    });"
         "  };"
-        "  setInterval(patch, 400);" // Aggressive patch runs every 400ms to wipe out fallbacks
+        "  patch();"
+        "  setTimeout(patch, 500);"
+        "  setTimeout(patch, 1500);"
         "})();",
       );
     } catch (_) {}
@@ -333,6 +340,84 @@ class WebViewBloc extends Bloc<WebViewEvent, WebViewState> {
         "  setInterval(patch, 500);"
         "})();",
       );
+    } catch (_) {}
+  }
+
+  Future<void> _injectApplicationsPatch(WebViewController controller) async {
+    try {
+      await controller.runJavaScript(r'''
+        (function() {
+          function patchAppsGrid() {
+            var container = document.getElementById('apps-grid-container');
+            if (!container) return;
+
+            container.style.display = 'grid';
+            container.style.gridTemplateColumns = 'repeat(5, minmax(0, 1fr))';
+            container.style.gap = '1.5rem';
+            container.style.minHeight = '420px';
+            container.style.maxHeight = '560px';
+            container.style.overflowY = 'auto';
+
+            // Only populate if container has no rendered cards
+            var renderedCards = container.querySelectorAll('.app-card-item');
+            if (renderedCards.length === 0) {
+              var apps = [];
+              if (window.TVAppsController && typeof window.TVAppsController.getActiveOttList === 'function') {
+                apps = window.TVAppsController.getActiveOttList();
+              }
+              if (!apps || apps.length === 0) {
+                if (window.tvAppInstance && Array.isArray(window.tvAppInstance.activeOttList)) {
+                  apps = window.tvAppInstance.activeOttList;
+                }
+              }
+              if (!apps || apps.length === 0) return;
+
+              var cardsHtml = '';
+              apps.forEach(function(app, idx) {
+                var name = app.name || 'App';
+                var pkg = app.package_name || app.package || app.packageName || app.id || '';
+                var icon = '';
+                if (window.TVAppsController && typeof window.TVAppsController.getAppIcon === 'function') {
+                  try { icon = window.TVAppsController.getAppIcon(app); } catch(_) {}
+                }
+                if (!icon && app.icon) icon = app.icon;
+                if (!icon && app.id) icon = 'assets/images/ott/' + app.id + '.svg';
+                
+                var initials = name.trim().split(/\s+/).map(function(w){return w[0];}).join('').toUpperCase().substring(0, 3);
+                if (!initials) initials = 'APP';
+
+                var iconInner = icon 
+                  ? '<img src="' + icon + '" class="w-full h-full object-contain" style="max-width:64px;max-height:64px;" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\';"><span style="display:none;font-weight:900;font-size:1.5rem;color:#ffc700;">' + initials + '</span>'
+                  : '<span style="font-weight:900;font-size:1.5rem;color:#ffc700;">' + initials + '</span>';
+
+                cardsHtml += '<div tabindex="0" id="app_card_' + idx + '" data-package="' + pkg + '" ' +
+                  'class="app-card-item h-52 rounded-2xl flex flex-col items-center justify-between p-4 cursor-pointer text-center relative border border-white/10 bg-white/5" ' +
+                  'style="transition: all 0.2s ease; outline: none;" ' +
+                  'onclick="if(window.flutterBridge && window.flutterBridge.launchApp){ window.flutterBridge.launchApp(\'' + pkg + '\'); }">' +
+                  '<div class="w-full flex-1 flex items-center justify-center pt-1 pb-2">' +
+                  '  <div class="w-24 h-24 rounded-2xl flex items-center justify-center p-3 bg-black/40 border border-white/10 shadow-md">' +
+                       iconInner +
+                  '  </div>' +
+                  '</div>' +
+                  '<div class="w-full pt-2 border-t border-white/10 flex flex-col items-center">' +
+                  '  <h3 class="text-sm font-extrabold text-white truncate max-w-full">' + name + '</h3>' +
+                  '  <div class="flex items-center gap-1.5 mt-0.5">' +
+                  '    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>' +
+                  '    <span class="text-[10px] font-bold text-slate-400 uppercase">OPEN APP</span>' +
+                  '  </div>' +
+                  '</div>' +
+                  '</div>';
+              });
+
+              if (cardsHtml) {
+                container.innerHTML = cardsHtml;
+              }
+            }
+          }
+
+          setInterval(patchAppsGrid, 600);
+        })();
+      ''');
     } catch (_) {}
   }
 

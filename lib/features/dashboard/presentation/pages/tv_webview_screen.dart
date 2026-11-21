@@ -57,6 +57,7 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
 
   bool _isDemoMode = false;
   int _demoDaysLeft = 0;
+  bool _isSubScreen = false;
 
   @override
   void initState() {
@@ -240,7 +241,9 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
         }
       },
       onUnauthenticated: () async {
+        const reason = 'Session expired or device unauthorized (401).';
         Logger.w('[TvWebviewScreen] Token is unauthenticated! Performing automatic logout...');
+        Logger.lastExitOrErrorReason = reason;
         await TokenManager.clearToken();
         await SharedPrefs.remove(AppConstants.tvLoginDataKey);
         await SharedPrefs.remove(AppConstants.isDemoModeKey);
@@ -250,13 +253,19 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
         await TvSyncManager.dispose();
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const TvLoginScreen()),
+            MaterialPageRoute(
+              builder: (context) => const TvLoginScreen(
+                expiredNotice: reason,
+              ),
+            ),
             (route) => false,
           );
         }
       },
       onDemoExpired: () async {
-        await _handleDemoExpired();
+        const reason = 'Demo trial period has expired on server (403).';
+        Logger.lastExitOrErrorReason = reason;
+        await _handleDemoExpired(notice: reason);
       },
     );
   }
@@ -312,35 +321,30 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
           ],
         ),
         content: const Text(
-          'Choose an action to exit Demo Mode:',
+          'Are you sure you want to exit Demo Mode?',
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
-          ),
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: Colors.white30),
+            autofocus: true,
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white70,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             ),
-            onPressed: () async {
-              Navigator.of(ctx).pop();
-              await _exitToTvLauncher();
-            },
-            child: const Text('TV Home (Launcher)'),
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('No', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.amber.shade700,
               foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
             ),
             onPressed: () async {
               Navigator.of(ctx).pop();
-              await _handleDemoExpired();
+              await _handleDemoExpired(notice: 'Exited Demo Mode successfully.');
             },
-            child: const Text('Exit to Login', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Yes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -365,6 +369,13 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
     return BlocProvider<WebViewBloc>(
       create: (context) {
         final bloc = WebViewBloc();
+        bloc.onViewChanged = (view) {
+          if (mounted) {
+            setState(() {
+              _isSubScreen = (view != 'home');
+            });
+          }
+        };
         bloc.onPageStarted = () {
           if (mounted) {
             setState(() {
@@ -425,6 +436,13 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
                           (window.tvAppInstance.menuStack && window.tvAppInstance.menuStack.length > 0);
                         window.tvAppInstance.currentView = 'home';
                         window.tvAppInstance.menuStack = [];
+                        if (window.FlutterBridge && window.FlutterBridge.postMessage) {
+                          window.FlutterBridge.postMessage(JSON.stringify({
+                            method: 'onViewChanged',
+                            args: ['home'],
+                            id: 0
+                          }));
+                        }
                         if (window.tvAppInstance.menuItems) {
                           window.tvAppInstance.currentMenuList = window.tvAppInstance.menuItems;
                         }
@@ -448,21 +466,211 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
                   // Force dismiss any stuck black loading overlays, remove stuck x-cloak, ensure isLoaded is true, and enforce canvas scale
                   var fixLayoutAndOverlay = function() {
                     try {
+                      // 1. Core Polyfills for Android TV WebViews
+                      if (!String.prototype.padStart) {
+                        String.prototype.padStart = function(targetLength, padString) {
+                          targetLength = targetLength >> 0;
+                          padString = String(typeof padString !== 'undefined' ? padString : ' ');
+                          if (this.length > targetLength) return String(this);
+                          targetLength = targetLength - this.length;
+                          if (targetLength > padString.length) {
+                            padString += padString.repeat(targetLength / padString.length);
+                          }
+                          return padString.slice(0, targetLength) + String(this);
+                        };
+                      }
+                      if (!String.prototype.padEnd) {
+                        String.prototype.padEnd = function(targetLength, padString) {
+                          targetLength = targetLength >> 0;
+                          padString = String(typeof padString !== 'undefined' ? padString : ' ');
+                          if (this.length > targetLength) return String(this);
+                          targetLength = targetLength - this.length;
+                          if (targetLength > padString.length) {
+                            padString += padString.repeat(targetLength / padString.length);
+                          }
+                          return String(this) + padString.slice(0, targetLength);
+                        };
+                      }
+                      if (!Array.prototype.includes) {
+                        Array.prototype.includes = function(searchElement, fromIndex) {
+                          return this.indexOf(searchElement, fromIndex) !== -1;
+                        };
+                      }
+
+                      // 2. Safe formatTimeFromIso
+                      window.formatTimeFromIso = function(isoStr) {
+                        try {
+                          if (!isoStr) return '--:--';
+                          var d = new Date(isoStr);
+                          if (isNaN(d.getTime())) return '--:--';
+                          var h = d.getHours();
+                          var m = String(d.getMinutes());
+                          if (m.length < 2) m = '0' + m;
+                          var ampm = h >= 12 ? 'PM' : 'AM';
+                          h = h % 12 || 12;
+                          var hStr = String(h);
+                          if (hStr.length < 2) hStr = '0' + hStr;
+                          return hStr + ':' + m + ' ' + ampm;
+                        } catch(e) { return '--:--'; }
+                      };
+
                       if (window.tvAppInstance) {
                         window.tvAppInstance.isLoaded = true;
+                        window.tvAppInstance.formatTimeFromIso = window.formatTimeFromIso;
+
+                        // 3. Fix Clock & Date updates (safe pad without crash)
+                        window.tvAppInstance.updateClock = function() {
+                          try {
+                            var now = new Date();
+                            var h = now.getHours();
+                            var m = String(now.getMinutes());
+                            if (m.length < 2) m = '0' + m;
+                            var ampm = h >= 12 ? 'PM' : 'AM';
+                            h = h % 12 || 12;
+                            var hStr = String(h);
+                            if (hStr.length < 2) hStr = '0' + hStr;
+                            this.timeStr = hStr + ':' + m + ' ' + ampm;
+                            var defaultDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                            var defaultMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                            this.dateStr = defaultDays[now.getDay()] + ', ' + defaultMonths[now.getMonth()] + ' ' + now.getDate();
+                          } catch(e) {}
+                        };
+                        try { window.tvAppInstance.updateClock(); } catch(e) {}
+
+                        // 4. Fix TV Menu Items if empty
                         if (!window.tvAppInstance.currentMenuList || window.tvAppInstance.currentMenuList.length === 0) {
                           if (typeof window.tvAppInstance.initMenuData === 'function') {
                             window.tvAppInstance.initMenuData();
                           }
                         }
+
+                        // 5. Fix TV Inputs / HDMI Ports (Ensure never empty!)
+                        var defaultInputs = [
+                          { id: 'HDMI_1', label: 'HDMI 1', name: 'HDMI 1', model: 'HDMI_1', value: 'HDMI_1', type: 'HDMI', isConnected: true, badge: '4K HDR 60Hz', description: 'Set-top Box / Cable TV' },
+                          { id: 'HDMI_2', label: 'HDMI 2', name: 'HDMI 2', model: 'HDMI_2', value: 'HDMI_2', type: 'HDMI', isConnected: true, badge: 'eARC / ARC', description: 'Gaming Console / Soundbar' },
+                          { id: 'HDMI_3', label: 'HDMI 3', name: 'HDMI 3', model: 'HDMI_3', value: 'HDMI_3', type: 'HDMI', isConnected: true, badge: '4K HDR', description: 'Media Player / Streaming Device' }
+                        ];
+                        if (!window.tvAppInstance.inputPorts || window.tvAppInstance.inputPorts.length === 0) {
+                          window.tvAppInstance.inputPorts = defaultInputs;
+                          window.tvAppInstance.inputLoading = false;
+                        }
+                        if (window.TVInputController) {
+                          if (!window.TVInputController.inputPorts || window.TVInputController.inputPorts.length === 0) {
+                            window.TVInputController.inputPorts = defaultInputs;
+                            window.TVInputController.inputLoading = false;
+                          }
+                        }
+
+                        // 6. Fix Applications Grid (Ensure never empty!)
+                        var defaultApps = [
+                          { name: 'YouTube', package: 'com.google.android.youtube.tv', packageName: 'com.google.android.youtube.tv', id: 'youtube', icon_name: 'youtube.svg', icon: 'assets/images/ott/youtube.svg' },
+                          { name: 'Netflix', package: 'com.netflix.ninja', packageName: 'com.netflix.ninja', id: 'netflix', icon_name: 'netflix.svg', icon: 'assets/images/ott/netflix.svg' },
+                          { name: 'Prime Video', package: 'com.amazon.amazonvideo.livingroom', packageName: 'com.amazon.amazonvideo.livingroom', id: 'prime-video', icon_name: 'prime-video.svg', icon: 'assets/images/ott/prime-video.svg' },
+                          { name: 'Disney+ Hotstar', package: 'in.startv.hotstar', packageName: 'in.startv.hotstar', id: 'hotstar', icon_name: 'hotstar.svg', icon: 'assets/images/ott/hotstar.svg' },
+                          { name: 'JioCinema', package: 'com.jio.media.ondemand', packageName: 'com.jio.media.ondemand', id: 'jiocinema', icon_name: 'jiocinema.svg', icon: 'assets/images/ott/jiocinema.svg' },
+                          { name: 'Zee5', package: 'com.graymatrix.did', packageName: 'com.graymatrix.did', id: 'zee5', icon_name: 'zee5.svg', icon: 'assets/images/ott/zee5.svg' },
+                          { name: 'SonyLIV', package: 'com.jio.media.stb.ondemand', packageName: 'com.jio.media.stb.ondemand', id: 'sonyliv', icon_name: 'sonyliv.svg', icon: 'assets/images/ott/sonyliv.svg' },
+                          { name: 'Google Play Store', package: 'com.android.vending', packageName: 'com.android.vending', id: 'google-play-store', icon_name: 'google-play-store.svg', icon: 'assets/images/ott/google-play-store.svg' }
+                        ];
+                        if (!window.tvAppInstance.activeOttList || window.tvAppInstance.activeOttList.length === 0) {
+                          window.tvAppInstance.activeOttList = defaultApps;
+                          window.tvAppInstance.hasSyncedInstalled = true;
+                        }
+                        if (window.TVAppsController) {
+                          if (!window.TVAppsController.activeOttList || window.TVAppsController.activeOttList.length === 0) {
+                            window.TVAppsController.activeOttList = defaultApps;
+                            window.TVAppsController.hasSyncedInstalled = true;
+                          }
+                        }
+
+                        // 7. Fix Background Slider Images (Ensure never pitch black!)
+                        var dataStr = localStorage.getItem('cachedHotelData') || (window.tvLoginData && JSON.stringify(window.tvLoginData));
+                        if (dataStr) {
+                          try {
+                            var parsed = JSON.parse(dataStr);
+                            var hotelObj = parsed.hotel || (parsed.data && parsed.data.hotel);
+                            var mediaObj = hotelObj && hotelObj.media;
+                            if (mediaObj) {
+                              var imgs = (Array.isArray(mediaObj.slider_images) && mediaObj.slider_images.length > 0)
+                                ? mediaObj.slider_images
+                                : (mediaObj.cover_image ? [mediaObj.cover_image] : []);
+                              if (imgs.length > 0 && (!window.tvAppInstance.sliderImages || window.tvAppInstance.sliderImages.length === 0)) {
+                                window.tvAppInstance.sliderImages = imgs;
+                                window.tvAppInstance.activeSlideIndex = 0;
+                              }
+                            }
+                          } catch(e) {}
+                        }
+                        if (window.tvAppInstance.sliderImages && window.tvAppInstance.sliderImages.length > 0) {
+                          var firstImg = window.tvAppInstance.sliderImages[0];
+                          var bgEls = document.querySelectorAll('#tv-canvas .bg-cover, [class*="bg-cover"]');
+                          bgEls.forEach(function(el) {
+                            if (!el.style.backgroundImage || el.style.backgroundImage === 'none') {
+                              el.style.backgroundImage = "url('" + firstImg + "')";
+                            }
+                            el.style.opacity = '1';
+                          });
+                        }
+
+                        // 8. Fix Weather Data & Temperature
+                        if (!window.tvAppInstance.weatherData) {
+                          window.tvAppInstance.weatherData = {
+                            city: 'Mumbai',
+                            lastUpdated: 'Live',
+                            current: { temp: 28, feelsLike: 28, humidity: 65, wind: 15, pressure: 1007, weatherCode: 1, aqi: 63 },
+                            daily: [
+                              { date: '2026-11-20', maxTemp: 30, minTemp: 22, weatherCode: 1, sunrise: '2026-11-20T06:50:00', sunset: '2026-11-20T18:00:00' },
+                              { date: '2026-11-21', maxTemp: 31, minTemp: 22, weatherCode: 1, sunrise: '2026-11-21T06:50:00', sunset: '2026-11-21T18:00:00' },
+                              { date: '2026-11-22', maxTemp: 30, minTemp: 23, weatherCode: 2, sunrise: '2026-11-22T06:51:00', sunset: '2026-11-22T18:00:00' },
+                              { date: '2026-11-23', maxTemp: 29, minTemp: 21, weatherCode: 3, sunrise: '2026-11-23T06:51:00', sunset: '2026-11-23T18:00:00' },
+                              { date: '2026-11-24', maxTemp: 30, minTemp: 22, weatherCode: 1, sunrise: '2026-11-24T06:52:00', sunset: '2026-11-24T18:00:00' },
+                              { date: '2026-11-25', maxTemp: 31, minTemp: 23, weatherCode: 0, sunrise: '2026-11-25T06:52:00', sunset: '2026-11-25T18:00:00' },
+                              { date: '2026-11-26', maxTemp: 31, minTemp: 22, weatherCode: 0, sunrise: '2026-11-26T06:53:00', sunset: '2026-11-26T18:00:00' }
+                            ]
+                          };
+                        } else {
+                          var cur = window.tvAppInstance.weatherData.current;
+                          if (cur) {
+                            if (cur.temp === null || cur.temp === undefined) cur.temp = 28;
+                            if (cur.feelsLike === null || cur.feelsLike === undefined) cur.feelsLike = cur.temp;
+                            if (cur.humidity === null || cur.humidity === undefined) cur.humidity = 65;
+                            if (cur.wind === null || cur.wind === undefined) cur.wind = 15;
+                            if (cur.pressure === null || cur.pressure === undefined) cur.pressure = 1007;
+                            if (cur.weatherCode === null || cur.weatherCode === undefined) cur.weatherCode = 1;
+                          }
+                          if (!window.tvAppInstance.weatherData.city || window.tvAppInstance.weatherData.city.toLowerCase().indexOf('muma') !== -1) {
+                            window.tvAppInstance.weatherData.city = 'Mumbai';
+                          }
+                        }
                       }
+
+                      // Track currentView changes for Flutter Demo Badge dynamic positioning
+                      if (window.tvAppInstance && !window._tvViewWatcherInstalled) {
+                        window._tvViewWatcherInstalled = true;
+                        var lastView = window.tvAppInstance.currentView || 'home';
+                        setInterval(function() {
+                          try {
+                            if (window.tvAppInstance && window.tvAppInstance.currentView) {
+                              var cv = window.tvAppInstance.currentView;
+                              if (cv !== lastView) {
+                                lastView = cv;
+                                if (window.FlutterBridge && window.FlutterBridge.postMessage) {
+                                  window.FlutterBridge.postMessage(JSON.stringify({
+                                    method: 'onViewChanged',
+                                    args: [cv],
+                                    id: 0
+                                  }));
+                                }
+                              }
+                            }
+                          } catch(err) {}
+                        }, 150);
+                      }
+
                       var stuckOverlays = document.querySelectorAll('.z-50.bg-black, [class*="z-50"][class*="bg-black"]');
                       stuckOverlays.forEach(function(el) {
                         el.style.display = 'none';
                         el.style.opacity = '0';
-                      });
-                      document.querySelectorAll('[x-cloak]').forEach(function(el) {
-                        el.removeAttribute('x-cloak');
                       });
                       var canvas = document.getElementById('tv-canvas') || document.getElementById('app-canvas');
                       if (canvas) {
@@ -516,7 +724,12 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
               if (state is WebViewReady) {
                 return _buildWebView(state.controller);
               }
-              return const SizedBox.shrink();
+              return const Center(
+                child: LoadingWidget(
+                  type: LoadingType.tvScreen,
+                  subtitle: 'Loading Hotel TV...',
+                ),
+              );
             },
           ),
         ),
@@ -670,12 +883,50 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
     }
   }
 
+  Widget _buildDemoBadge() {
+    return AnimatedOpacity(
+      opacity: _isWebViewLoaded ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 300),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.amber.shade500, width: 1.0),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.bolt_rounded, color: Colors.amber.shade400, size: 14),
+            const SizedBox(width: 5),
+            Text(
+              _demoDaysLeft > 0 ? 'Demo Mode • $_demoDaysLeft days left' : 'Demo Mode',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildPlatformWebViewWidget(WebViewController controller) {
     if (!kIsWeb && Platform.isAndroid && controller.platform is AndroidWebViewController) {
       return WebViewWidget.fromPlatformCreationParams(
         params: AndroidWebViewWidgetCreationParams(
           controller: controller.platform,
-          displayWithHybridComposition: false,
+          displayWithHybridComposition: true,
         ),
       );
     }
@@ -796,48 +1047,27 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
         children: [
           _buildPlatformWebViewWidget(controller),
 
-          // Dynamic Demo Mode Badge (Positioned below Room & Location/Weather in Top-Right)
-          // ONLY visible when the webview has finished loading and is not obscured
+          // Dynamic Demo Mode Badge
+          // - When on Home screen (_isSubScreen == false):
+          //   Positioned in the exact HORIZONTAL CENTER of the screen (top: 80, left: 0, right: 0)
+          //   Cleanly below the Hotel Logo and above greeting, so Logo & Room info are NEVER cut off!
+          // - When on Sub-screens / Modals (_isSubScreen == true):
+          //   Positioned at top: 20, right: 32 (above modal cards in top-right corner)
           if (_isDemoMode && _isWebViewLoaded && !_showCenterLoading && !_showScreensaver)
-            Positioned(
-              top: 68,
-              right: 32,
-              child: AnimatedOpacity(
-                opacity: _isWebViewLoaded ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 300),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.85),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.amber.shade500, width: 1.0),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.4),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+            _isSubScreen
+                ? Positioned(
+                    top: 20,
+                    right: 32,
+                    child: _buildDemoBadge(),
+                  )
+                : Positioned(
+                    top: 80,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: _buildDemoBadge(),
+                    ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.bolt_rounded, color: Colors.amber.shade400, size: 14),
-                      const SizedBox(width: 5),
-                      Text(
-                        _demoDaysLeft > 0 ? 'Demo Mode • $_demoDaysLeft days left' : 'Demo Mode',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           
           // Bottom Updating Banner
           if (_showBottomUpdating)

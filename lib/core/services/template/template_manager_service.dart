@@ -80,7 +80,22 @@ class TemplateManagerService {
   static Future<bool> isTemplateDownloaded() async {
     final dir = await getTemplateDirectory();
     final indexFile = File(p.join(dir.path, 'index.html'));
-    return await indexFile.exists();
+    if (await indexFile.exists() && await indexFile.length() > 0) {
+      return true;
+    }
+    // Deep fallback: check if index.html exists anywhere in the template directory
+    try {
+      if (await dir.exists()) {
+        await for (final entity in dir.list(recursive: true, followLinks: false)) {
+          if (entity is File &&
+              p.basename(entity.path).toLowerCase() == 'index.html' &&
+              await entity.length() > 0) {
+            return true;
+          }
+        }
+      }
+    } catch (_) {}
+    return false;
   }
 
   /// Returns the local path to the template's index.html
@@ -321,16 +336,33 @@ class TemplateManagerService {
                   ? '$cleanBrand $cleanModel'
                   : (cleanBrand.isNotEmpty ? cleanBrand : cleanModel);
 
-              final tvDisplayName = deviceLabel.isNotEmpty
+              final targetDisplayName = deviceLabel.isNotEmpty
                   ? '$deviceLabel (Room $roomNo)'
                   : 'Room $roomNo';
+
+              // 1. Try to set OS device name
+              await DeviceInfoService.setDeviceName(targetDisplayName);
+
+              // 2. Check actual broadcast name from Android TV OS
+              final actualSystemName = await DeviceInfoService.getActualDeviceName();
+              String tvDisplayName = targetDisplayName;
+
+              if (actualSystemName.isNotEmpty) {
+                final cleanActual = _cleanDeviceWord(actualSystemName);
+                if (cleanActual.isNotEmpty &&
+                    !targetDisplayName.toLowerCase().contains(cleanActual.toLowerCase()) &&
+                    !cleanActual.toLowerCase().contains(cleanBrand.toLowerCase())) {
+                  // OS broadcast name is different (e.g. 4KTV-0SU) and locked by system
+                  tvDisplayName = '$cleanActual (Room $roomNo)';
+                }
+              }
 
               devMap['tv_display_name'] = tvDisplayName;
               devMap['tvDisplayName'] = tvDisplayName;
               devMap['tv_name'] = tvDisplayName;
               // Persist for native Android device name + JS injection
               await SharedPrefs.setString('tv_display_name', tvDisplayName);
-              Logger.i('[TemplateManager] tv_display_name → $tvDisplayName (brand=$realBrand, model=$realModel)');
+              Logger.i('[TemplateManager] tv_display_name → $tvDisplayName (target=$targetDisplayName, actual=$actualSystemName)');
             }
 
             dataMap['device'] = devMap;
@@ -610,11 +642,22 @@ class TemplateManagerService {
         }
       }
 
-      // Check if ZIP extracted into a single top-level wrapper directory
-      var targetDirToMove = tempExtractDir;
-      final extractedList = tempExtractDir.listSync();
-      if (extractedList.length == 1 && extractedList.first is Directory) {
-        targetDirToMove = extractedList.first as Directory;
+      // Find the actual folder containing index.html (handles single wrapper folder, __MACOSX, or flat zip)
+      Directory targetDirToMove = tempExtractDir;
+      final directIndex = File(p.join(tempExtractDir.path, 'index.html'));
+      if (!directIndex.existsSync()) {
+        try {
+          final allEntities = tempExtractDir.listSync(recursive: true, followLinks: false);
+          for (final entity in allEntities) {
+            if (entity is File && p.basename(entity.path).toLowerCase() == 'index.html') {
+              targetDirToMove = entity.parent;
+              Logger.i('[TemplateManager] Detected template root directory with index.html at: ${targetDirToMove.path}');
+              break;
+            }
+          }
+        } catch (findErr) {
+          Logger.w('[TemplateManager] Failed to search for index.html in extracted tree: $findErr');
+        }
       }
 
       final finalTemplateDir = await getTemplateDirectory();

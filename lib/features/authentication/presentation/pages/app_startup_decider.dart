@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/logger.dart';
 import '../../../../core/services/storage/shared_prefs.dart';
 import '../../../../core/services/storage/token_manger.dart';
 import '../../../../core/services/template/template_manager_service.dart';
@@ -115,12 +116,17 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
       if (!mounted) return;
       final finalDownloaded = await TemplateManagerService.isTemplateDownloaded();
       if (finalDownloaded) {
+        _applyTvDeviceName();
         _navigateToWebview();
       } else {
-        _navigateToLogin();
+        const errorMsg = 'Template install error: index.html not found after download.';
+        Logger.e('[AppStartupDecider] $errorMsg');
+        _navigateToLogin(notice: errorMsg);
       }
-    } catch (_) {
-      _navigateToLogin();
+    } catch (e) {
+      final errorMsg = 'Startup error: $e';
+      Logger.e('[AppStartupDecider] $errorMsg');
+      _navigateToLogin(notice: errorMsg);
     }
   }
 
@@ -140,11 +146,11 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
     );
   }
 
-  void _navigateToLogin() {
+  void _navigateToLogin({String? notice}) {
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => const TvLoginScreen()),
+      MaterialPageRoute(builder: (_) => TvLoginScreen(expiredNotice: notice)),
     );
   }
 

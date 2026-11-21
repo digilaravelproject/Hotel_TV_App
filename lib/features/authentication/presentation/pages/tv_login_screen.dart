@@ -474,6 +474,10 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
       }
 
       await TemplateManagerService.regenerateDataJson();
+      final savedName = SharedPrefs.getString('tv_display_name') ?? '';
+      if (savedName.isNotEmpty) {
+        DeviceInfoService.setDeviceName(savedName);
+      }
 
       if (mounted) {
         Navigator.pushReplacement(
@@ -539,6 +543,10 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
 
         await SharedPrefs.setString(AppConstants.tvLoginDataKey, jsonEncode(response.data));
         await TemplateManagerService.regenerateDataJson();
+      final savedName = SharedPrefs.getString('tv_display_name') ?? '';
+      if (savedName.isNotEmpty) {
+        DeviceInfoService.setDeviceName(savedName);
+      }
 
         if (mounted) {
           Navigator.pushReplacement(
@@ -958,8 +966,8 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
 
             // Main Content Area (Netflix Style)
             Positioned.fill(
-              top: 48,
-              bottom: 40,
+              top: 38,
+              bottom: 24,
               left: 36,
               right: 36,
               child: Column(
@@ -969,11 +977,11 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                   const CustomAppText(
                     "Choose how to sign in",
                     color: Colors.white,
-                    fontSize: 28,
+                    fontSize: 26,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -0.4,
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
 
                   // 3-tab pill switcher
                   ValueListenableBuilder<TvLoginTab>(
@@ -982,7 +990,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                       return _buildTopTabBar(selectedTab);
                     },
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 14),
 
                   // Center Selected View
                   Expanded(
@@ -1046,39 +1054,44 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
               ),
             ),
 
-            // Bottom Left Device ID Badge
+            // Bottom Left Device ID Badge (Clickable for Diagnostics & Exit Reason)
             Positioned(
               bottom: 16,
               left: 36,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.12),
+              child: GestureDetector(
+                onTap: () => _showDiagnosticsDialog(context),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.12),
+                    ),
                   ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CustomAppText(
-                      "Device ID: ",
-                      color: Colors.white54,
-                      fontSize: 13,
-                    ),
-                    FutureBuilder<String>(
-                      future: DeviceInfoService.getDeviceId(),
-                      builder: (context, snapshot) {
-                        return CustomAppText(
-                          snapshot.data ?? '...',
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        );
-                      },
-                    ),
-                  ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CustomAppText(
+                        "Device ID: ",
+                        color: Colors.white54,
+                        fontSize: 13,
+                      ),
+                      FutureBuilder<String>(
+                        future: DeviceInfoService.getDeviceId(),
+                        builder: (context, snapshot) {
+                          return CustomAppText(
+                            snapshot.data ?? '...',
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.info_outline, color: Colors.amber, size: 14),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1166,6 +1179,128 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
       }
       CustomSnackbar.showError(message: '$errorMsg ($e)');
     }
+  }
+
+  Future<void> _showDiagnosticsDialog(BuildContext context) async {
+    final devInfo = await DeviceInfoService.getFullDeviceInfo();
+    final isDownloaded = await TemplateManagerService.isTemplateDownloaded();
+    final templatePath = await TemplateManagerService.getTemplatePath();
+    final token = await TokenManager.getToken();
+    final isDemo = SharedPrefs.getBool(AppConstants.isDemoModeKey) ?? false;
+    final demoDays = SharedPrefs.getInt(AppConstants.demoDaysLeftKey) ?? 0;
+    final lastReason = Logger.lastExitOrErrorReason.isNotEmpty
+        ? Logger.lastExitOrErrorReason
+        : (widget.expiredNotice ?? 'None recorded');
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF18181B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFFD4AF37), width: 1.5),
+        ),
+        title: Row(
+          children: const [
+            Icon(Icons.terminal_rounded, color: Color(0xFFD4AF37), size: 24),
+            SizedBox(width: 10),
+            Text('TV Diagnostics & Exit Reason',
+                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: SizedBox(
+          width: 600,
+          height: 400,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildDiagRow('Device ID', devInfo['deviceId']?.toString() ?? 'Unknown'),
+                _buildDiagRow('MAC Address', devInfo['macAddress']?.toString() ?? 'Unknown'),
+                _buildDiagRow('IP Address', devInfo['ipAddress']?.toString() ?? 'Unknown'),
+                _buildDiagRow('Model / Brand', '${devInfo['brand']} ${devInfo['model']}'),
+                _buildDiagRow('Auth Token', token.isNotEmpty ? 'Active (${token.substring(0, token.length > 10 ? 10 : token.length)}...)' : 'EMPTY / NOT LOGGED IN'),
+                _buildDiagRow('Demo Mode', isDemo ? 'YES ($demoDays days left)' : 'NO (Paid Mode)'),
+                _buildDiagRow('Template Downloaded', isDownloaded ? 'YES (Ready)' : 'NO (Missing index.html)'),
+                _buildDiagRow('Template Path', templatePath),
+                const Divider(color: Colors.white24, height: 20),
+                const Text('Last Exit / Error Reason:',
+                    style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 4),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.redAccent.withOpacity(0.5)),
+                  ),
+                  child: Text(
+                    lastReason,
+                    style: const TextStyle(color: Colors.white, fontSize: 12.5),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text('Recent System Logs:',
+                    style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 4),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: Logger.recentLogs.reversed
+                        .take(15)
+                        .map((l) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2.0),
+                              child: Text(l,
+                                  style: const TextStyle(
+                                      color: Colors.white70, fontSize: 11, fontFamily: 'monospace')),
+                            ))
+                        .toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFD4AF37),
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDiagRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 170,
+            child: Text(label, style: const TextStyle(color: Colors.white60, fontSize: 13)),
+          ),
+          Expanded(
+            child: Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+          ),
+        ],
+      ),
+    );
   }
 }
 

@@ -216,6 +216,17 @@ class DeviceInfoService {
     return false;
   }
 
+  /// Gets the real system device name that Android OS is currently broadcasting over the network
+  static Future<String> getActualDeviceName() async {
+    try {
+      if (Platform.isAndroid) {
+        final result = await _channel.invokeMethod<String>('getActualDeviceName');
+        if (result != null && result.isNotEmpty) return result;
+      }
+    } catch (_) {}
+    return '';
+  }
+
   /// Helper to get just the unique device ID
   static Future<String> getDeviceId() async {
     final info = await getFullDeviceInfo();

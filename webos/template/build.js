@@ -77,6 +77,50 @@ if (fs.existsSync(compDir)) {
 
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23eab308'/><text y='.75em' x='50%' font-size='60' text-anchor='middle'>📺</text></svg>">
 
+    <!-- TV WebView Compatibility Polyfills (Chromium 50-80 TV Safe) -->
+    <script>
+        (function() {
+            if (typeof window.queueMicrotask !== "function") {
+                window.queueMicrotask = function(fn) {
+                    Promise.resolve().then(fn).catch(function(err) {
+                        setTimeout(function() { throw err; }, 0);
+                    });
+                };
+            }
+            if (!Array.prototype.flatMap) {
+                Array.prototype.flatMap = function(cb, thisArg) {
+                    return this.reduce(function(acc, x, i, arr) {
+                        return acc.concat(cb.call(thisArg, x, i, arr));
+                    }, []);
+                };
+            }
+            if (!Array.prototype.flat) {
+                Array.prototype.flat = function(depth) {
+                    depth = depth === undefined ? 1 : Math.floor(depth);
+                    if (depth < 1) return Array.prototype.slice.call(this);
+                    return (function flatten(arr, d) {
+                        return arr.reduce(function(acc, val) {
+                            return acc.concat(Array.isArray(val) && d > 0 ? flatten(val, d - 1) : val);
+                        }, []);
+                    })(this, depth);
+                };
+            }
+            if (typeof globalThis === "undefined") {
+                window.globalThis = window;
+            }
+            window.onerror = function(msg, url, lineNo, colNo, err) {
+                var errStr = '[WebViewJSError] ' + msg + ' (' + url + ':' + lineNo + ')';
+                console.error(errStr);
+                if (window.FlutterBridge && typeof window.FlutterBridge.postMessage === 'function') {
+                    try {
+                        window.FlutterBridge.postMessage(JSON.stringify({ type: 'JS_ERROR', message: errStr }));
+                    } catch(e) {}
+                }
+                return false;
+            };
+        })();
+    </script>
+
     <link rel="stylesheet" href="assets/css/tailwind.min.css">
     <link rel="stylesheet" href="assets/css/custom.css">
     <script src="assets/js/webOSTV.js"></script>
@@ -151,17 +195,19 @@ if (fs.existsSync(compDir)) {
         setTimeout(scaleCanvas, 500);
         setTimeout(scaleCanvas, 1500);
 
-        // Failsafe: Remove x-cloak after 1.5s so UI is never stuck invisible on slower TV chipsets/WebViews
+        // Failsafe: Ensure isLoaded and dismiss stuck black overlay after 800ms
         setTimeout(function() {
             try {
                 if (window.tvAppInstance) {
                     window.tvAppInstance.isLoaded = true;
                 }
-                document.querySelectorAll('[x-cloak]').forEach(function(el) {
-                    el.removeAttribute('x-cloak');
+                var stuckOverlays = document.querySelectorAll('#tv-initial-curtain, .z-50.bg-black, [class*="z-50"][class*="bg-black"]');
+                stuckOverlays.forEach(function(el) {
+                    el.style.opacity = '0';
+                    el.style.display = 'none';
                 });
             } catch(e) {}
-        }, 1500);
+        }, 800);
     </script>
 </head>
 

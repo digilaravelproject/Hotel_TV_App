@@ -66,7 +66,17 @@ window.TVAppsController = {
             this.hasSyncedInstalled = true;
             if (window.tvAppInstance) {
               window.tvAppInstance.activeOttList = installed;
+              window.tvAppInstance.activeAppFocusIndex = 0;
             }
+            this.activeAppFocusIndex = 0;
+            this.$nextTick(() => {
+              if (typeof this.focusCurrentApp === "function") {
+                this.focusCurrentApp();
+              } else {
+                const el = document.getElementById("app_card_0");
+                if (el) el.focus();
+              }
+            });
             console.log(`[TVApps] Synced with Flutter TV: ${installed.length} apps available`);
             return;
           }

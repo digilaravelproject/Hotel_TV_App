@@ -1176,6 +1176,14 @@ function tvApp() {
     }
   };
 }
+window.tvApp = tvApp;
+if (typeof document !== "undefined") {
+  document.addEventListener("alpine:init", function() {
+    if (window.Alpine && typeof window.Alpine.data === "function") {
+      window.Alpine.data("tvApp", tvApp);
+    }
+  });
+}
 window.triggerTVBack = () => {
   try {
     if (window.tvAppInstance && typeof window.tvAppInstance.goBack === "function") {
@@ -1216,3 +1224,5 @@ window.isTVAtHome = () => {
   } catch (e) {}
   return true;
 };
+window.tvApp = tvApp;
+
