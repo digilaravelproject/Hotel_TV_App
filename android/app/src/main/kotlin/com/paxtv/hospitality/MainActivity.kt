@@ -34,12 +34,22 @@ import java.io.ByteArrayOutputStream
 import java.net.NetworkInterface
 import java.util.Collections
 import android.widget.Toast
+import android.net.nsd.NsdManager
+import android.net.nsd.NsdServiceInfo
+import android.net.wifi.WifiManager
 
 class MainActivity : FlutterActivity() {
     private val DEVICE_INFO_CHANNEL = "com.paxtv.hospitality/device_info"
     private val TV_CONTROL_CHANNEL = "com.paxtv.hospitality/tv_control"
     private val EMM_CONFIG_CHANNEL = "com.paxtv.hospitality/emm_config"
     private val ACCESSIBILITY_CHANNEL = "com.paxtv.hospitality/accessibility"
+
+    private var tvInputCallback: TvInputManager.TvInputCallback? = null
+    private var nsdManager: NsdManager? = null
+    private var castNsdListener: NsdManager.RegistrationListener? = null
+    private var airplayNsdListener: NsdManager.RegistrationListener? = null
+    private var multicastLock: WifiManager.MulticastLock? = null
+    private var flutterEngineRef: FlutterEngine? = null
 
     companion object {
         private const val REQUEST_CODE_SET_DEFAULT_HOME = 1001
@@ -345,8 +355,78 @@ class MainActivity : FlutterActivity() {
         } catch (_: Exception) {}
     }
 
+    private fun setupTvInputCallback(flutterEngine: FlutterEngine) {
+        flutterEngineRef = flutterEngine
+        try {
+            val tvInputManager = getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager ?: return
+            tvInputCallback = object : TvInputManager.TvInputCallback() {
+                override fun onInputStateChanged(inputId: String, state: Int) {
+                    android.util.Log.i("HotelTV", "📺 TvInput state changed: $inputId -> state: $state")
+                    runOnUiThread {
+                        try {
+                            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, TV_CONTROL_CHANNEL)
+                                .invokeMethod("onTvInputStateChanged", mapOf(
+                                    "inputId" to inputId,
+                                    "state" to state,
+                                    "inputs" to getHdmiModels()
+                                ))
+                        } catch (_: Exception) {}
+                    }
+                }
+                override fun onInputAdded(inputId: String) {
+                    android.util.Log.i("HotelTV", "📺 TvInput added: $inputId")
+                    runOnUiThread {
+                        try {
+                            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, TV_CONTROL_CHANNEL)
+                                .invokeMethod("onTvInputStateChanged", mapOf(
+                                    "inputId" to inputId,
+                                    "state" to 0,
+                                    "inputs" to getHdmiModels()
+                                ))
+                        } catch (_: Exception) {}
+                    }
+                }
+                override fun onInputRemoved(inputId: String) {
+                    android.util.Log.i("HotelTV", "📺 TvInput removed: $inputId")
+                    runOnUiThread {
+                        try {
+                            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, TV_CONTROL_CHANNEL)
+                                .invokeMethod("onTvInputStateChanged", mapOf(
+                                    "inputId" to inputId,
+                                    "state" to 2,
+                                    "inputs" to getHdmiModels()
+                                ))
+                        } catch (_: Exception) {}
+                    }
+                }
+            }
+            tvInputManager.registerCallback(tvInputCallback!!, android.os.Handler(android.os.Looper.getMainLooper()))
+            android.util.Log.i("HotelTV", "✅ TvInputCallback successfully registered")
+        } catch (e: Exception) {
+            android.util.Log.w("HotelTV", "⚠️ Could not register TvInputCallback: ${e.message}")
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            tvInputCallback?.let {
+                (getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager)?.unregisterCallback(it)
+            }
+        } catch (_: Exception) {}
+
+        try {
+            castNsdListener?.let { nsdManager?.unregisterService(it) }
+            airplayNsdListener?.let { nsdManager?.unregisterService(it) }
+            if (multicastLock?.isHeld == true) {
+                multicastLock?.release()
+            }
+        } catch (_: Exception) {}
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        setupTvInputCallback(flutterEngine)
 
         // EMM Config Channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, EMM_CONFIG_CHANNEL).setMethodCallHandler { call, result ->
@@ -619,6 +699,93 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
+     * Publishes mDNS / NSD network services over the local hotel Wi-Fi so that
+     * Android, iOS, Windows and Mac devices scanning for Cast / AirPlay discovery
+     * automatically see this TV by its room name without requiring root/ADB or system permissions.
+     */
+    private fun registerNsdCastService(displayName: String) {
+        if (displayName.isBlank()) return
+        try {
+            // 1. Acquire MulticastLock so WiFi chip processes mDNS broadcast
+            if (multicastLock == null) {
+                val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+                multicastLock = wifi?.createMulticastLock("HotelTvMulticastLock")?.apply {
+                    setReferenceCounted(true)
+                    acquire()
+                }
+            }
+
+            if (nsdManager == null) {
+                nsdManager = getSystemService(Context.NSD_SERVICE) as? NsdManager
+            }
+            val mgr = nsdManager ?: return
+
+            // Unregister old Google Cast listener if any
+            castNsdListener?.let {
+                try { mgr.unregisterService(it) } catch (_: Exception) {}
+                castNsdListener = null
+            }
+
+            // A. Register Google Cast mDNS service (_googlecast._tcp)
+            val castInfo = NsdServiceInfo().apply {
+                serviceName = displayName
+                serviceType = "_googlecast._tcp"
+                port = 8008
+                setAttribute("fn", displayName)
+                setAttribute("md", Build.MODEL ?: "Smart TV")
+                setAttribute("id", getAndroidId())
+                setAttribute("st", "1")
+            }
+
+            castNsdListener = object : NsdManager.RegistrationListener {
+                override fun onServiceRegistered(service: NsdServiceInfo) {
+                    android.util.Log.i("HotelTV", "✅ NSD mDNS Google Cast registered as: ${service.serviceName}")
+                }
+                override fun onRegistrationFailed(service: NsdServiceInfo, errorCode: Int) {
+                    android.util.Log.w("HotelTV", "⚠️ NSD Cast registration failed: $errorCode")
+                }
+                override fun onServiceUnregistered(service: NsdServiceInfo) {
+                    android.util.Log.i("HotelTV", "ℹ️ NSD Cast service unregistered")
+                }
+                override fun onUnregistrationFailed(service: NsdServiceInfo, errorCode: Int) {
+                    android.util.Log.w("HotelTV", "⚠️ NSD Cast unregistration failed: $errorCode")
+                }
+            }
+            mgr.registerService(castInfo, NsdManager.PROTOCOL_DNS_SD, castNsdListener)
+
+            // Unregister old AirPlay listener if any
+            airplayNsdListener?.let {
+                try { mgr.unregisterService(it) } catch (_: Exception) {}
+                airplayNsdListener = null
+            }
+
+            // B. Register AirPlay / Apple Screen Mirroring mDNS service (_airplay._tcp)
+            val airplayInfo = NsdServiceInfo().apply {
+                serviceName = displayName
+                serviceType = "_airplay._tcp"
+                port = 7000
+                setAttribute("model", "AppleTV3,2")
+                val mac = getMacAddress()
+                setAttribute("deviceid", if (mac.isNotEmpty()) mac else "00:11:22:33:44:55")
+            }
+            airplayNsdListener = object : NsdManager.RegistrationListener {
+                override fun onServiceRegistered(service: NsdServiceInfo) {
+                    android.util.Log.i("HotelTV", "✅ NSD mDNS AirPlay registered as: ${service.serviceName}")
+                }
+                override fun onRegistrationFailed(service: NsdServiceInfo, errorCode: Int) {
+                    android.util.Log.w("HotelTV", "⚠️ NSD AirPlay registration failed: $errorCode")
+                }
+                override fun onServiceUnregistered(service: NsdServiceInfo) {}
+                override fun onUnregistrationFailed(service: NsdServiceInfo, errorCode: Int) {}
+            }
+            mgr.registerService(airplayInfo, NsdManager.PROTOCOL_DNS_SD, airplayNsdListener)
+
+        } catch (e: Exception) {
+            android.util.Log.w("HotelTV", "⚠️ registerNsdCastService error: ${e.message}")
+        }
+    }
+
+    /**
      * Sets the Android device's display name — this is the name that appears on
      * mobile phones when they scan for cast/screen mirroring targets (Miracast, AirPlay, Chromecast).
      * Format: "TV Name (Room No)" — e.g. "Taj TV (Room 106)"
@@ -627,7 +794,11 @@ class MainActivity : FlutterActivity() {
         if (name.isBlank()) return false
         var success = false
 
-        // 0. DevicePolicyManager (If app is Device Owner, this can set Global settings directly!)
+        // 1. Network Service Discovery (mDNS Cast & AirPlay broadcast over local Wi-Fi)
+        // Zero permissions needed! Phones on Wi-Fi discover this name for Screen Mirroring/Cast!
+        registerNsdCastService(name)
+
+        // 2. DevicePolicyManager (If app is Device Owner, this can set Global settings directly!)
         try {
             val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
             val admin = MyDeviceAdminReceiver.getComponentName(this)
@@ -640,30 +811,28 @@ class MainActivity : FlutterActivity() {
             android.util.Log.w("HotelTV", "⚠️ DPM setGlobalSetting error: ${e.message}")
         }
 
-        // 1. Settings.Global device_name (Requires WRITE_SECURE_SETTINGS or system privilege)
+        // 3. Settings.Global device_name (Requires WRITE_SECURE_SETTINGS or system privilege)
         try {
             android.provider.Settings.Global.putString(contentResolver, "device_name", name)
             android.util.Log.i("HotelTV", "✅ Settings.Global device_name set to: $name")
             success = true
-        } catch (e: Exception) {
-            android.util.Log.w("HotelTV", "⚠️ Settings.Global: ${e.message}")
-        }
+        } catch (_: Exception) {}
 
-        // 2. Settings.Secure bluetooth_name
+        // 4. Settings.Secure bluetooth_name
         try {
             android.provider.Settings.Secure.putString(contentResolver, "bluetooth_name", name)
             android.util.Log.i("HotelTV", "✅ Settings.Secure bluetooth_name set to: $name")
             success = true
         } catch (_: Exception) {}
 
-        // 3. Settings.System device_name
+        // 5. Settings.System device_name
         try {
             android.provider.Settings.System.putString(contentResolver, "device_name", name)
             android.util.Log.i("HotelTV", "✅ Settings.System device_name set to: $name")
             success = true
         } catch (_: Exception) {}
 
-        // 4. Shell Commands (Only if rooted / su available, avoiding SecurityException on standard TV OS)
+        // 6. Shell Commands (Only if rooted / su available, avoiding SecurityException on standard TV OS)
         Thread {
             try {
                 val suCheck = runShellCommand("which su")
@@ -675,7 +844,7 @@ class MainActivity : FlutterActivity() {
             } catch (_: Exception) {}
         }.start()
 
-        // 5. Bluetooth device name
+        // 7. Bluetooth device name
         try {
             val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
             val adapter = bluetoothManager?.adapter
@@ -688,11 +857,12 @@ class MainActivity : FlutterActivity() {
             android.util.Log.w("HotelTV", "⚠️ Could not set Bluetooth name: ${e.message}")
         }
 
-        // 6. Wi-Fi Direct (P2P) name — PRIORITY for Miracast / Screen Mirroring discovery
+        // 8. Wi-Fi Direct (P2P) name — PRIORITY for Miracast / Screen Mirroring discovery
         try {
+            val wifiMgr = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
             val wifiP2pManager = applicationContext.getSystemService(Context.WIFI_P2P_SERVICE)
                     as? android.net.wifi.p2p.WifiP2pManager
-            if (wifiP2pManager != null) {
+            if (wifiP2pManager != null && (wifiMgr?.isWifiEnabled == true)) {
                 val channel = wifiP2pManager.initialize(applicationContext, mainLooper, null)
                 val method = wifiP2pManager.javaClass.getMethod(
                     "setDeviceName",
@@ -711,7 +881,6 @@ class MainActivity : FlutterActivity() {
                                     android.util.Log.i("HotelTV", "✅ Wi-Fi Direct (Miracast) name set to: $name")
                                 }
                                 override fun onFailure(reason: Int) {
-                                    android.util.Log.w("HotelTV", "⚠️ Wi-Fi Direct name failed (reason: $reason), retries left: $retriesLeft")
                                     if (reason == 2 && retriesLeft > 0) { // 2 = BUSY: Channel binder connecting
                                         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                                             attemptSetP2pName(retriesLeft - 1)
@@ -733,6 +902,9 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             android.util.Log.w("HotelTV", "⚠️ Wi-Fi Direct setDeviceName error: ${e.message}")
         }
+
+        return success
+    }
 
         return success
     }
@@ -803,7 +975,9 @@ class MainActivity : FlutterActivity() {
             idLower.contains("google.android.videos") ||
             idLower.contains("livetv") ||
             idLower.contains("zee5") ||
-            idLower.contains("play.movies")) {
+            idLower.contains("play.movies") ||
+            idLower.contains("netflix") ||
+            idLower.contains("preview")) {
             return false
         }
         return input.type == android.media.tv.TvInputInfo.TYPE_HDMI ||
@@ -1570,24 +1744,37 @@ class MainActivity : FlutterActivity() {
                     val portName = "HDMI $portNum"
                     hdmiIndex++
 
-                    // 1. Check CEC broadcasted device name (e.g., Tata Play, Apple TV, Fire TV, PS5)
+                    // 1. Hardware Input State from TvInputManager (Universal Android TV API)
+                    val inputState = try {
+                        tvInputManager.getInputState(id)
+                    } catch (_: Exception) {
+                        TvInputManager.INPUT_STATE_DISCONNECTED
+                    }
+
+                    // 2. Check CEC broadcasted device name (e.g., Tata Play, Apple TV, Fire TV, PS5)
                     val cecName = getCecDeviceNameForInput(input, portNum)
                     
-                    // 2. Check hardware physical connection (HdmiControlManager port info / sysfs hotplug)
-                    val isPhysicallyConnected = isHdmiPortPhysicallyConnected(portNum)
+                    // 3. Fallback physical connection check
+                    val isPhysicallyConnectedFallback = isHdmiPortPhysicallyConnected(portNum)
 
-                    // A port is physically connected ONLY if active CEC device is present or physical HPD line is connected
-                    val isConnected = (!cecName.isNullOrBlank()) || isPhysicallyConnected
+                    // inputState == 0 (CONNECTED): Cable plugged in & active signal present
+                    // inputState == 1 (CONNECTED_STANDBY): Cable plugged in, device in standby
+                    // inputState == 2 (DISCONNECTED): No cable connected
+                    val hasSignal = (inputState == TvInputManager.INPUT_STATE_CONNECTED) || (!cecName.isNullOrBlank())
+                    val isConnected = hasSignal || (inputState == TvInputManager.INPUT_STATE_CONNECTED_STANDBY) || isPhysicallyConnectedFallback
+
+                    val statusString = when {
+                        hasSignal -> "ACTIVE"
+                        isConnected -> "STANDBY"
+                        else -> "DISCONNECTED"
+                    }
 
                     val deviceName = if (!cecName.isNullOrBlank()) {
                         cecName
-                    } else if (isPhysicallyConnected) {
-                        when (portNum) {
-                            1 -> "Set-top Box / DTH"
-                            2 -> "Gaming Console / Media"
-                            3 -> "Streaming Player"
-                            else -> "Connected Device"
-                        }
+                    } else if (hasSignal) {
+                        "Active HDMI ($portName)"
+                    } else if (isConnected) {
+                        "Standby Device"
                     } else {
                         ""
                     }
@@ -1602,7 +1789,9 @@ class MainActivity : FlutterActivity() {
                         "value" to id,
                         "type" to "HDMI",
                         "isConnected" to isConnected.toString(),
-                        "hasSignal" to isConnected.toString()
+                        "hasSignal" to hasSignal.toString(),
+                        "status" to statusString,
+                        "state" to inputState.toString()
                     ))
                 }
             }

@@ -72,7 +72,18 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
     _loadAmenitiesWallpapers();
 
     _setupBackChannel();
-    const MethodChannel('com.paxtv.hospitality/tv_control')
+    const tvControlChannel = MethodChannel('com.paxtv.hospitality/tv_control');
+    tvControlChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onTvInputStateChanged') {
+        Logger.i('[TvWebviewScreen] TV HDMI Input state changed in realtime. Refreshing inputs in UI...');
+        try {
+          _controller?.runJavaScript(
+            "try { if (window.tvAppInstance && typeof window.tvAppInstance.refreshInputs === 'function') { window.tvAppInstance.refreshInputs(); } else { window.dispatchEvent(new Event('tv_inputs_changed')); } } catch(e) {}"
+          );
+        } catch (_) {}
+      }
+    });
+    tvControlChannel
         .invokeMethod('setDemoMode', {'enabled': _isDemoMode})
         .catchError((_) => null);
 
