@@ -812,11 +812,22 @@ class MainActivity : FlutterActivity() {
         }
 
         // 3. Settings.Global device_name (Requires WRITE_SECURE_SETTINGS or system privilege)
+        var globalSet = false
         try {
             android.provider.Settings.Global.putString(contentResolver, "device_name", name)
             android.util.Log.i("HotelTV", "✅ Settings.Global device_name set to: $name")
+            globalSet = true
             success = true
         } catch (_: Exception) {}
+
+        // If direct Settings.Global failed (e.g. unrooted TV without ADB permission),
+        // trigger the Accessibility Auto-Pilot flow so the APK automates the system renaming!
+        if (!globalSet) {
+            val currentActual = getActualDeviceName()
+            if (currentActual != name) {
+                TvButtonAccessibilityService.autoRenameDevice(applicationContext, name)
+            }
+        }
 
         // 4. Settings.Secure bluetooth_name
         try {

@@ -1,17 +1,25 @@
 package com.paxtv.hospitality
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
 import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Path
+import android.graphics.Rect
 import android.media.AudioManager
+import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 
 class TvButtonAccessibilityService : AccessibilityService() {
 
@@ -21,6 +29,28 @@ class TvButtonAccessibilityService : AccessibilityService() {
     companion object {
         @Volatile
         var currentForegroundPackage: String? = null
+        @Volatile
+        var targetRenameName: String? = null
+        @Volatile
+        var isRenamingActive: Boolean = false
+        @Volatile
+        var serviceInstance: TvButtonAccessibilityService? = null
+
+        fun autoRenameDevice(context: Context, name: String) {
+            if (name.isBlank()) return
+            targetRenameName = name
+            isRenamingActive = true
+            ExternalLaunchTracker.notifyExternalLaunch()
+            try {
+                val intent = Intent("android.settings.DEVICE_NAME").apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                }
+                context.startActivity(intent)
+                Log.i("TvAccessibilityService", "🚀 [AutoRename] Launched DEVICE_NAME for target: $name")
+            } catch (e: Exception) {
+                Log.w("TvAccessibilityService", "Failed to launch DEVICE_NAME: ${e.message}")
+            }
+        }
     }
 
     // Common Android TV system launcher package names
@@ -50,6 +80,23 @@ class TvButtonAccessibilityService : AccessibilityService() {
         "com.sony.dtv.settings"
     )
 
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        serviceInstance = this
+        Log.i(TAG, "✅ TvButtonAccessibilityService connected and ready")
+        targetRenameName?.let { name ->
+            val cur = try { Settings.Global.getString(contentResolver, "device_name") } catch (_: Exception) { null }
+            if (cur != name) {
+                autoRenameDevice(applicationContext, name)
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        serviceInstance = null
+        super.onDestroy()
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
@@ -58,8 +105,19 @@ class TvButtonAccessibilityService : AccessibilityService() {
             currentForegroundPackage = pkg
         }
 
+        // Auto-pilot TV device renaming when Settings is open
+        if (isRenamingActive) {
+            handleAutoRenameFlow()
+        }
+
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val packageName = pkg ?: return
+
+            // If renaming is active, give it priority
+            if (isRenamingActive && packageName == "com.android.tv.settings") {
+                handleAutoRenameFlow()
+                return
+            }
 
             // If the package is our own app, do nothing
             if (packageName == applicationContext.packageName) {
@@ -272,6 +330,186 @@ class TvButtonAccessibilityService : AccessibilityService() {
         }
 
         return super.onKeyEvent(event)
+    }
+
+    private var isRenameEditTextSubmitted = false
+    private var lastAutoPilotActionTime = 0L
+
+    private fun handleAutoRenameFlow() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastAutoPilotActionTime < 350) return
+        val root = rootInActiveWindow ?: return
+        val pkg = root.packageName?.toString() ?: ""
+        if (pkg != "com.android.tv.settings") return
+
+        val targetName = targetRenameName ?: return
+
+        // 0. Check if device is ALREADY renamed
+        val currentSysName = try {
+            Settings.Global.getString(contentResolver, "device_name")
+        } catch (_: Exception) { null }
+        if (currentSysName == targetName) {
+            Log.i(TAG, "🎉 [AutoRename] Device already renamed to: $currentSysName. Done!")
+            isRenamingActive = false
+            mainHandler.postDelayed({ bringAppToFront() }, 200)
+            return
+        }
+
+        // Step 3: Check for EditText (Screen 3)
+        val editNode = findEditText(root)
+        if (editNode != null) {
+            if (!isRenameEditTextSubmitted) {
+                lastAutoPilotActionTime = now
+                val currentText = editNode.text?.toString() ?: ""
+                if (currentText != targetName) {
+                    val args = Bundle().apply {
+                        putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, targetName)
+                    }
+                    editNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                    Log.i(TAG, "🤖 [AutoRename] Step 3: Set EditText text to '$targetName'")
+                }
+
+                isRenameEditTextSubmitted = true
+                mainHandler.postDelayed({
+                    submitDeviceName(editNode)
+                }, 300)
+            }
+            return
+        }
+
+        // Step 2: Check for "Enter custom name…" / "custom" (Screen 2)
+        val customNodes = root.findAccessibilityNodeInfosByText("custom")
+        if (customNodes.isNotEmpty()) {
+            for (node in customNodes) {
+                val text = node.text?.toString()?.lowercase() ?: ""
+                if (text.contains("custom")) {
+                    lastAutoPilotActionTime = now
+                    clickNode(node)
+                    Log.i(TAG, "🤖 [AutoRename] Step 2: Clicked custom name option")
+                    return
+                }
+            }
+        }
+        val listNodes = root.findAccessibilityNodeInfosByViewId("com.android.tv.settings:id/guidedactions_list")
+        for (list in listNodes) {
+            if (list.isScrollable) {
+                list.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+            }
+        }
+
+        // Step 1: Check for "Change" action (Screen 1)
+        val changeNodes = root.findAccessibilityNodeInfosByText("Change")
+        for (node in changeNodes) {
+            val text = node.text?.toString()?.trim() ?: ""
+            if (text.equals("Change", ignoreCase = true)) {
+                lastAutoPilotActionTime = now
+                clickNode(node)
+                Log.i(TAG, "🤖 [AutoRename] Step 1: Clicked 'Change'")
+                return
+            }
+        }
+    }
+
+    private fun submitDeviceName(editNode: AccessibilityNodeInfo) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            editNode.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
+        }
+
+        var clickedIme = false
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                for (window in windows) {
+                    val wRoot = window.root ?: continue
+                    val doneNodes = mutableListOf<AccessibilityNodeInfo>()
+                    findNodesMatching(wRoot, doneNodes) { n ->
+                        val desc = n.contentDescription?.toString()?.lowercase() ?: ""
+                        val text = n.text?.toString()?.lowercase() ?: ""
+                        val id = n.viewIdResourceName?.lowercase() ?: ""
+                        desc.contains("done") || desc.contains("enter") || desc.contains("go") ||
+                        text.contains("done") || text.contains("enter") ||
+                        id.contains("enter") || id.contains("done") || id.contains("action")
+                    }
+                    for (dn in doneNodes) {
+                        if (clickNode(dn)) {
+                            Log.i(TAG, "🤖 [AutoRename] Clicked IME action key: ${dn.contentDescription ?: dn.text}")
+                            clickedIme = true
+                            break
+                        }
+                    }
+                    if (clickedIme) break
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "IME search: ${e.message}")
+        }
+
+        if (!clickedIme) {
+            val dm = resources.displayMetrics
+            val enterX = dm.widthPixels * 0.90f
+            val enterY = dm.heightPixels * 0.88f
+            dispatchTap(enterX, enterY)
+            Log.i(TAG, "🤖 [AutoRename] Dispatched IME tap at fallback: ($enterX, $enterY)")
+        }
+
+        mainHandler.postDelayed({
+            val updated = try {
+                Settings.Global.getString(contentResolver, "device_name")
+            } catch (_: Exception) { null }
+            Log.i(TAG, "🤖 [AutoRename] Result: Settings.Global device_name = $updated")
+            isRenamingActive = false
+            isRenameEditTextSubmitted = false
+            bringAppToFront()
+        }, 700)
+    }
+
+    private fun clickNode(node: AccessibilityNodeInfo?): Boolean {
+        if (node == null) return false
+        var current: AccessibilityNodeInfo? = node
+        while (current != null) {
+            if (current.isClickable) {
+                return current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            }
+            current = current.parent
+        }
+        val rect = Rect()
+        node.getBoundsInScreen(rect)
+        if (!rect.isEmpty) {
+            dispatchTap(rect.centerX().toFloat(), rect.centerY().toFloat())
+            return true
+        }
+        return false
+    }
+
+    private fun dispatchTap(x: Float, y: Float) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val path = Path().apply { moveTo(x, y) }
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0, 80))
+                .build()
+            dispatchGesture(gesture, null, null)
+        }
+    }
+
+    private fun findEditText(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (root.className?.toString()?.contains("EditText", ignoreCase = true) == true || root.isEditable) {
+            return root
+        }
+        for (i in 0 until root.childCount) {
+            val child = root.getChild(i) ?: continue
+            val found = findEditText(child)
+            if (found != null) return found
+        }
+        return null
+    }
+
+    private fun findNodesMatching(root: AccessibilityNodeInfo, results: MutableList<AccessibilityNodeInfo>, predicate: (AccessibilityNodeInfo) -> Boolean) {
+        if (predicate(root)) {
+            results.add(root)
+        }
+        for (i in 0 until root.childCount) {
+            val child = root.getChild(i) ?: continue
+            findNodesMatching(child, results, predicate)
+        }
     }
 }
 
