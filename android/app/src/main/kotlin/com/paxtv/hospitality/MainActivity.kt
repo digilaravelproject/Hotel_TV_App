@@ -62,8 +62,8 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun prepareForExternalLaunch() {
-        ExternalLaunchTracker.notifyExternalLaunch()
+    private fun prepareForExternalLaunch(timeoutMs: Long = 8000L) {
+        ExternalLaunchTracker.notifyExternalLaunch(timeoutMs)
         try {
             stopLockTask()
         } catch (_: Exception) {}
