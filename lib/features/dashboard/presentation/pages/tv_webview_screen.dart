@@ -958,6 +958,29 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
                           canvas.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
                         }
                       }
+
+                      // Track currentView changes for Flutter Demo Badge dynamic positioning
+                      if (window.tvAppInstance && !window._tvViewWatcherInstalled) {
+                        window._tvViewWatcherInstalled = true;
+                        var lastView = window.tvAppInstance.currentView || 'home';
+                        setInterval(function() {
+                          try {
+                            if (window.tvAppInstance && window.tvAppInstance.currentView) {
+                              var cv = window.tvAppInstance.currentView;
+                              if (cv !== lastView) {
+                                lastView = cv;
+                                if (window.FlutterBridge && window.FlutterBridge.postMessage) {
+                                  window.FlutterBridge.postMessage(JSON.stringify({
+                                    method: 'onViewChanged',
+                                    args: [cv],
+                                    id: 0
+                                  }));
+                                }
+                              }
+                            }
+                          } catch(err) {}
+                        }, 150);
+                      }
                     } catch(e) {}
                   };
                   fixLayoutAndOverlay();
@@ -1340,7 +1363,9 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
           // - On Home screen: Positioned at top: 88, right: 32 (cleanly below Room & City so background text is 100% visible)
           // - On Sub-screens: Positioned at top: 20, right: 32 (above modal cards in top-right corner)
           if (_isDemoMode && _isWebViewLoaded && !_showCenterLoading && !_showScreensaver)
-            Positioned(
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
               top: _isSubScreen ? 20 : 88,
               right: 32,
               child: _buildDemoBadge(),

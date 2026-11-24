@@ -9,6 +9,10 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.media.tv.TvInputManager
 import android.media.tv.TvInputInfo
+import android.media.AudioManager
+import android.media.AudioFocusRequest
+import android.media.AudioAttributes
+import android.app.ActivityManager
 import android.net.Uri
 import android.util.Base64
 import android.view.KeyEvent
@@ -305,6 +309,33 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+
+        // Mute & pause any background audio from YouTube or external cast apps
+        try {
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .build()
+                    )
+                    .build()
+                audioManager?.requestAudioFocus(focusRequest)
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager?.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
+            }
+        } catch (_: Exception) {}
+
+        try {
+            val am = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+            am?.killBackgroundProcesses("com.google.android.youtube.tv")
+            am?.killBackgroundProcesses("com.google.android.apps.youtube.tv")
+            am?.killBackgroundProcesses("com.google.android.apps.mediashell")
+            am?.killBackgroundProcesses("com.google.android.youtube")
+        } catch (_: Exception) {}
     }
 
     private fun prepareForExternalLaunch() {

@@ -138,153 +138,172 @@ class _TvNetworkStatusHeaderState extends State<TvNetworkStatusHeader> {
       builder: (dialogContext) {
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-          child: Container(
-            width: 480,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: const Color(0xFF160E2A).withOpacity(0.96),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.18),
-                width: 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.6),
-                  blurRadius: 32,
-                  spreadRadius: 4,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Container(
+              width: 480,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+              decoration: BoxDecoration(
+                color: const Color(0xFF160E2A).withOpacity(0.96),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.18),
+                  width: 1.2,
                 ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.shade400.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.amber.shade400.withOpacity(0.4),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.6),
+                    blurRadius: 32,
+                    spreadRadius: 4,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade400.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.amber.shade400.withOpacity(0.4),
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.settings_suggest_rounded,
+                          color: Colors.amber.shade300,
+                          size: 22,
                         ),
                       ),
-                      child: Icon(
-                        Icons.settings_suggest_rounded,
-                        color: Colors.amber.shade300,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "TV & App Settings",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "TV & App Settings",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
-                          SizedBox(height: 3),
-                          Text(
-                            "Quick system control & launcher management",
-                            style: TextStyle(
-                              color: Colors.white60,
-                              fontSize: 12.5,
+                            SizedBox(height: 2),
+                            Text(
+                              "Quick system control & launcher management",
+                              style: TextStyle(
+                                color: Colors.white60,
+                                fontSize: 11.5,
+                              ),
                             ),
+                          ],
+                        ),
+                      ),
+                      TvFocusable(
+                        onTap: () => Navigator.pop(dialogContext),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white24),
                           ),
-                        ],
+                          child: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white70,
+                            size: 18,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                const Divider(color: Colors.white12, height: 1),
-                const SizedBox(height: 16),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(color: Colors.white12, height: 1),
+                  const SizedBox(height: 12),
 
-                // Option 1: Open Device Settings
-                _buildActionTile(
-                  icon: Icons.settings_rounded,
-                  iconColor: const Color(0xFF38BDF8),
-                  title: "Open Device Settings",
-                  subtitle: "Android TV system settings (Wi-Fi, Bluetooth, Device)",
-                  autofocus: true,
-                  onTap: () {
-                    Navigator.pop(dialogContext);
-                    _openDeviceSettings();
-                  },
-                ),
-                const SizedBox(height: 10),
+                  // Option 1: Open Device Settings
+                  _buildActionTile(
+                    icon: Icons.settings_rounded,
+                    iconColor: const Color(0xFF38BDF8),
+                    title: "Open Device Settings",
+                    subtitle: "Android TV system settings (Wi-Fi, Bluetooth, Device)",
+                    autofocus: true,
+                    onTap: () {
+                      Navigator.pop(dialogContext);
+                      _openDeviceSettings();
+                    },
+                  ),
+                  const SizedBox(height: 8),
 
-                // Option 2: App Info & Uninstall
-                _buildActionTile(
-                  icon: Icons.delete_outline_rounded,
-                  iconColor: const Color(0xFFEF4444),
-                  title: "App Info & Uninstall",
-                  subtitle: "Clear defaults, force stop, or uninstall PAX TV",
-                  onTap: () {
-                    Navigator.pop(dialogContext);
-                    _openAppDetailsSettings();
-                  },
-                ),
-                const SizedBox(height: 10),
+                  // Option 2: App Info & Uninstall
+                  _buildActionTile(
+                    icon: Icons.delete_outline_rounded,
+                    iconColor: const Color(0xFFEF4444),
+                    title: "App Info & Uninstall",
+                    subtitle: "Clear defaults, force stop, or uninstall PAX TV",
+                    onTap: () {
+                      Navigator.pop(dialogContext);
+                      _openAppDetailsSettings();
+                    },
+                  ),
+                  const SizedBox(height: 8),
 
-                // Option 3: Switch Default Launcher
-                _buildActionTile(
-                  icon: Icons.home_repair_service_rounded,
-                  iconColor: const Color(0xFF10B981),
-                  title: "Switch / Reset Default Launcher",
-                  subtitle: "Choose factory TV launcher or change home default",
-                  onTap: () {
-                    Navigator.pop(dialogContext);
-                    _openHomeSettings();
-                  },
-                ),
-                const SizedBox(height: 10),
+                  // Option 3: Switch Default Launcher
+                  _buildActionTile(
+                    icon: Icons.home_repair_service_rounded,
+                    iconColor: const Color(0xFF10B981),
+                    title: "Switch / Reset Default Launcher",
+                    subtitle: "Choose factory TV launcher or change home default",
+                    onTap: () {
+                      Navigator.pop(dialogContext);
+                      _openHomeSettings();
+                    },
+                  ),
+                  const SizedBox(height: 8),
 
-                // Option 4: Network Settings
-                _buildActionTile(
-                  icon: Icons.wifi_rounded,
-                  iconColor: const Color(0xFFF59E0B),
-                  title: "Network & Wi-Fi Settings",
-                  subtitle: "Configure wireless or ethernet connection",
-                  onTap: () {
-                    Navigator.pop(dialogContext);
-                    _openNetworkSettings();
-                  },
-                ),
-                const SizedBox(height: 16),
+                  // Option 4: Network Settings
+                  _buildActionTile(
+                    icon: Icons.wifi_rounded,
+                    iconColor: const Color(0xFFF59E0B),
+                    title: "Network & Wi-Fi Settings",
+                    subtitle: "Configure wireless or ethernet connection",
+                    onTap: () {
+                      Navigator.pop(dialogContext);
+                      _openNetworkSettings();
+                    },
+                  ),
+                  const SizedBox(height: 12),
 
-                // Close Button
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TvFocusable(
-                    onTap: () => Navigator.pop(dialogContext),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white24),
-                      ),
-                      child: const Text(
-                        "Close",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w600,
+                  // Close Button
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TvFocusable(
+                      onTap: () => Navigator.pop(dialogContext),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child: const Text(
+                          "Close",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -305,7 +324,7 @@ class _TvNetworkStatusHeaderState extends State<TvNetworkStatusHeader> {
       scaleFactor: 1.02,
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.05),
           borderRadius: BorderRadius.circular(12),
@@ -314,12 +333,12 @@ class _TvNetworkStatusHeaderState extends State<TvNetworkStatusHeader> {
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
                 color: iconColor.withOpacity(0.16),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: iconColor, size: 20),
+              child: Icon(icon, color: iconColor, size: 18),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -330,16 +349,16 @@ class _TvNetworkStatusHeaderState extends State<TvNetworkStatusHeader> {
                     title,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 14.5,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 1),
                   Text(
                     subtitle,
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.65),
-                      fontSize: 12,
+                      fontSize: 11.5,
                     ),
                   ),
                 ],
