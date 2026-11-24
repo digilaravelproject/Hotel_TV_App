@@ -60,3 +60,5 @@ tizen_web/signature1.xml
 tizen_web/.manifest.tmp
 /webos/template/*
 /.agent
+.widget_preview/
+docs/
