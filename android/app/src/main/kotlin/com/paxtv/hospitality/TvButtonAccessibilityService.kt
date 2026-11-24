@@ -148,6 +148,13 @@ class TvButtonAccessibilityService : AccessibilityService() {
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val packageName = pkg ?: return
 
+            // 0. Block Google Assistant Voice Search (Katniss) popup immediately!
+            if (packageName.contains("katniss") || packageName.contains("assistant")) {
+                Log.w(TAG, "🚫 [Voice Block] Google Assistant/Katniss opened ($packageName). Dismissing immediately!")
+                performGlobalAction(GLOBAL_ACTION_BACK)
+                return
+            }
+
             // If the package is our own app, do nothing (or reset rename session if user manually returned)
             if (packageName == applicationContext.packageName) {
                 ExternalLaunchTracker.onReturnedToApp()
@@ -361,6 +368,7 @@ class TvButtonAccessibilityService : AccessibilityService() {
             KeyEvent.KEYCODE_VOICE_ASSIST, 231, // Google Assistant / Mic Key
             KeyEvent.KEYCODE_ASSIST, 219,       // Assistant Key
             KeyEvent.KEYCODE_SEARCH, 84,        // Search Key
+            130, 286, 650,                      // Microphone / Search / Voice triggers
             183, 184, 185, 186,               // Colored keys (Red, Green, Yellow, Blue)
             5103, 5104, 5113, 5115, 5116, 5117, 5118, 5119, 5120, 5121, 5122, 5123, 5124, 5125, 5126, 5128, 5129, 5130, 5131 -> true
             else -> false
@@ -635,7 +643,7 @@ class TvButtonAccessibilityService : AccessibilityService() {
         isWaitingForLiveTvSwitch = true
         liveTvSwitchAttempts = 0
         mainHandler.removeCallbacks(liveTvSwitchRunnable)
-        mainHandler.post(liveTvSwitchRunnable)
+        mainHandler.postDelayed(liveTvSwitchRunnable, 600)
     }
 
     private val liveTvSwitchRunnable = object : Runnable {
@@ -647,40 +655,41 @@ class TvButtonAccessibilityService : AccessibilityService() {
             val pkg = root?.packageName?.toString() ?: ""
 
             if (pkg == "com.nes.hometv.dish") {
-                var tabClicked = false
+                Log.i(TAG, "📺 [DishTV Live] Auto OK: Clicking focused tab / Watch Live to enter full-screen video...")
+
+                // 1. Click currently focused node (Live tab in vg_tab_list)
+                val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                focused?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                focused?.performAction(AccessibilityNodeInfo.ACTION_SELECT)
+
+                // 2. Click "Watch live" button directly
+                val watchLiveNodes = root.findAccessibilityNodeInfosByText("Watch live")
+                for (node in watchLiveNodes) {
+                    clickNode(node)
+                }
+
+                // 3. Click "Live" tab directly
                 val liveNodes = root.findAccessibilityNodeInfosByText("Live")
                 for (node in liveNodes) {
                     val rect = Rect()
                     node.getBoundsInScreen(rect)
-                    // Top tab bar is in range Y: 30..250, X: 600..950
                     if (rect.top in 30..250 && rect.left in 600..950) {
-                        tabClicked = true
                         clickNode(node)
-                        dispatchTap(rect.centerX().toFloat(), rect.centerY().toFloat()) {
-                            mainHandler.postDelayed({
-                                dispatchTap(rect.centerX().toFloat(), rect.centerY().toFloat())
-                            }, 150)
-                        }
-                        break
                     }
                 }
 
-                if (!tabClicked) {
-                    // Direct coordinate tap on Live tab center (775f, 102f)
-                    dispatchTap(775f, 102f) {
-                        mainHandler.postDelayed({
-                            dispatchTap(775f, 102f)
-                        }, 150)
-                    }
-                }
+                // 4. Dispatch keyevent 23 (DPAD_CENTER / OK)
+                try {
+                    Runtime.getRuntime().exec(arrayOf("input", "keyevent", "23"))
+                } catch (_: Exception) {}
 
-                if (liveTvSwitchAttempts >= 4) {
+                if (liveTvSwitchAttempts >= 3) {
                     isWaitingForLiveTvSwitch = false
                     return
                 }
-                mainHandler.postDelayed(this, 300)
-            } else if (liveTvSwitchAttempts < 15) {
-                mainHandler.postDelayed(this, 150)
+                mainHandler.postDelayed(this, 500)
+            } else if (liveTvSwitchAttempts < 20) {
+                mainHandler.postDelayed(this, 200)
             } else {
                 isWaitingForLiveTvSwitch = false
             }

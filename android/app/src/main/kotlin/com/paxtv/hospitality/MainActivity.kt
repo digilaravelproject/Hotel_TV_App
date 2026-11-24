@@ -351,7 +351,6 @@ class MainActivity : FlutterActivity() {
 
     private fun prepareForExternalLaunch(timeoutMs: Long = 8000L) {
         ExternalLaunchTracker.notifyExternalLaunch(timeoutMs)
-        ExternalLaunchTracker.isAuthorizedSettingsOpen = true
         try {
             stopLockTask()
         } catch (_: Exception) {}
