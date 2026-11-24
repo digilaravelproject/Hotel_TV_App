@@ -356,34 +356,6 @@ class MainActivity : FlutterActivity() {
         } catch (_: Exception) {}
     }
 
-    fun isDishTvDevice(): Boolean {
-        return try {
-            packageManager.getPackageInfo("com.nes.hometv.dish", 0) != null
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    fun launchDishTvLive(): Boolean {
-        prepareForExternalLaunch(30000L)
-        TvButtonAccessibilityService.isWatchingLiveTv = true
-        return try {
-            val intent = Intent("com.nes.hometv.MAIN_ACTION").apply {
-                component = ComponentName("com.nes.hometv.dish", "com.nes.hometv.activity.MainActivity")
-                putExtra("key_init_open_main_tab_index", "2")
-                putExtra("key_init_event_type", 0)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-            }
-            startActivity(intent)
-
-            TvButtonAccessibilityService.serviceInstance?.triggerDishTvLiveSwitch()
-            true
-        } catch (e: Exception) {
-            android.util.Log.e("HotelTV", "Failed to launch DishTV Live: ${e.message}")
-            false
-        }
-    }
-
     private fun setupTvInputCallback(flutterEngine: FlutterEngine) {
         flutterEngineRef = flutterEngine
         try {
@@ -557,9 +529,6 @@ class MainActivity : FlutterActivity() {
                 }
                 "getWifiSignalStrength" -> {
                     result.success(getWifiSignalStrength())
-                }
-                "launchLiveTv", "launchDishTvLive" -> {
-                    result.success(launchDishTvLive())
                 }
                 "launchCast" -> {
                     result.success(launchCast())
@@ -1702,22 +1671,10 @@ class MainActivity : FlutterActivity() {
         }
         lastLaunchHdmiTime = now
 
-        val pTrim = port.trim()
-        if (pTrim.equals("Live", ignoreCase = true) || 
-            pTrim.equals("Live TV", ignoreCase = true) || 
-            pTrim.equals("LiveTV", ignoreCase = true) || 
-            pTrim.contains("dish", ignoreCase = true)) {
-            return launchDishTvLive()
-        }
-
         return try {
             val tvInputManager = getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager
             val allInputs = tvInputManager?.tvInputList ?: emptyList()
             val hdmiInputs = allInputs.filter { isHardwareHdmiInput(it) }.sortedBy { it.id }
-
-            if (isDishTvDevice() && hdmiInputs.isEmpty()) {
-                return launchDishTvLive()
-            }
             var resolvedId: String? = null
             var displayName = port.trim()
 
@@ -1778,9 +1735,6 @@ class MainActivity : FlutterActivity() {
 
             val finalTargetId = resolvedId
             if (finalTargetId.isNullOrBlank()) {
-                if (isDishTvDevice()) {
-                    return launchDishTvLive()
-                }
                 Toast.makeText(applicationContext, "No TV inputs available", Toast.LENGTH_SHORT).show()
                 return false
             }

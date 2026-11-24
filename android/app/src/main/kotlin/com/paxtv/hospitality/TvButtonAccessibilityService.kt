@@ -37,11 +37,6 @@ class TvButtonAccessibilityService : AccessibilityService() {
         var renameLaunchTime: Long = 0L
         @Volatile
         var serviceInstance: TvButtonAccessibilityService? = null
-        @Volatile
-        var isWatchingLiveTv: Boolean = false
-        @Volatile
-        var isWaitingForLiveTvSwitch: Boolean = false
-        var liveTvSwitchAttempts: Int = 0
 
         const val MANUAL_WINDOW_MS: Long = 0L // Zero wait - immediate auto-click
         const val WATCHDOG_TIMEOUT_MS: Long = 15_000L // 15s safety net
@@ -76,8 +71,6 @@ class TvButtonAccessibilityService : AccessibilityService() {
 
     // Common Android TV system launcher package names
     private val knownLauncherPackages = setOf(
-        "com.nes.hometv.dish",
-        "com.nes.hometv",
         "com.google.android.tvlauncher",
         "com.google.android.apps.tv.launcherx",
         "com.android.tv.launcher",
@@ -188,12 +181,6 @@ class TvButtonAccessibilityService : AccessibilityService() {
 
             // 3. Check if the foreground window belongs to a system Home Launcher
             if (isSystemLauncherPackage(packageName)) {
-                // If guest is intentionally watching Live TV on DishTV launcher, do NOT kick them out!
-                if (isWatchingLiveTv && packageName == "com.nes.hometv.dish") {
-                    Log.d(TAG, "Guest is watching Live TV on DishTV. Maintaining Live TV view.")
-                    return
-                }
-
                 val currentTime = SystemClock.elapsedRealtime()
                 // Debounce re-launch to avoid loops (minimum 800ms between auto-relaunches)
                 if (currentTime - lastRelaunchTime > 800) {
@@ -393,7 +380,6 @@ class TvButtonAccessibilityService : AccessibilityService() {
 
         // 2. HOME or TV button handling:
         if (keyCode == KeyEvent.KEYCODE_HOME || keyCode == KeyEvent.KEYCODE_TV) {
-            isWatchingLiveTv = false
             if (isYouTubeOrCastPackage(activePkg)) {
                 if (event.action == KeyEvent.ACTION_DOWN) {
                     Log.i(TAG, "Home pressed while in YouTube/Cast ($activePkg). Closing YouTube and returning to Hotel TV...")
@@ -620,79 +606,13 @@ class TvButtonAccessibilityService : AccessibilityService() {
         return clicked
     }
 
-    fun dispatchTap(x: Float, y: Float, onComplete: (() -> Unit)? = null) {
+    fun dispatchTap(x: Float, y: Float) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             val path = Path().apply { moveTo(x, y) }
             val gesture = GestureDescription.Builder()
-                .addStroke(GestureDescription.StrokeDescription(path, 0, 60))
+                .addStroke(GestureDescription.StrokeDescription(path, 0, 80))
                 .build()
-            dispatchGesture(gesture, object : GestureResultCallback() {
-                override fun onCompleted(gestureDescription: GestureDescription?) {
-                    super.onCompleted(gestureDescription)
-                    onComplete?.invoke()
-                }
-                override fun onCancelled(gestureDescription: GestureDescription?) {
-                    super.onCancelled(gestureDescription)
-                }
-            }, null)
-        }
-    }
-
-    fun triggerDishTvLiveSwitch() {
-        isWatchingLiveTv = true
-        isWaitingForLiveTvSwitch = true
-        liveTvSwitchAttempts = 0
-        mainHandler.removeCallbacks(liveTvSwitchRunnable)
-        mainHandler.postDelayed(liveTvSwitchRunnable, 600)
-    }
-
-    private val liveTvSwitchRunnable = object : Runnable {
-        override fun run() {
-            if (!isWaitingForLiveTvSwitch) return
-            liveTvSwitchAttempts++
-
-            val root = rootInActiveWindow
-            val pkg = root?.packageName?.toString() ?: ""
-
-            if (pkg == "com.nes.hometv.dish") {
-                Log.i(TAG, "📺 [DishTV Live] Auto OK: Clicking focused tab / Watch Live to enter full-screen video...")
-
-                // 1. Click currently focused node (Live tab in vg_tab_list)
-                val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-                focused?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                focused?.performAction(AccessibilityNodeInfo.ACTION_SELECT)
-
-                // 2. Click "Watch live" button directly
-                val watchLiveNodes = root.findAccessibilityNodeInfosByText("Watch live")
-                for (node in watchLiveNodes) {
-                    clickNode(node)
-                }
-
-                // 3. Click "Live" tab directly
-                val liveNodes = root.findAccessibilityNodeInfosByText("Live")
-                for (node in liveNodes) {
-                    val rect = Rect()
-                    node.getBoundsInScreen(rect)
-                    if (rect.top in 30..250 && rect.left in 600..950) {
-                        clickNode(node)
-                    }
-                }
-
-                // 4. Dispatch keyevent 23 (DPAD_CENTER / OK)
-                try {
-                    Runtime.getRuntime().exec(arrayOf("input", "keyevent", "23"))
-                } catch (_: Exception) {}
-
-                if (liveTvSwitchAttempts >= 3) {
-                    isWaitingForLiveTvSwitch = false
-                    return
-                }
-                mainHandler.postDelayed(this, 500)
-            } else if (liveTvSwitchAttempts < 20) {
-                mainHandler.postDelayed(this, 200)
-            } else {
-                isWaitingForLiveTvSwitch = false
-            }
+            dispatchGesture(gesture, null, null)
         }
     }
 
