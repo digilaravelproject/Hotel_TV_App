@@ -130,6 +130,12 @@ class _TvWebviewScreenState extends State<TvWebviewScreen> with WidgetsBindingOb
         Navigator.of(context, rootNavigator: true).pop();
         _isExitDialogOpen = false;
       }
+      // TV standby / screen off hone par video/audio pause karo taaki background awaaz na aaye
+      try {
+        _controller?.runJavaScript(
+          "try { document.querySelectorAll('video, audio').forEach(el => el.pause()); } catch(e) {}"
+        );
+      } catch (_) {}
     }
 
     if (state == AppLifecycleState.resumed) {

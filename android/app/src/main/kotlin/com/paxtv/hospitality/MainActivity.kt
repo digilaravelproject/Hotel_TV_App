@@ -688,7 +688,7 @@ class MainActivity : FlutterActivity() {
             android.util.Log.w("HotelTV", "⚠️ Could not set Bluetooth name: ${e.message}")
         }
 
-        // 6. Wi-Fi Direct (P2P) name — PRIORITY for Miracast discovery
+        // 6. Wi-Fi Direct (P2P) name — PRIORITY for Miracast / Screen Mirroring discovery
         try {
             val wifiP2pManager = applicationContext.getSystemService(Context.WIFI_P2P_SERVICE)
                     as? android.net.wifi.p2p.WifiP2pManager
@@ -700,19 +700,34 @@ class MainActivity : FlutterActivity() {
                     String::class.java,
                     android.net.wifi.p2p.WifiP2pManager.ActionListener::class.java
                 )
-                method.invoke(
-                    wifiP2pManager,
-                    channel,
-                    name,
-                    object : android.net.wifi.p2p.WifiP2pManager.ActionListener {
-                        override fun onSuccess() {
-                            android.util.Log.i("HotelTV", "✅ Wi-Fi Direct name set to: $name")
-                        }
-                        override fun onFailure(reason: Int) {
-                            android.util.Log.w("HotelTV", "⚠️ Wi-Fi Direct name failed, reason: $reason")
-                        }
+                fun attemptSetP2pName(retriesLeft: Int) {
+                    try {
+                        method.invoke(
+                            wifiP2pManager,
+                            channel,
+                            name,
+                            object : android.net.wifi.p2p.WifiP2pManager.ActionListener {
+                                override fun onSuccess() {
+                                    android.util.Log.i("HotelTV", "✅ Wi-Fi Direct (Miracast) name set to: $name")
+                                }
+                                override fun onFailure(reason: Int) {
+                                    android.util.Log.w("HotelTV", "⚠️ Wi-Fi Direct name failed (reason: $reason), retries left: $retriesLeft")
+                                    if (reason == 2 && retriesLeft > 0) { // 2 = BUSY: Channel binder connecting
+                                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                            attemptSetP2pName(retriesLeft - 1)
+                                        }, 1000)
+                                    }
+                                }
+                            }
+                        )
+                    } catch (e: Exception) {
+                        android.util.Log.w("HotelTV", "⚠️ Wi-Fi Direct invoke error: ${e.message}")
                     }
-                )
+                }
+                // Delay 800ms before first invocation so channel initialization finishes
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    attemptSetP2pName(3)
+                }, 800)
                 success = true
             }
         } catch (e: Exception) {
