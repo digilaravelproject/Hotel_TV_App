@@ -408,6 +408,25 @@ class FlutterBridgeHandler {
         }
         String checkedSource = model != null ? 'argument' : '';
 
+        final methodLower = method.toLowerCase();
+        final bool isExplicitLiveTv = methodLower == 'launchlivetv' || methodLower == 'openlivetv';
+
+        if (isExplicitLiveTv || (model != null && (model.toLowerCase() == 'livetv' || model.toLowerCase() == 'live' || model.toLowerCase().contains('dish')))) {
+          print('[FlutterBridge] Live TV requested ($method / $model) -> launching DishTV Live');
+          try {
+            await _tvChannel.invokeMethod('launchLiveTv');
+            return {
+              'success': true,
+              'port': 'LiveTV',
+              'checkedPort': 'LiveTV',
+              'source': 'dish_live_tv',
+              'message': 'DishTV Live TV launched successfully'
+            };
+          } catch (e) {
+            print('[FlutterBridge] Error launching Live TV via channel: $e');
+          }
+        }
+
         if (model == null || model.isEmpty || model == 'null') {
           model = SharedPrefs.getString('selectedLiveTvPort');
           if (model != null && model.isNotEmpty && model != 'null') {

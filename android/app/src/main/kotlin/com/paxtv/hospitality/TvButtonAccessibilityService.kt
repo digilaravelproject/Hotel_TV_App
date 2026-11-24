@@ -37,9 +37,14 @@ class TvButtonAccessibilityService : AccessibilityService() {
         var renameLaunchTime: Long = 0L
         @Volatile
         var serviceInstance: TvButtonAccessibilityService? = null
+        @Volatile
+        var isWatchingLiveTv: Boolean = false
+        @Volatile
+        var isWaitingForLiveTvSwitch: Boolean = false
+        var liveTvSwitchAttempts: Int = 0
 
-        const val MANUAL_WINDOW_MS: Long = 60_000L // 1 minute manual window for user remote action
-        const val WATCHDOG_TIMEOUT_MS: Long = 85_000L // 85s safety net
+        const val MANUAL_WINDOW_MS: Long = 0L // Zero wait - immediate auto-click
+        const val WATCHDOG_TIMEOUT_MS: Long = 15_000L // 15s safety net
 
         fun autoRenameDevice(context: Context, name: String) {
             if (name.isBlank() || isRenamingActive) return
@@ -71,6 +76,8 @@ class TvButtonAccessibilityService : AccessibilityService() {
 
     // Common Android TV system launcher package names
     private val knownLauncherPackages = setOf(
+        "com.nes.hometv.dish",
+        "com.nes.hometv",
         "com.google.android.tvlauncher",
         "com.google.android.apps.tv.launcherx",
         "com.android.tv.launcher",
@@ -156,6 +163,12 @@ class TvButtonAccessibilityService : AccessibilityService() {
 
             // Check if the foreground window belongs to a system Home Launcher
             if (isSystemLauncherPackage(packageName)) {
+                // If guest is intentionally watching Live TV on DishTV launcher, do NOT kick them out!
+                if (isWatchingLiveTv && packageName == "com.nes.hometv.dish") {
+                    Log.d(TAG, "Guest is watching Live TV on DishTV. Maintaining Live TV view.")
+                    return
+                }
+
                 val currentTime = SystemClock.elapsedRealtime()
                 // Debounce re-launch to avoid loops (minimum 800ms between auto-relaunches)
                 if (currentTime - lastRelaunchTime > 800) {
@@ -319,6 +332,23 @@ class TvButtonAccessibilityService : AccessibilityService() {
         val keyCode = event.keyCode
         val activePkg = getActivePackage()
 
+        // 0. ABSOLUTE ZERO-MS HARDWARE LOCKDOWN:
+        // Drop unwanted system/launcher keys at OS kernel/input pipeline level before any service receives them.
+        val isBlockedKey = when (keyCode) {
+            KeyEvent.KEYCODE_SETTINGS, 176,   // Settings
+            KeyEvent.KEYCODE_GUIDE, 172,      // TV Guide / Channels
+            KeyEvent.KEYCODE_ALL_APPS, 284,   // All Apps Menu
+            KeyEvent.KEYCODE_APP_SWITCH, 187, // Recent Apps
+            KeyEvent.KEYCODE_TV_INPUT, 178,   // Source / Input
+            183, 184, 185, 186,               // Colored keys (Red, Green, Yellow, Blue)
+            5103, 5104, 5113, 5115, 5116, 5117, 5118, 5119, 5120, 5121, 5122, 5123, 5124, 5125, 5126, 5128, 5129, 5130, 5131 -> true
+            else -> false
+        }
+        if (isBlockedKey) {
+            Log.d(TAG, "🚫 [0ms Drop] Blocked key consumed at OS level: keyCode=$keyCode")
+            return true // Immediately consume on BOTH ACTION_DOWN and ACTION_UP
+        }
+
         // 1. BACK button handling when in YouTube or Cast receiver:
         // Guest pressed BACK -> Close YouTube/Cast and bring Hotel TV app to front!
         // Works in BOTH Try Demo Mode and Login Mode!
@@ -334,6 +364,7 @@ class TvButtonAccessibilityService : AccessibilityService() {
 
         // 2. HOME or TV button handling:
         if (keyCode == KeyEvent.KEYCODE_HOME || keyCode == KeyEvent.KEYCODE_TV) {
+            isWatchingLiveTv = false
             if (isYouTubeOrCastPackage(activePkg)) {
                 if (event.action == KeyEvent.ACTION_DOWN) {
                     Log.i(TAG, "Home pressed while in YouTube/Cast ($activePkg). Closing YouTube and returning to Hotel TV...")
@@ -380,27 +411,16 @@ class TvButtonAccessibilityService : AccessibilityService() {
         val currentSysName = try {
             Settings.Global.getString(contentResolver, "device_name")
         } catch (_: Exception) { null }
-        if (currentSysName?.trim().equals(targetName.trim(), ignoreCase = true)) {
+        if (currentSysName != null && (currentSysName.trim().equals(targetName.trim(), ignoreCase = true) ||
+            currentSysName.contains(targetName.trim(), ignoreCase = true))) {
             Log.i(TAG, "🎉 [AutoRename] Device already renamed to: $currentSysName. Done!")
             isRenamingActive = false
-            mainHandler.postDelayed({ bringAppToFront() }, 2000)
+            mainHandler.postDelayed({ bringAppToFront() }, 500)
             return
         }
 
-        // 1. Check if we are still within the 1-minute (60s) manual window
-        // Gives user/technician full time to select or type manually with remote
-        val elapsed = now - renameLaunchTime
-        if (elapsed < MANUAL_WINDOW_MS) {
-            if (now - lastAutoPilotActionTime > 8000) {
-                lastAutoPilotActionTime = now
-                val remainingSec = ((MANUAL_WINDOW_MS - elapsed) / 1000).toInt()
-                Log.i(TAG, "⏳ [AutoRename] Manual window active: $remainingSec seconds remaining for user remote action before automated rename.")
-            }
-            return
-        }
-
-        // 2. 60 seconds elapsed and device name is NOT yet renamed: Automated fallback kicks in
-        if (now - lastAutoPilotActionTime < 1000) return
+        // Automated fallback: debounce 400ms between automated UI actions
+        if (now - lastAutoPilotActionTime < 400) return
 
         // Case 1: Check for EditText FIRST (Screen 3: Custom name input)
         // If EditText is present, do NOT check presets or click anything else!
@@ -569,13 +589,78 @@ class TvButtonAccessibilityService : AccessibilityService() {
         return false
     }
 
-    private fun dispatchTap(x: Float, y: Float) {
+    fun dispatchTap(x: Float, y: Float, onComplete: (() -> Unit)? = null) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             val path = Path().apply { moveTo(x, y) }
             val gesture = GestureDescription.Builder()
-                .addStroke(GestureDescription.StrokeDescription(path, 0, 80))
+                .addStroke(GestureDescription.StrokeDescription(path, 0, 60))
                 .build()
-            dispatchGesture(gesture, null, null)
+            dispatchGesture(gesture, object : GestureResultCallback() {
+                override fun onCompleted(gestureDescription: GestureDescription?) {
+                    super.onCompleted(gestureDescription)
+                    onComplete?.invoke()
+                }
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    super.onCancelled(gestureDescription)
+                }
+            }, null)
+        }
+    }
+
+    fun triggerDishTvLiveSwitch() {
+        isWatchingLiveTv = true
+        isWaitingForLiveTvSwitch = true
+        liveTvSwitchAttempts = 0
+        mainHandler.removeCallbacks(liveTvSwitchRunnable)
+        mainHandler.post(liveTvSwitchRunnable)
+    }
+
+    private val liveTvSwitchRunnable = object : Runnable {
+        override fun run() {
+            if (!isWaitingForLiveTvSwitch) return
+            liveTvSwitchAttempts++
+
+            val root = rootInActiveWindow
+            val pkg = root?.packageName?.toString() ?: ""
+
+            if (pkg == "com.nes.hometv.dish") {
+                var tabClicked = false
+                val liveNodes = root.findAccessibilityNodeInfosByText("Live")
+                for (node in liveNodes) {
+                    val rect = Rect()
+                    node.getBoundsInScreen(rect)
+                    // Top tab bar is in range Y: 30..250, X: 600..950
+                    if (rect.top in 30..250 && rect.left in 600..950) {
+                        tabClicked = true
+                        clickNode(node)
+                        dispatchTap(rect.centerX().toFloat(), rect.centerY().toFloat()) {
+                            mainHandler.postDelayed({
+                                dispatchTap(rect.centerX().toFloat(), rect.centerY().toFloat())
+                            }, 150)
+                        }
+                        break
+                    }
+                }
+
+                if (!tabClicked) {
+                    // Direct coordinate tap on Live tab center (775f, 102f)
+                    dispatchTap(775f, 102f) {
+                        mainHandler.postDelayed({
+                            dispatchTap(775f, 102f)
+                        }, 150)
+                    }
+                }
+
+                if (liveTvSwitchAttempts >= 4) {
+                    isWaitingForLiveTvSwitch = false
+                    return
+                }
+                mainHandler.postDelayed(this, 300)
+            } else if (liveTvSwitchAttempts < 15) {
+                mainHandler.postDelayed(this, 150)
+            } else {
+                isWaitingForLiveTvSwitch = false
+            }
         }
     }
 

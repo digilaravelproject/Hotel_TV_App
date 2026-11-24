@@ -348,11 +348,37 @@ class MainActivity : FlutterActivity() {
         } catch (_: Exception) {}
     }
 
-    private fun prepareForExternalLaunch() {
-        ExternalLaunchTracker.notifyExternalLaunch()
+    private fun prepareForExternalLaunch(timeoutMs: Long = 8000L) {
+        ExternalLaunchTracker.notifyExternalLaunch(timeoutMs)
         try {
             stopLockTask()
         } catch (_: Exception) {}
+    }
+
+    fun isDishTvDevice(): Boolean {
+        return try {
+            packageManager.getPackageInfo("com.nes.hometv.dish", 0) != null
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun launchDishTvLive(): Boolean {
+        prepareForExternalLaunch(30000L)
+        return try {
+            val intent = packageManager.getLaunchIntentForPackage("com.nes.hometv.dish")
+                ?: Intent().apply {
+                    component = ComponentName("com.nes.hometv.dish", "com.nes.hometv.activity.MainActivity")
+                }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            startActivity(intent)
+
+            TvButtonAccessibilityService.serviceInstance?.triggerDishTvLiveSwitch()
+            true
+        } catch (e: Exception) {
+            android.util.Log.e("HotelTV", "Failed to launch DishTV Live: ${e.message}")
+            false
+        }
     }
 
     private fun setupTvInputCallback(flutterEngine: FlutterEngine) {
@@ -529,6 +555,9 @@ class MainActivity : FlutterActivity() {
                 "getWifiSignalStrength" -> {
                     result.success(getWifiSignalStrength())
                 }
+                "launchLiveTv", "launchDishTvLive" -> {
+                    result.success(launchDishTvLive())
+                }
                 "launchCast" -> {
                     result.success(launchCast())
                 }
@@ -605,6 +634,23 @@ class MainActivity : FlutterActivity() {
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val keyCode = event.keyCode
+
+        // 0. ABSOLUTE ZERO-MS HARDWARE LOCKDOWN:
+        // Consume unwanted system/launcher keys immediately so window never yields focus
+        val isBlockedKey = when (keyCode) {
+            KeyEvent.KEYCODE_SETTINGS, 176,   // Settings
+            KeyEvent.KEYCODE_GUIDE, 172,      // TV Guide / Channels
+            KeyEvent.KEYCODE_ALL_APPS, 284,   // All Apps Menu
+            KeyEvent.KEYCODE_APP_SWITCH, 187, // Recent Apps
+            KeyEvent.KEYCODE_TV_INPUT, 178,   // Source / Input
+            183, 184, 185, 186,               // Colored keys (Red, Green, Yellow, Blue)
+            5103, 5104, 5113, 5115, 5116, 5117, 5118, 5119, 5120, 5121, 5122, 5123, 5124, 5125, 5126, 5128, 5129, 5130, 5131 -> true
+            else -> false
+        }
+        if (isBlockedKey) {
+            return true
+        }
+
         val isDemo = isDemoMode()
 
         // HOME / TV button:
@@ -837,31 +883,37 @@ class MainActivity : FlutterActivity() {
         // 3. Settings.Global device_name (Requires WRITE_SECURE_SETTINGS or system privilege)
         var globalSet = false
         try {
-            android.provider.Settings.Global.putString(contentResolver, "device_name", name)
-            android.util.Log.i("HotelTV", "✅ Settings.Global device_name set to: $name")
-            globalSet = true
-            success = true
+            val res = android.provider.Settings.Global.putString(contentResolver, "device_name", name)
+            if (res) {
+                android.util.Log.i("HotelTV", "✅ Settings.Global device_name set to: $name")
+                globalSet = true
+                success = true
+            }
         } catch (_: Exception) {}
 
-        // If direct Settings.Global failed (e.g. unrooted TV without ADB permission),
-        // trigger the Accessibility Auto-Pilot flow so the APK automates the system renaming!
-        // STRICT RULE: Only attempt ONCE per target name! NEVER repeat in periodic sync/timer loops!
-        if (!globalSet) {
-            val currentActual = getActualDeviceName()
-            if (currentActual != name && !TvButtonAccessibilityService.isRenamingActive) {
-                val prefs = getSharedPreferences("hotel_tv_device_prefs", Context.MODE_PRIVATE)
-                val lastAttempted = prefs.getString("last_attempted_rename_target", "") ?: ""
-                if (lastAttempted != name) {
-                    if (isAccessibilityServiceEnabled()) {
-                        prefs.edit().putString("last_attempted_rename_target", name).apply()
-                        TvButtonAccessibilityService.autoRenameDevice(applicationContext, name)
-                    } else {
-                        android.util.Log.i("HotelTV", "Accessibility not enabled yet; will auto-rename once enabled.")
-                        TvButtonAccessibilityService.targetRenameName = name
-                    }
+        // Check if device is already effectively named or contains target name
+        val currentActual = getActualDeviceName()
+        val isAlreadyNamed = currentActual.equals(name, ignoreCase = true) ||
+                             currentActual.contains(name, ignoreCase = true)
+
+        if (globalSet || isAlreadyNamed) {
+            val prefs = getSharedPreferences("hotel_tv_device_prefs", Context.MODE_PRIVATE)
+            prefs.edit().putString("last_attempted_rename_target", name).apply()
+            android.util.Log.i("HotelTV", "🎉 Device already named '$currentActual' (target: '$name'). Skipping settings UI.")
+        } else {
+            // Only fallback to Settings Accessibility Auto-Pilot if direct write failed AND not already named
+            val prefs = getSharedPreferences("hotel_tv_device_prefs", Context.MODE_PRIVATE)
+            val lastAttempted = prefs.getString("last_attempted_rename_target", "") ?: ""
+            if (lastAttempted != name && !TvButtonAccessibilityService.isRenamingActive) {
+                if (isAccessibilityServiceEnabled()) {
+                    prefs.edit().putString("last_attempted_rename_target", name).apply()
+                    TvButtonAccessibilityService.autoRenameDevice(applicationContext, name)
                 } else {
-                    android.util.Log.d("HotelTV", "Auto-rename already attempted once for target '$name'. Skipping repeated popup.")
+                    android.util.Log.i("HotelTV", "Accessibility not enabled yet; will auto-rename once enabled.")
+                    TvButtonAccessibilityService.targetRenameName = name
                 }
+            } else {
+                android.util.Log.d("HotelTV", "Auto-rename already attempted once for target '$name'. Skipping repeated popup.")
             }
         }
 
@@ -1645,10 +1697,22 @@ class MainActivity : FlutterActivity() {
         }
         lastLaunchHdmiTime = now
 
+        val pTrim = port.trim()
+        if (pTrim.equals("Live", ignoreCase = true) || 
+            pTrim.equals("Live TV", ignoreCase = true) || 
+            pTrim.equals("LiveTV", ignoreCase = true) || 
+            pTrim.contains("dish", ignoreCase = true)) {
+            return launchDishTvLive()
+        }
+
         return try {
             val tvInputManager = getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager
             val allInputs = tvInputManager?.tvInputList ?: emptyList()
             val hdmiInputs = allInputs.filter { isHardwareHdmiInput(it) }.sortedBy { it.id }
+
+            if (isDishTvDevice() && hdmiInputs.isEmpty()) {
+                return launchDishTvLive()
+            }
             var resolvedId: String? = null
             var displayName = port.trim()
 
@@ -1709,6 +1773,9 @@ class MainActivity : FlutterActivity() {
 
             val finalTargetId = resolvedId
             if (finalTargetId.isNullOrBlank()) {
+                if (isDishTvDevice()) {
+                    return launchDishTvLive()
+                }
                 Toast.makeText(applicationContext, "No TV inputs available", Toast.LENGTH_SHORT).show()
                 return false
             }
