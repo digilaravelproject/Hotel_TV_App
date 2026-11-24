@@ -34,19 +34,25 @@ class TvButtonAccessibilityService : AccessibilityService() {
         @Volatile
         var isRenamingActive: Boolean = false
         @Volatile
+        var renameLaunchTime: Long = 0L
+        @Volatile
         var serviceInstance: TvButtonAccessibilityService? = null
+
+        const val MANUAL_WINDOW_MS: Long = 60_000L // 1 minute manual window for user remote action
+        const val WATCHDOG_TIMEOUT_MS: Long = 85_000L // 85s safety net
 
         fun autoRenameDevice(context: Context, name: String) {
             if (name.isBlank() || isRenamingActive) return
             targetRenameName = name
             isRenamingActive = true
-            ExternalLaunchTracker.notifyExternalLaunch()
+            renameLaunchTime = SystemClock.elapsedRealtime()
+            ExternalLaunchTracker.notifyExternalLaunch(WATCHDOG_TIMEOUT_MS)
             try {
                 val intent = Intent("android.settings.DEVICE_NAME").apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
                 context.startActivity(intent)
-                Log.i("TvAccessibilityService", "🚀 [AutoRename] Launched DEVICE_NAME for target: $name")
+                Log.i("TvAccessibilityService", "🚀 [AutoRename] Launched DEVICE_NAME for target: '$name'. Screen will remain open for at least 60s for manual choice before automated fallback.")
             } catch (e: Exception) {
                 Log.w("TvAccessibilityService", "Failed to launch DEVICE_NAME: ${e.message}")
                 isRenamingActive = false
@@ -55,11 +61,11 @@ class TvButtonAccessibilityService : AccessibilityService() {
             // Safety watchdog: reset if settings screen hangs or is closed
             Handler(Looper.getMainLooper()).postDelayed({
                 if (isRenamingActive) {
-                    Log.w("TvAccessibilityService", "⏱️ [AutoRename] Watchdog timeout after 4.5s. Resetting.")
+                    Log.w("TvAccessibilityService", "⏱️ [AutoRename] Watchdog timeout after 85s. Resetting.")
                     isRenamingActive = false
                     serviceInstance?.bringAppToFront()
                 }
-            }, 4500)
+            }, WATCHDOG_TIMEOUT_MS)
         }
     }
 
@@ -133,8 +139,12 @@ class TvButtonAccessibilityService : AccessibilityService() {
                 return
             }
 
-            // If the package is our own app, do nothing
+            // If the package is our own app, do nothing (or reset rename session if user manually returned)
             if (packageName == applicationContext.packageName) {
+                if (isRenamingActive && (SystemClock.elapsedRealtime() - renameLaunchTime > 2500)) {
+                    Log.i(TAG, "User navigated back to Hotel TV App. Deactivating rename session.")
+                    isRenamingActive = false
+                }
                 return
             }
 
@@ -352,31 +362,45 @@ class TvButtonAccessibilityService : AccessibilityService() {
     private fun finishAutoRenameAfterClick() {
         mainHandler.postDelayed({
             val updated = try { Settings.Global.getString(contentResolver, "device_name") } catch (_: Exception) { null }
-            Log.i(TAG, "🤖 [AutoRename] Result after click: $updated")
+            Log.i(TAG, "🤖 [AutoRename] Result after auto-click: $updated")
             isRenamingActive = false
-            bringAppToFront()
-        }, 500)
+            mainHandler.postDelayed({ bringAppToFront() }, 2000)
+        }, 1500)
     }
 
     private fun handleAutoRenameFlow() {
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastAutoPilotActionTime < 350) return
         val root = rootInActiveWindow ?: return
         val pkg = root.packageName?.toString() ?: ""
         if (!pkg.contains("settings", ignoreCase = true)) return
 
         val targetName = targetRenameName ?: return
+        val now = SystemClock.elapsedRealtime()
 
         // 0. Check if device is ALREADY renamed
         val currentSysName = try {
             Settings.Global.getString(contentResolver, "device_name")
         } catch (_: Exception) { null }
-        if (currentSysName?.trim() == targetName.trim()) {
+        if (currentSysName?.trim().equals(targetName.trim(), ignoreCase = true)) {
             Log.i(TAG, "🎉 [AutoRename] Device already renamed to: $currentSysName. Done!")
             isRenamingActive = false
-            mainHandler.postDelayed({ bringAppToFront() }, 200)
+            mainHandler.postDelayed({ bringAppToFront() }, 2000)
             return
         }
+
+        // 1. Check if we are still within the 1-minute (60s) manual window
+        // Gives user/technician full time to select or type manually with remote
+        val elapsed = now - renameLaunchTime
+        if (elapsed < MANUAL_WINDOW_MS) {
+            if (now - lastAutoPilotActionTime > 8000) {
+                lastAutoPilotActionTime = now
+                val remainingSec = ((MANUAL_WINDOW_MS - elapsed) / 1000).toInt()
+                Log.i(TAG, "⏳ [AutoRename] Manual window active: $remainingSec seconds remaining for user remote action before automated rename.")
+            }
+            return
+        }
+
+        // 2. 60 seconds elapsed and device name is NOT yet renamed: Automated fallback kicks in
+        if (now - lastAutoPilotActionTime < 1000) return
 
         // Case 1: Check for EditText FIRST (Screen 3: Custom name input)
         // If EditText is present, do NOT check presets or click anything else!
@@ -396,14 +420,12 @@ class TvButtonAccessibilityService : AccessibilityService() {
                 isRenameEditTextSubmitted = true
                 mainHandler.postDelayed({
                     submitDeviceName(editNode)
-                }, 300)
+                }, 500)
             }
             return
         }
 
-        // Case 2: Check for Direct Suggested Target Name or Room in Actions (User screenshot case!)
-        // In Android TV: If Option 1 is the suggested name (e.g. "Panasonic 4ktv 0su (Room 112)"),
-        // clicking it immediately saves that name without typing!
+        // Case 2: Check for Direct Suggested Target Name in Actions
         val exactNodes = root.findAccessibilityNodeInfosByText(targetName)
         for (node in exactNodes) {
             if (node.className?.toString()?.contains("EditText", ignoreCase = true) == true) continue
@@ -417,59 +439,7 @@ class TvButtonAccessibilityService : AccessibilityService() {
             }
         }
 
-        val roomPart = if (targetName.contains("Room", ignoreCase = true)) {
-            "Room " + targetName.substringAfter("Room").replace(")", "").trim()
-        } else null
-
-        if (roomPart != null) {
-            val roomNodes = root.findAccessibilityNodeInfosByText(roomPart)
-            for (node in roomNodes) {
-                if (node.className?.toString()?.contains("EditText", ignoreCase = true) == true) continue
-                val text = node.text?.toString()?.trim() ?: ""
-                if (!text.equals("Don't change", ignoreCase = true) && !text.equals("Cancel", ignoreCase = true)) {
-                    lastAutoPilotActionTime = now
-                    clickNode(node)
-                    Log.i(TAG, "🤖 [AutoRename] Clicked room-matched option: '$text'")
-                    finishAutoRenameAfterClick()
-                    return
-                }
-            }
-        }
-
-        val allActionTitles = mutableListOf<AccessibilityNodeInfo>()
-        findNodesMatching(root, allActionTitles) { n ->
-            val id = n.viewIdResourceName?.lowercase() ?: ""
-            id.contains("guidedactions_item_title") || id.contains("title")
-        }
-        for (item in allActionTitles) {
-            if (item.className?.toString()?.contains("EditText", ignoreCase = true) == true) continue
-            val text = item.text?.toString()?.trim() ?: ""
-            if (text.isNotBlank() && !text.equals("Don't change", ignoreCase = true) && !text.equals("Cancel", ignoreCase = true)) {
-                val matches = text.equals(targetName, ignoreCase = true) ||
-                        (roomPart != null && text.contains(roomPart, ignoreCase = true))
-                if (matches) {
-                    lastAutoPilotActionTime = now
-                    clickNode(item)
-                    Log.i(TAG, "🤖 [AutoRename] Clicked action item matching target: '$text'")
-                    finishAutoRenameAfterClick()
-                    return
-                }
-            }
-        }
-
-        // Case 3: Check for "Change" action (Screen 1)
-        val changeNodes = root.findAccessibilityNodeInfosByText("Change")
-        for (node in changeNodes) {
-            val text = node.text?.toString()?.trim() ?: ""
-            if (text.equals("Change", ignoreCase = true)) {
-                lastAutoPilotActionTime = now
-                clickNode(node)
-                Log.i(TAG, "🤖 [AutoRename] Step 1: Clicked 'Change'")
-                return
-            }
-        }
-
-        // Case 4: Check for "Enter custom name…" / "custom" (Screen 2: When target not in presets)
+        // Case 3: Check for "Enter custom name…" / "custom" (Screen 2: When target not in presets)
         val customNodes = root.findAccessibilityNodeInfosByText("custom")
         if (customNodes.isNotEmpty()) {
             for (node in customNodes) {
@@ -482,6 +452,19 @@ class TvButtonAccessibilityService : AccessibilityService() {
                 }
             }
         }
+
+        // Case 4: Check for "Change" action (Screen 1)
+        val changeNodes = root.findAccessibilityNodeInfosByText("Change")
+        for (node in changeNodes) {
+            val text = node.text?.toString()?.trim() ?: ""
+            if (text.equals("Change", ignoreCase = true)) {
+                lastAutoPilotActionTime = now
+                clickNode(node)
+                Log.i(TAG, "🤖 [AutoRename] Step 1: Clicked 'Change'")
+                return
+            }
+        }
+
         val listNodes = mutableListOf<AccessibilityNodeInfo>()
         findNodesMatching(root, listNodes) { it.isScrollable }
         for (list in listNodes) {
@@ -561,11 +544,11 @@ class TvButtonAccessibilityService : AccessibilityService() {
             val updated = try {
                 Settings.Global.getString(contentResolver, "device_name")
             } catch (_: Exception) { null }
-            Log.i(TAG, "🤖 [AutoRename] Result: Settings.Global device_name = $updated")
+            Log.i(TAG, "🤖 [AutoRename] Result after submit: Settings.Global device_name = $updated")
             isRenamingActive = false
             isRenameEditTextSubmitted = false
-            bringAppToFront()
-        }, 1200)
+            mainHandler.postDelayed({ bringAppToFront() }, 2000)
+        }, 1500)
     }
 
     private fun clickNode(node: AccessibilityNodeInfo?): Boolean {

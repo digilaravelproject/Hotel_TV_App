@@ -17,6 +17,7 @@ class ManualModeWidget extends StatelessWidget {
   final FocusNode submitFocus;
   final FocusNode manualTabFocus;
   final VoidCallback onSaveAndStart;
+  final bool isLoading;
 
   const ManualModeWidget({
     Key? key,
@@ -28,6 +29,7 @@ class ManualModeWidget extends StatelessWidget {
     required this.submitFocus,
     required this.manualTabFocus,
     required this.onSaveAndStart,
+    this.isLoading = false,
   }) : super(key: key);
 
   Widget _buildStepBadge(String text) {
@@ -259,7 +261,11 @@ class ManualModeWidget extends StatelessWidget {
                         textStyle: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
                         hintStyle: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 15.5),
                         textInputAction: TextInputAction.done,
-                        onFieldSubmitted: (_) => submitFocus.requestFocus(),
+                        onFieldSubmitted: (_) {
+                          if (!isLoading) {
+                            submitFocus.requestFocus();
+                          }
+                        },
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return AppText.requiredFieldValidation;
@@ -269,14 +275,15 @@ class ManualModeWidget extends StatelessWidget {
                       ),
                       UiSpacer.vSpace(18),
 
-                      // Confirm button
+                      // Confirm button with small round spinner & double-click disable
                       SizedBox(
                         width: double.infinity,
                         height: 50,
                         child: TvFocusable(
                           focusNode: submitFocus,
-                          scaleFactor: 1.03,
+                          scaleFactor: isLoading ? 1.0 : 1.03,
                           onKeyEvent: (node, event) {
+                            if (isLoading) return KeyEventResult.handled;
                             if (event is KeyDownEvent) {
                               if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
                                 roomNoFocus.requestFocus();
@@ -285,13 +292,13 @@ class ManualModeWidget extends StatelessWidget {
                             }
                             return KeyEventResult.ignored;
                           },
-                          onTap: onSaveAndStart,
+                          onTap: isLoading ? () {} : onSaveAndStart,
                           child: Container(
                             height: 50,
                             width: double.infinity,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: isLoading ? Colors.white.withOpacity(0.8) : Colors.white,
                               borderRadius: BorderRadius.circular(14),
                               boxShadow: [
                                 BoxShadow(
@@ -301,12 +308,21 @@ class ManualModeWidget extends StatelessWidget {
                                 ),
                               ],
                             ),
-                            child: const CustomAppText(
-                              'Confirm',
-                              color: Colors.black,
-                              fontSize: 16.5,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            child: isLoading
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                                    ),
+                                  )
+                                : const CustomAppText(
+                                    'Confirm',
+                                    color: Colors.black,
+                                    fontSize: 16.5,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                           ),
                         ),
                       ),

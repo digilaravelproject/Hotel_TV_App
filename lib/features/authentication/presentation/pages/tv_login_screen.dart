@@ -40,6 +40,7 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   late final TextEditingController roomNoController;
   bool _isLoading = false;
   bool _isDemoLoading = false;
+  int _lastLoginTriggerTime = 0;
 
   late final FocusNode qrTabFocus;
   late final FocusNode manualTabFocus;
@@ -483,6 +484,13 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
       }
     } catch (e) {
       Logger.e('Error handling login success: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isDemoLoading = false;
+        });
+        CustomSnackbar.showError(message: 'Error processing login response: $e');
+      }
     }
   }
 
@@ -512,10 +520,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
         ApiConstants.demoLoginUri,
         data: requestData,
       );
-
-      setState(() {
-        _isDemoLoading = false;
-      });
 
       if (response.data != null && response.data is Map && response.data['status'] == true) {
         _stopPairingTimers();
@@ -547,6 +551,11 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
           );
         }
       } else {
+        if (mounted) {
+          setState(() {
+            _isDemoLoading = false;
+          });
+        }
         String msg = 'Failed to activate demo mode';
         if (response.data is Map) {
           msg = response.data['message']?.toString() ?? response.data['msg']?.toString() ?? msg;
@@ -1012,8 +1021,9 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
                                 roomNoFocus: roomNoFocus,
                                 submitFocus: submitFocus,
                                 manualTabFocus: manualTabFocus,
+                                isLoading: _isLoading,
                                 onSaveAndStart: () {
-                                  if (formKey.currentState!.validate()) {
+                                  if (!_isLoading && formKey.currentState!.validate()) {
                                     _performRegistration(
                                       context,
                                       licenseKeyController.text,
@@ -1088,8 +1098,8 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
               ),
             ),
 
-            // Loading Overlay
-            if (_isLoading)
+            // Loading Overlay (Only for non-manual tabs e.g. QR or EMM; manual tab uses in-button spinner)
+            if (_isLoading && selectedTabNotifier.value != TvLoginTab.manual)
               Positioned.fill(
                 child: Container(
                   color: Colors.black.withOpacity(0.75),
@@ -1107,6 +1117,12 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
   }
 
   void _performRegistration(BuildContext context, String licenseKey, String roomNo) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_isLoading || (now - _lastLoginTriggerTime < 2500)) {
+      Logger.w('Registration ignored: already in progress or debounced (<2.5s).');
+      return;
+    }
+    _lastLoginTriggerTime = now;
     Logger.i('Registration triggered for License: $licenseKey, Room: $roomNo');
 
     setState(() {
@@ -1116,8 +1132,8 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
     try {
       final info = await DeviceInfoService.getFullDeviceInfo(forceRefresh: true);
       final Map<String, dynamic> requestData = {
-        'license_key': licenseKey,
-        'room_no': roomNo,
+        'license_key': licenseKey.trim(),
+        'room_no': roomNo.trim(),
         'deviceId': info['deviceId'] ?? '',
         'macAddress': info['macAddress'] ?? '',
         'ipAddress': info['ipAddress'] ?? '',
@@ -1132,14 +1148,16 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
         data: requestData,
       );
 
-      setState(() {
-        _isLoading = false;
-      });
-
       if (response.data != null && response.data is Map && response.data['status'] == true) {
         _stopPairingTimers();
+        // Keep _isLoading = true so the button stays disabled & spinner shows until navigation completes!
         await _handleLoginSuccess(response.data);
       } else {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
         String msg = 'Failed to register TV';
         if (response.data != null) {
           if (response.data is Map) {
@@ -1151,9 +1169,11 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
         CustomSnackbar.showError(message: msg);
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
 
       String errorMsg = 'Failed to register TV';
       if (e is DioException) {
@@ -1168,6 +1188,8 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
         } else if (e.message != null) {
           errorMsg = e.message!;
         }
+      } else {
+        errorMsg = e.toString();
       }
       CustomSnackbar.showError(message: '$errorMsg ($e)');
     }
