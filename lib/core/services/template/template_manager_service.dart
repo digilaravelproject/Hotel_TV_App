@@ -667,6 +667,12 @@ class TemplateManagerService {
         }
       }
 
+      final checkIndex = File(p.join(targetDirToMove.path, 'index.html'));
+      if (!checkIndex.existsSync() || checkIndex.lengthSync() == 0) {
+        Logger.e('[TemplateManager] Extracted zip did not produce a valid index.html! Aborting swap.');
+        return;
+      }
+
       final finalTemplateDir = await getTemplateDirectory();
 
       // Preserve offline media cache across template updates.
@@ -791,12 +797,13 @@ class TemplateManagerService {
 
 
   /// Downloads and extracts the template using details saved in local storage (e.g. after login)
-  static Future<void> downloadTemplateFromSavedData({Function(double)? onProgress}) async {
+  /// Returns true if index.html exists and is valid after download/extraction.
+  static Future<bool> downloadTemplateFromSavedData({Function(double)? onProgress}) async {
     try {
       final loginData = SharedPrefs.getString(AppConstants.tvLoginDataKey);
       if (loginData == null || loginData.isEmpty) {
         Logger.w('[TemplateManager] No login data found to download template.');
-        return;
+        return false;
       }
 
       dynamic decoded = jsonDecode(loginData);
@@ -814,12 +821,14 @@ class TemplateManagerService {
 
       if (latestVersion == null || downloadUrl == null || downloadUrl.isEmpty) {
         Logger.w('[TemplateManager] Template version or download URL not found in login data.');
-        return;
+        return false;
       }
 
       await _downloadAndExtractTemplate(downloadUrl, latestVersion, onProgress: onProgress);
+      return await isTemplateDownloaded();
     } catch (e) {
       Logger.e('[TemplateManager] Error downloading template from saved data: $e');
+      return false;
     }
   }
 }

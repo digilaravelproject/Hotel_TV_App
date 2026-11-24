@@ -204,6 +204,17 @@ class DeviceInfoService {
     return _cachedDeviceInfo!;
   }
 
+  /// Checks if the app is provisioned as Device Owner
+  static Future<bool> isDeviceOwner() async {
+    try {
+      if (Platform.isAndroid) {
+        final result = await _channel.invokeMethod<bool>('isDeviceOwner');
+        return result ?? false;
+      }
+    } catch (_) {}
+    return false;
+  }
+
   /// Sets the Android device's display name (shown on mobile during casting / Screen Mirroring)
   /// Format should be "TV Name (Room No)" — e.g. "Taj TV (Room 106)"
   static Future<bool> setDeviceName(String name) async {

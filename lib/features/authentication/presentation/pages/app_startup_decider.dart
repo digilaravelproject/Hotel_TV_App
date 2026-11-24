@@ -89,33 +89,37 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
 
   Future<void> _proceedToTemplateFlow() async {
     try {
-      final isDownloaded = await TemplateManagerService.isTemplateDownloaded();
-      if (isDownloaded) {
-        // Android device name set karo (mobile cast list mein dikhne ke liye)
-        _applyTvDeviceName();
-        _navigateToWebview();
-        return;
-      }
-
-      if (mounted) {
-        setState(() {
-          _statusMessage = 'Downloading template...';
-        });
-      }
-
-      await TemplateManagerService.downloadTemplateFromSavedData(
-        onProgress: (progress) {
+      bool isDownloaded = await TemplateManagerService.isTemplateDownloaded();
+      if (!isDownloaded) {
+        // Try up to 3 times with backoff (gives TV Wi-Fi time to connect on boot / fresh launch)
+        for (int attempt = 1; attempt <= 3; attempt++) {
           if (!mounted) return;
           setState(() {
-            _statusMessage =
-                'Installing: ${(progress * 100).toStringAsFixed(0)}%';
+            _statusMessage = attempt == 1
+                ? 'Downloading template...'
+                : 'Connecting & downloading template (Attempt $attempt/3)...';
           });
-        },
-      );
 
-      if (!mounted) return;
-      final finalDownloaded = await TemplateManagerService.isTemplateDownloaded();
-      if (finalDownloaded) {
+          await TemplateManagerService.downloadTemplateFromSavedData(
+            onProgress: (progress) {
+              if (!mounted) return;
+              setState(() {
+                _statusMessage =
+                    'Installing: ${(progress * 100).toStringAsFixed(0)}%';
+              });
+            },
+          );
+
+          isDownloaded = await TemplateManagerService.isTemplateDownloaded();
+          if (isDownloaded) break;
+
+          if (attempt < 3) {
+            await Future.delayed(const Duration(seconds: 2));
+          }
+        }
+      }
+
+      if (isDownloaded) {
         _applyTvDeviceName();
         _navigateToWebview();
       } else {

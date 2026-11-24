@@ -378,60 +378,8 @@ class TvButtonAccessibilityService : AccessibilityService() {
             return
         }
 
-        // Case 1: Check for Direct Suggested Target Name or Room in Actions (User screenshot case!)
-        // In Android TV: If Option 1 is the suggested name (e.g. "Panasonic 4ktv 0su (Room 112)"),
-        // clicking it immediately saves that name without typing!
-        val exactNodes = root.findAccessibilityNodeInfosByText(targetName)
-        for (node in exactNodes) {
-            val text = node.text?.toString()?.trim() ?: ""
-            if (text.equals(targetName, ignoreCase = true)) {
-                lastAutoPilotActionTime = now
-                clickNode(node)
-                Log.i(TAG, "🤖 [AutoRename] Clicked exact matching name: '$text'")
-                finishAutoRenameAfterClick()
-                return
-            }
-        }
-
-        val roomPart = if (targetName.contains("Room", ignoreCase = true)) {
-            "Room " + targetName.substringAfter("Room").replace(")", "").trim()
-        } else null
-
-        if (roomPart != null) {
-            val roomNodes = root.findAccessibilityNodeInfosByText(roomPart)
-            for (node in roomNodes) {
-                val text = node.text?.toString()?.trim() ?: ""
-                if (!text.equals("Don't change", ignoreCase = true) && !text.equals("Cancel", ignoreCase = true)) {
-                    lastAutoPilotActionTime = now
-                    clickNode(node)
-                    Log.i(TAG, "🤖 [AutoRename] Clicked room-matched option: '$text'")
-                    finishAutoRenameAfterClick()
-                    return
-                }
-            }
-        }
-
-        val allActionTitles = mutableListOf<AccessibilityNodeInfo>()
-        findNodesMatching(root, allActionTitles) { n ->
-            val id = n.viewIdResourceName?.lowercase() ?: ""
-            id.contains("guidedactions_item_title") || id.contains("title")
-        }
-        for (item in allActionTitles) {
-            val text = item.text?.toString()?.trim() ?: ""
-            if (text.isNotBlank() && !text.equals("Don't change", ignoreCase = true) && !text.equals("Cancel", ignoreCase = true)) {
-                val matches = text.equals(targetName, ignoreCase = true) ||
-                        (roomPart != null && text.contains(roomPart, ignoreCase = true))
-                if (matches) {
-                    lastAutoPilotActionTime = now
-                    clickNode(item)
-                    Log.i(TAG, "🤖 [AutoRename] Clicked action item matching target: '$text'")
-                    finishAutoRenameAfterClick()
-                    return
-                }
-            }
-        }
-
-        // Case 2: Check for EditText (Screen 3: Custom name input)
+        // Case 1: Check for EditText FIRST (Screen 3: Custom name input)
+        // If EditText is present, do NOT check presets or click anything else!
         val editNode = findEditText(root)
         if (editNode != null) {
             if (!isRenameEditTextSubmitted) {
@@ -451,6 +399,62 @@ class TvButtonAccessibilityService : AccessibilityService() {
                 }, 300)
             }
             return
+        }
+
+        // Case 2: Check for Direct Suggested Target Name or Room in Actions (User screenshot case!)
+        // In Android TV: If Option 1 is the suggested name (e.g. "Panasonic 4ktv 0su (Room 112)"),
+        // clicking it immediately saves that name without typing!
+        val exactNodes = root.findAccessibilityNodeInfosByText(targetName)
+        for (node in exactNodes) {
+            if (node.className?.toString()?.contains("EditText", ignoreCase = true) == true) continue
+            val text = node.text?.toString()?.trim() ?: ""
+            if (text.equals(targetName, ignoreCase = true)) {
+                lastAutoPilotActionTime = now
+                clickNode(node)
+                Log.i(TAG, "🤖 [AutoRename] Clicked exact matching name: '$text'")
+                finishAutoRenameAfterClick()
+                return
+            }
+        }
+
+        val roomPart = if (targetName.contains("Room", ignoreCase = true)) {
+            "Room " + targetName.substringAfter("Room").replace(")", "").trim()
+        } else null
+
+        if (roomPart != null) {
+            val roomNodes = root.findAccessibilityNodeInfosByText(roomPart)
+            for (node in roomNodes) {
+                if (node.className?.toString()?.contains("EditText", ignoreCase = true) == true) continue
+                val text = node.text?.toString()?.trim() ?: ""
+                if (!text.equals("Don't change", ignoreCase = true) && !text.equals("Cancel", ignoreCase = true)) {
+                    lastAutoPilotActionTime = now
+                    clickNode(node)
+                    Log.i(TAG, "🤖 [AutoRename] Clicked room-matched option: '$text'")
+                    finishAutoRenameAfterClick()
+                    return
+                }
+            }
+        }
+
+        val allActionTitles = mutableListOf<AccessibilityNodeInfo>()
+        findNodesMatching(root, allActionTitles) { n ->
+            val id = n.viewIdResourceName?.lowercase() ?: ""
+            id.contains("guidedactions_item_title") || id.contains("title")
+        }
+        for (item in allActionTitles) {
+            if (item.className?.toString()?.contains("EditText", ignoreCase = true) == true) continue
+            val text = item.text?.toString()?.trim() ?: ""
+            if (text.isNotBlank() && !text.equals("Don't change", ignoreCase = true) && !text.equals("Cancel", ignoreCase = true)) {
+                val matches = text.equals(targetName, ignoreCase = true) ||
+                        (roomPart != null && text.contains(roomPart, ignoreCase = true))
+                if (matches) {
+                    lastAutoPilotActionTime = now
+                    clickNode(item)
+                    Log.i(TAG, "🤖 [AutoRename] Clicked action item matching target: '$text'")
+                    finishAutoRenameAfterClick()
+                    return
+                }
+            }
         }
 
         // Case 3: Check for "Change" action (Screen 1)
@@ -500,9 +504,10 @@ class TvButtonAccessibilityService : AccessibilityService() {
                         val desc = n.contentDescription?.toString()?.lowercase() ?: ""
                         val text = n.text?.toString()?.lowercase() ?: ""
                         val id = n.viewIdResourceName?.lowercase() ?: ""
+                        if (text.contains("custom") || desc.contains("custom") || id.contains("guidedactions_item_title")) return@findNodesMatching false
                         desc.contains("done") || desc.contains("enter") || desc.contains("go") || desc.contains("ok") ||
-                        text.contains("done") || text.contains("enter") || text.equals("ok") || text.contains("save") ||
-                        id.contains("enter") || id.contains("done") || id.contains("action") || id.contains("ok")
+                        text.contains("done") || text.equals("ok") || text.contains("save") ||
+                        id.contains("enter") || id.contains("done") || id.contains("action_next") || id.contains("ok")
                     }
                     for (dn in doneNodes) {
                         if (clickNode(dn)) {
@@ -526,9 +531,12 @@ class TvButtonAccessibilityService : AccessibilityService() {
                     findNodesMatching(activeRoot, submitButtons) { n ->
                         val text = n.text?.toString()?.trim() ?: ""
                         val desc = n.contentDescription?.toString()?.trim() ?: ""
+                        val id = n.viewIdResourceName?.lowercase() ?: ""
+                        if (text.contains("custom") || desc.contains("custom")) return@findNodesMatching false
                         text.equals("OK", ignoreCase = true) || text.equals("Done", ignoreCase = true) ||
                         text.equals("Save", ignoreCase = true) || text.equals("Next", ignoreCase = true) ||
-                        desc.equals("OK", ignoreCase = true) || desc.equals("Done", ignoreCase = true)
+                        desc.equals("OK", ignoreCase = true) || desc.equals("Done", ignoreCase = true) ||
+                        id.contains("checkmark") || id.contains("confirm")
                     }
                     for (sb in submitButtons) {
                         if (clickNode(sb)) {
@@ -557,7 +565,7 @@ class TvButtonAccessibilityService : AccessibilityService() {
             isRenamingActive = false
             isRenameEditTextSubmitted = false
             bringAppToFront()
-        }, 700)
+        }, 1200)
     }
 
     private fun clickNode(node: AccessibilityNodeInfo?): Boolean {
