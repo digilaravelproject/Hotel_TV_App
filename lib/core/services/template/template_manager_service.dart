@@ -318,27 +318,19 @@ class TemplateManagerService {
               devMap['selectedLiveTvPort'] = savedPort;
             }
 
-            // Inject TV display name = "Device Name (Room No)"
-            // Real device brand + model directly use karo — static maps nahi
+            // Inject TV display name = "Hotel Name (Room No)"
             final roomNo = devMap['room_no']?.toString() ?? '';
             if (roomNo.isNotEmpty) {
-              // Real device details: brand aur model directly from deviceDetails (Android hardware)
-              final realBrand = deviceDetails['brand']?.toString() ?? devMap['brand']?.toString() ?? '';
-              final realModel = deviceDetails['model']?.toString() ?? devMap['model']?.toString() ?? '';
+              String hotelName = '';
+              if (dataMap['hotel'] is Map) {
+                hotelName = dataMap['hotel']['hotel_name']?.toString() ?? '';
+              } else if (dataMap['hotel_name'] != null) {
+                hotelName = dataMap['hotel_name'].toString();
+              }
 
-              // Clean: underscores/hyphens hatao, capitalize karo
-              final cleanBrand = _cleanDeviceWord(realBrand);
-              final cleanModel = _cleanDeviceWord(realModel);
-
-              // Agar brand aur model alag hain to combine karo, warna sirf ek use karo
-              final deviceLabel = (cleanBrand.isNotEmpty && cleanModel.isNotEmpty &&
-                      !cleanModel.toLowerCase().contains(cleanBrand.toLowerCase()))
-                  ? '$cleanBrand $cleanModel'
-                  : (cleanBrand.isNotEmpty ? cleanBrand : cleanModel);
-
-              final targetDisplayName = deviceLabel.isNotEmpty
-                  ? '$deviceLabel (Room $roomNo)'
-                  : 'Room $roomNo';
+              final targetDisplayName = hotelName.isNotEmpty
+                  ? '$hotelName (Room $roomNo)'
+                  : 'Hotel TV (Room $roomNo)';
 
               // 1. Try to set OS device name ONLY on first run or when room number / target name changes!
               final lastRenamed = SharedPrefs.getString('last_renamed_device_name') ?? '';
@@ -350,26 +342,12 @@ class TemplateManagerService {
                 await SharedPrefs.setString('last_configured_room_no', roomNo);
               }
 
-              // 2. Check actual broadcast name from Android TV OS
-              final actualSystemName = await DeviceInfoService.getActualDeviceName();
-              String tvDisplayName = targetDisplayName;
-
-              if (actualSystemName.isNotEmpty) {
-                final cleanActual = _cleanDeviceWord(actualSystemName);
-                if (cleanActual.isNotEmpty &&
-                    !targetDisplayName.toLowerCase().contains(cleanActual.toLowerCase()) &&
-                    !cleanActual.toLowerCase().contains(cleanBrand.toLowerCase())) {
-                  // OS broadcast name is different (e.g. 4KTV-0SU) and locked by system
-                  tvDisplayName = '$cleanActual (Room $roomNo)';
-                }
-              }
-
-              devMap['tv_display_name'] = tvDisplayName;
-              devMap['tvDisplayName'] = tvDisplayName;
-              devMap['tv_name'] = tvDisplayName;
+              devMap['tv_display_name'] = targetDisplayName;
+              devMap['tvDisplayName'] = targetDisplayName;
+              devMap['tv_name'] = targetDisplayName;
               // Persist for native Android device name + JS injection
-              await SharedPrefs.setString('tv_display_name', tvDisplayName);
-              Logger.i('[TemplateManager] tv_display_name → $tvDisplayName (target=$targetDisplayName, actual=$actualSystemName)');
+              await SharedPrefs.setString('tv_display_name', targetDisplayName);
+              Logger.i('[TemplateManager] tv_display_name → $targetDisplayName (room=$roomNo, hotel=$hotelName)');
             }
 
             dataMap['device'] = devMap;

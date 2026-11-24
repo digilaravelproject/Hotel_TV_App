@@ -95,7 +95,7 @@ class FlutterBridgeHandler {
             final pkg = (app['package'] ?? app['packageName'] ?? '').toString();
             final name = (app['name'] ?? app['appName'] ?? '').toString();
             if (pkg.isEmpty) continue;
-            if (pkg == 'com.paxtv.hospitality' || pkg == 'android' || pkg == 'com.android.settings') continue;
+            if (pkg == 'com.paxtv.hospitality' || pkg == 'com.paxtv.hospitality.dishtv' || pkg == 'android' || pkg == 'com.android.settings') continue;
 
             fallbackApps.add({
               'name': name.isNotEmpty ? name : pkg,

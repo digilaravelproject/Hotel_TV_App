@@ -103,6 +103,14 @@ class TvButtonAccessibilityService : AccessibilityService() {
         "com.sony.dtv.settings"
     )
 
+    private fun isSettingsPackage(pkgName: String?): Boolean {
+        if (pkgName.isNullOrBlank()) return false
+        val p = pkgName.lowercase()
+        return ignoredSettingsPackages.contains(p) ||
+               p.endsWith(".settings") ||
+               p.contains(".settings.")
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         serviceInstance = this
@@ -140,14 +148,9 @@ class TvButtonAccessibilityService : AccessibilityService() {
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val packageName = pkg ?: return
 
-            // If renaming is active, give it priority
-            if (isRenamingActive && packageName == "com.android.tv.settings") {
-                handleAutoRenameFlow()
-                return
-            }
-
             // If the package is our own app, do nothing (or reset rename session if user manually returned)
             if (packageName == applicationContext.packageName) {
+                ExternalLaunchTracker.onReturnedToApp()
                 if (isRenamingActive && (SystemClock.elapsedRealtime() - renameLaunchTime > 2500)) {
                     Log.i(TAG, "User navigated back to Hotel TV App. Deactivating rename session.")
                     isRenamingActive = false
@@ -155,13 +158,28 @@ class TvButtonAccessibilityService : AccessibilityService() {
                 return
             }
 
-            // If user or app intentionally opened an external activity (Settings, Wi-Fi, Cast, HDMI), do NOT auto-relaunch
-            if (ExternalLaunchTracker.isRecentlyLaunchedExternal()) {
-                Log.d(TAG, "Ignoring window change ($packageName) because external activity was launched recently.")
+            // If renaming is active, give it priority
+            if (isRenamingActive && isSettingsPackage(packageName)) {
+                handleAutoRenameFlow()
                 return
             }
 
-            // Check if the foreground window belongs to a system Home Launcher
+            // 1. Authorized external activity check:
+            // If user or app intentionally opened an external activity (Settings, Wi-Fi, Cast, HDMI), do NOT auto-relaunch
+            if (ExternalLaunchTracker.isAuthorizedSettingsOpen || ExternalLaunchTracker.isRecentlyLaunchedExternal()) {
+                Log.d(TAG, "Ignoring window change ($packageName) because external activity was authorized by Hotel TV app.")
+                return
+            }
+
+            // 2. Unauthorized Settings backdoor check (e.g. Google Assistant voice command "Open Settings"):
+            // If a settings window opens but ExternalLaunchTracker is NOT active, dismiss it immediately!
+            if (isSettingsPackage(packageName)) {
+                Log.w(TAG, "🚨 [Backdoor Block] Unauthorized Settings opened ($packageName) via Google Assistant/voice. Dismissing and returning to Hotel TV!")
+                bringAppToFront()
+                return
+            }
+
+            // 3. Check if the foreground window belongs to a system Home Launcher
             if (isSystemLauncherPackage(packageName)) {
                 // If guest is intentionally watching Live TV on DishTV launcher, do NOT kick them out!
                 if (isWatchingLiveTv && packageName == "com.nes.hometv.dish") {
@@ -340,6 +358,9 @@ class TvButtonAccessibilityService : AccessibilityService() {
             KeyEvent.KEYCODE_ALL_APPS, 284,   // All Apps Menu
             KeyEvent.KEYCODE_APP_SWITCH, 187, // Recent Apps
             KeyEvent.KEYCODE_TV_INPUT, 178,   // Source / Input
+            KeyEvent.KEYCODE_VOICE_ASSIST, 231, // Google Assistant / Mic Key
+            KeyEvent.KEYCODE_ASSIST, 219,       // Assistant Key
+            KeyEvent.KEYCODE_SEARCH, 84,        // Search Key
             183, 184, 185, 186,               // Colored keys (Red, Green, Yellow, Blue)
             5103, 5104, 5113, 5115, 5116, 5117, 5118, 5119, 5120, 5121, 5122, 5123, 5124, 5125, 5126, 5128, 5129, 5130, 5131 -> true
             else -> false
@@ -573,20 +594,22 @@ class TvButtonAccessibilityService : AccessibilityService() {
 
     private fun clickNode(node: AccessibilityNodeInfo?): Boolean {
         if (node == null) return false
+        val rect = Rect()
+        node.getBoundsInScreen(rect)
+        var clicked = false
         var current: AccessibilityNodeInfo? = node
         while (current != null) {
             if (current.isClickable) {
-                return current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                clicked = current.performAction(AccessibilityNodeInfo.ACTION_CLICK) || clicked
+                current.performAction(AccessibilityNodeInfo.ACTION_SELECT)
             }
             current = current.parent
         }
-        val rect = Rect()
-        node.getBoundsInScreen(rect)
-        if (!rect.isEmpty) {
+        if (!rect.isEmpty && rect.centerX() > 0 && rect.centerY() > 0) {
             dispatchTap(rect.centerX().toFloat(), rect.centerY().toFloat())
             return true
         }
-        return false
+        return clicked
     }
 
     fun dispatchTap(x: Float, y: Float, onComplete: (() -> Unit)? = null) {

@@ -309,6 +309,7 @@ class MainActivity : FlutterActivity() {
      */
     override fun onResume() {
         super.onResume()
+        ExternalLaunchTracker.onReturnedToApp()
         try {
             if (!isDemoMode() && !ExternalLaunchTracker.isRecentlyLaunchedExternal()) {
                 val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
@@ -350,6 +351,7 @@ class MainActivity : FlutterActivity() {
 
     private fun prepareForExternalLaunch(timeoutMs: Long = 8000L) {
         ExternalLaunchTracker.notifyExternalLaunch(timeoutMs)
+        ExternalLaunchTracker.isAuthorizedSettingsOpen = true
         try {
             stopLockTask()
         } catch (_: Exception) {}
@@ -365,12 +367,14 @@ class MainActivity : FlutterActivity() {
 
     fun launchDishTvLive(): Boolean {
         prepareForExternalLaunch(30000L)
+        TvButtonAccessibilityService.isWatchingLiveTv = true
         return try {
-            val intent = packageManager.getLaunchIntentForPackage("com.nes.hometv.dish")
-                ?: Intent().apply {
-                    component = ComponentName("com.nes.hometv.dish", "com.nes.hometv.activity.MainActivity")
-                }
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            val intent = Intent("com.nes.hometv.MAIN_ACTION").apply {
+                component = ComponentName("com.nes.hometv.dish", "com.nes.hometv.activity.MainActivity")
+                putExtra("key_init_open_main_tab_index", "2")
+                putExtra("key_init_event_type", 0)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            }
             startActivity(intent)
 
             TvButtonAccessibilityService.serviceInstance?.triggerDishTvLiveSwitch()
@@ -1511,6 +1515,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun openSettings(): Boolean {
+        ExternalLaunchTracker.notifyAuthorizedSettingsLaunch()
         prepareForExternalLaunch()
         val tvSettingIntents = listOf(
             Intent(android.provider.Settings.ACTION_SETTINGS),
@@ -1602,6 +1607,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun openWifiSettings(): Boolean {
+        ExternalLaunchTracker.notifyAuthorizedSettingsLaunch()
         prepareForExternalLaunch()
         val pm = packageManager
         val intentsToTry = listOf(
