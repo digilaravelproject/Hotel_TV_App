@@ -824,8 +824,13 @@ class MainActivity : FlutterActivity() {
         // trigger the Accessibility Auto-Pilot flow so the APK automates the system renaming!
         if (!globalSet) {
             val currentActual = getActualDeviceName()
-            if (currentActual != name) {
-                TvButtonAccessibilityService.autoRenameDevice(applicationContext, name)
+            if (currentActual != name && !TvButtonAccessibilityService.isRenamingActive) {
+                if (isAccessibilityServiceEnabled()) {
+                    TvButtonAccessibilityService.autoRenameDevice(applicationContext, name)
+                } else {
+                    android.util.Log.i("HotelTV", "Accessibility not enabled yet; will auto-rename once enabled.")
+                    TvButtonAccessibilityService.targetRenameName = name
+                }
             }
         }
 

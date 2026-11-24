@@ -340,8 +340,15 @@ class TemplateManagerService {
                   ? '$deviceLabel (Room $roomNo)'
                   : 'Room $roomNo';
 
-              // 1. Try to set OS device name
-              await DeviceInfoService.setDeviceName(targetDisplayName);
+              // 1. Try to set OS device name ONLY on first run or when room number / target name changes!
+              final lastRenamed = SharedPrefs.getString('last_renamed_device_name') ?? '';
+              final lastRoom = SharedPrefs.getString('last_configured_room_no') ?? '';
+              if (lastRenamed != targetDisplayName || lastRoom != roomNo) {
+                Logger.i('[TemplateManager] Room or target name changed ($lastRoom → $roomNo). Updating TV device name to: $targetDisplayName');
+                await DeviceInfoService.setDeviceName(targetDisplayName);
+                await SharedPrefs.setString('last_renamed_device_name', targetDisplayName);
+                await SharedPrefs.setString('last_configured_room_no', roomNo);
+              }
 
               // 2. Check actual broadcast name from Android TV OS
               final actualSystemName = await DeviceInfoService.getActualDeviceName();

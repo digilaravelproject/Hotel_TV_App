@@ -133,8 +133,10 @@ class _AppStartupDeciderState extends State<AppStartupDecider> {
   /// Android device name set karta hai jo mobile cast list mein dikhta hai
   void _applyTvDeviceName() {
     final tvDisplayName = SharedPrefs.getString('tv_display_name') ?? '';
-    if (tvDisplayName.isNotEmpty) {
+    final lastRenamed = SharedPrefs.getString('last_renamed_device_name') ?? '';
+    if (tvDisplayName.isNotEmpty && tvDisplayName != lastRenamed) {
       DeviceInfoService.setDeviceName(tvDisplayName);
+      SharedPrefs.setString('last_renamed_device_name', tvDisplayName);
     }
   }
 

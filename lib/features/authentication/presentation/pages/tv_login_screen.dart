@@ -474,10 +474,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
       }
 
       await TemplateManagerService.regenerateDataJson();
-      final savedName = SharedPrefs.getString('tv_display_name') ?? '';
-      if (savedName.isNotEmpty) {
-        DeviceInfoService.setDeviceName(savedName);
-      }
 
       if (mounted) {
         Navigator.pushReplacement(
@@ -543,10 +539,6 @@ class _TvLoginScreenState extends State<TvLoginScreen> {
 
         await SharedPrefs.setString(AppConstants.tvLoginDataKey, jsonEncode(response.data));
         await TemplateManagerService.regenerateDataJson();
-      final savedName = SharedPrefs.getString('tv_display_name') ?? '';
-      if (savedName.isNotEmpty) {
-        DeviceInfoService.setDeviceName(savedName);
-      }
 
         if (mounted) {
           Navigator.pushReplacement(
