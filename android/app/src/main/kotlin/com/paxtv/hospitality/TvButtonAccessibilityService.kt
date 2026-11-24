@@ -96,9 +96,13 @@ class TvButtonAccessibilityService : AccessibilityService() {
         Log.i(TAG, "✅ TvButtonAccessibilityService connected and ready")
         targetRenameName?.let { name ->
             val cur = try { Settings.Global.getString(contentResolver, "device_name") } catch (_: Exception) { null }
-            if (cur != name) {
+            val prefs = getSharedPreferences("hotel_tv_device_prefs", Context.MODE_PRIVATE)
+            val lastAttempted = prefs.getString("last_attempted_rename_target", "") ?: ""
+            if (cur != name && lastAttempted != name) {
+                prefs.edit().putString("last_attempted_rename_target", name).apply()
                 autoRenameDevice(applicationContext, name)
             }
+            targetRenameName = null
         }
     }
 

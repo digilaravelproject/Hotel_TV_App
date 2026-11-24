@@ -485,6 +485,10 @@ class MainActivity : FlutterActivity() {
                 "getActualDeviceName" -> {
                     result.success(getActualDeviceName())
                 }
+                "isDeviceOwner" -> {
+                    val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+                    result.success(dpm?.isDeviceOwnerApp(packageName) == true)
+                }
                 else -> {
                     result.notImplemented()
                 }
@@ -841,14 +845,22 @@ class MainActivity : FlutterActivity() {
 
         // If direct Settings.Global failed (e.g. unrooted TV without ADB permission),
         // trigger the Accessibility Auto-Pilot flow so the APK automates the system renaming!
+        // STRICT RULE: Only attempt ONCE per target name! NEVER repeat in periodic sync/timer loops!
         if (!globalSet) {
             val currentActual = getActualDeviceName()
             if (currentActual != name && !TvButtonAccessibilityService.isRenamingActive) {
-                if (isAccessibilityServiceEnabled()) {
-                    TvButtonAccessibilityService.autoRenameDevice(applicationContext, name)
+                val prefs = getSharedPreferences("hotel_tv_device_prefs", Context.MODE_PRIVATE)
+                val lastAttempted = prefs.getString("last_attempted_rename_target", "") ?: ""
+                if (lastAttempted != name) {
+                    if (isAccessibilityServiceEnabled()) {
+                        prefs.edit().putString("last_attempted_rename_target", name).apply()
+                        TvButtonAccessibilityService.autoRenameDevice(applicationContext, name)
+                    } else {
+                        android.util.Log.i("HotelTV", "Accessibility not enabled yet; will auto-rename once enabled.")
+                        TvButtonAccessibilityService.targetRenameName = name
+                    }
                 } else {
-                    android.util.Log.i("HotelTV", "Accessibility not enabled yet; will auto-rename once enabled.")
-                    TvButtonAccessibilityService.targetRenameName = name
+                    android.util.Log.d("HotelTV", "Auto-rename already attempted once for target '$name'. Skipping repeated popup.")
                 }
             }
         }
@@ -872,9 +884,10 @@ class MainActivity : FlutterActivity() {
             try {
                 val suCheck = runShellCommand("which su")
                 if (suCheck.contains("su")) {
-                    runShellCommand("su -c settings put global device_name \"$name\"")
-                    runShellCommand("su -c settings put secure bluetooth_name \"$name\"")
-                    runShellCommand("su -c setprop net.hostname \"$name\"")
+                    val safeName = name.replace("'", "'\\''")
+                    runShellCommand("su -c \"settings put global device_name '$safeName'\"")
+                    runShellCommand("su -c \"settings put secure bluetooth_name '$safeName'\"")
+                    runShellCommand("su -c \"setprop net.hostname '$safeName'\"")
                 }
             } catch (_: Exception) {}
         }.start()
