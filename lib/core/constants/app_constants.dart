@@ -12,8 +12,8 @@ class AppConstants {
   // Feature Flags
   static const bool showUsePhoneTab = false;
 
-  // Screensaver / Lockscreen Inactivity Timeout
-  static const Duration screensaverInactivityDuration = Duration(minutes: 30);
+  // Screensaver / Lockscreen Inactivity Timeout (40 Minutes)
+  static const Duration screensaverInactivityDuration = Duration(minutes: 40);
 
   static String getQrUrl([String? pairCode]) {
     if (pairCode != null && pairCode.isNotEmpty) {

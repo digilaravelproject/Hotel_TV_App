@@ -566,6 +566,25 @@ class MainActivity : FlutterActivity() {
                     isDemoModeInMemory = enabled
                     result.success(true)
                 }
+                "isMediaOrCastActive" -> {
+                    var isActive = false
+                    try {
+                        val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                        if (audioManager?.isMusicActive == true) {
+                            isActive = true
+                        }
+                    } catch (_: Exception) {}
+                    try {
+                        val fgPkg = TvButtonAccessibilityService.currentForegroundPackage?.lowercase() ?: ""
+                        if (fgPkg.contains("cast") || fgPkg.contains("mediashell") || 
+                            fgPkg.contains("miracast") || fgPkg.contains("youtube") || 
+                            fgPkg.contains("airscreen") || fgPkg.contains("screencast") || 
+                            fgPkg.contains("airplay")) {
+                            isActive = true
+                        }
+                    } catch (_: Exception) {}
+                    result.success(isActive)
+                }
                 else -> {
                     result.notImplemented()
                 }
