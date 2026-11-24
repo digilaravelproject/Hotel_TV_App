@@ -6,14 +6,15 @@ object ExternalLaunchTracker {
     @Volatile
     var lastExternalLaunchTime: Long = 0
 
-    fun notifyExternalLaunch() {
+    @Volatile
+    var currentTimeoutMs: Long = 8000L
+
+    fun notifyExternalLaunch(timeoutMs: Long = 8000L) {
         lastExternalLaunchTime = SystemClock.elapsedRealtime()
+        currentTimeoutMs = timeoutMs
     }
 
     fun isRecentlyLaunchedExternal(): Boolean {
-        // Increased timeout to 8 seconds.
-        // Some TVs (like Skyworth/MediaTek) take 3-5 seconds to detect HDMI signal.
-        // If we re-lock too early, it might pull the app back to foreground.
-        return (SystemClock.elapsedRealtime() - lastExternalLaunchTime) < 8000
+        return (SystemClock.elapsedRealtime() - lastExternalLaunchTime) < currentTimeoutMs
     }
 }
