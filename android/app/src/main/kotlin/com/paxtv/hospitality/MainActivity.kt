@@ -906,10 +906,6 @@ class MainActivity : FlutterActivity() {
         return success
     }
 
-        return success
-    }
-
-
     private fun getAndroidId(): String {
         return try {
             android.provider.Settings.Secure.getString(
